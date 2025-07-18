@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 
 interface Producto {
+  id?: number;
   nombre: string;
   precio?: number;
   precioBs?: string;
@@ -23,6 +24,20 @@ const productos = ref<Producto[]>([])
 const tasaDolar = ref<number>(0)
 const error = ref<string | null>(null)
 const cargando = ref<boolean>(false)
+const nuevoProducto = ref<Producto>({
+  nombre: '',
+  precio: undefined,
+  peso: '',
+  fecha: new Date().toISOString().split('T')[0]
+})
+const mostrarFormulario = ref<boolean>(false)
+
+// Generar ID único
+function generarId() {
+  return productos.value.length > 0
+    ? Math.max(...productos.value.map(p => p.id || 0)) + 1
+    : 1
+}
 
 async function cargarTasaDolar() {
   cargando.value = true
@@ -35,7 +50,6 @@ async function cargarTasaDolar() {
     const data: DolarData[] = await response.json()
     tasaDolar.value = data[0].promedio
 
-    // Actualizar precios en Bs si ya hay productos cargados
     if (productos.value.length) {
       actualizarPreciosBs()
     }
@@ -70,7 +84,10 @@ function cargarArchivo(event: Event) {
       const datos = JSON.parse(resultado)
 
       if (datos.productos && Array.isArray(datos.productos)) {
-        productos.value = datos.productos
+        productos.value = datos.productos.map((p: Producto) => ({
+          ...p,
+          id: p.id || generarId()
+        }))
         if (tasaDolar.value) {
           actualizarPreciosBs()
         }
@@ -87,6 +104,43 @@ function cargarArchivo(event: Event) {
   }
 
   lector.readAsText(archivo)
+}
+
+function agregarProducto() {
+  if (!nuevoProducto.value.nombre) {
+    error.value = 'El nombre del producto es requerido'
+    return
+  }
+
+  const producto: Producto = {
+    id: generarId(),
+    nombre: nuevoProducto.value.nombre,
+    precio: nuevoProducto.value.precio || 0,
+    peso: nuevoProducto.value.peso || '',
+    fecha: nuevoProducto.value.fecha || new Date().toISOString().split('T')[0]
+  }
+
+  if (producto.precio && tasaDolar.value) {
+    producto.precioBs = (producto.precio * tasaDolar.value).toFixed(2)
+  }
+
+  productos.value.push(producto)
+  resetearFormulario()
+}
+
+function resetearFormulario() {
+  nuevoProducto.value = {
+    nombre: '',
+    precio: undefined,
+    peso: '',
+    fecha: new Date().toISOString().split('T')[0]
+  }
+  mostrarFormulario.value = false
+  error.value = null
+}
+
+function eliminarProducto(id: number) {
+  productos.value = productos.value.filter(producto => producto.id !== id)
 }
 
 onMounted(() => {
@@ -110,6 +164,10 @@ onMounted(() => {
           {{ cargando ? 'Actualizando...' : 'Actualizar tasa de dólar' }}
         </button>
 
+        <button @click="mostrarFormulario = true" class="add-button">
+          Agregar Producto
+        </button>
+
         <div v-if="tasaDolar" class="tasa-info">
           Tasa de dólar actual: {{ tasaDolar.toFixed(2) }} Bs
         </div>
@@ -120,9 +178,41 @@ onMounted(() => {
       </div>
 
       <div v-else>
+        <!-- Formulario para agregar nuevo producto -->
+        <div v-if="mostrarFormulario" class="form-container">
+          <h2>Agregar Nuevo Producto</h2>
+          <form @submit.prevent="agregarProducto">
+            <div class="form-group">
+              <label>Nombre:</label>
+              <input v-model="nuevoProducto.nombre" required />
+            </div>
+
+            <div class="form-group">
+              <label>Precio ($):</label>
+              <input v-model.number="nuevoProducto.precio" type="number" step="0.01" />
+            </div>
+
+            <div class="form-group">
+              <label>Peso:</label>
+              <input v-model="nuevoProducto.peso" />
+            </div>
+
+            <div class="form-group">
+              <label>Fecha:</label>
+              <input v-model="nuevoProducto.fecha" type="date" />
+            </div>
+
+            <div class="form-actions">
+              <button type="submit">Guardar</button>
+              <button type="button" @click="resetearFormulario">Cancelar</button>
+            </div>
+          </form>
+        </div>
+
         <table v-if="productos.length" class="product-table">
           <thead>
             <tr>
+              <th>Acciones</th>
               <th>Nombre</th>
               <th>Precio ($)</th>
               <th>Precio (Bs)</th>
@@ -131,7 +221,12 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(producto, index) in productos" :key="index">
+            <tr v-for="producto in productos" :key="producto.id">
+              <td>
+                <button @click="eliminarProducto(producto.id!)" class="delete-button">
+                  Eliminar
+                </button>
+              </td>
               <td>{{ producto.nombre }}</td>
               <td>{{ producto.precio?.toFixed(2) || '-' }}</td>
               <td>{{ producto.precioBs || '-' }}</td>
@@ -142,7 +237,7 @@ onMounted(() => {
         </table>
 
         <p v-else class="empty-message">
-          Selecciona un archivo JSON para ver los productos.
+          No hay productos. Agrega manualmente o carga un archivo JSON.
         </p>
       </div>
     </div>
@@ -161,6 +256,7 @@ onMounted(() => {
   display: flex;
   gap: 15px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .file-input {
@@ -171,7 +267,6 @@ onMounted(() => {
 
 button {
   padding: 8px 16px;
-  background-color: #42b983;
   color: white;
   border: none;
   border-radius: 4px;
@@ -183,9 +278,54 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button:not(:disabled) {
+  background-color: #42b983;
+}
+
+.add-button {
+  background-color: #2196F3;
+}
+
+.delete-button {
+  background-color: #f44336;
+  padding: 5px 10px;
+  font-size: 0.8em;
+}
+
 .tasa-info {
   font-weight: bold;
   color: #2c3e50;
+}
+
+.form-container {
+  margin: 20px 0;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
 }
 
 .product-table {
