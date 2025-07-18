@@ -37,3 +37,9 @@ npm run build
 ```sh
 npm run lint
 ```
+
+```sh
+npm run build
+npx cap copy android
+npx cap open android
+```
