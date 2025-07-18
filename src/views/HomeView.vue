@@ -20,6 +20,9 @@ interface DolarData {
   fechaActualizacion: string;
 }
 
+// Clave para LocalStorage
+const STORAGE_KEY = 'productos-app-data';
+
 const productos = ref<Producto[]>([])
 const tasaDolar = ref<number>(0)
 const error = ref<string | null>(null)
@@ -31,6 +34,30 @@ const nuevoProducto = ref<Producto>({
   fecha: new Date().toISOString().split('T')[0]
 })
 const mostrarFormulario = ref<boolean>(false)
+
+// Cargar datos del LocalStorage al iniciar
+function cargarDesdeLocalStorage() {
+  const datosGuardados = localStorage.getItem(STORAGE_KEY);
+  if (datosGuardados) {
+    try {
+      const datos = JSON.parse(datosGuardados);
+      productos.value = datos.productos || [];
+      tasaDolar.value = datos.tasaDolar || 0;
+    } catch (err) {
+      console.error('Error al cargar datos del LocalStorage:', err);
+    }
+  }
+}
+
+// Guardar datos en LocalStorage
+function guardarEnLocalStorage() {
+  const datosAGuardar = {
+    productos: productos.value,
+    tasaDolar: tasaDolar.value,
+    fechaGuardado: new Date().toISOString()
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(datosAGuardar));
+}
 
 // Generar ID único
 function generarId() {
@@ -55,6 +82,7 @@ async function cargarTasaDolar() {
     }
 
     console.log('Tasa de dólar actualizada:', tasaDolar.value)
+    guardarEnLocalStorage();
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Error desconocido'
     console.error('Error al cargar el precio del dólar:', err)
@@ -69,6 +97,7 @@ function actualizarPreciosBs() {
       producto.precioBs = (producto.precio * tasaDolar.value).toFixed(2)
     }
   })
+  guardarEnLocalStorage();
 }
 
 function cargarArchivo(event: Event) {
@@ -91,6 +120,7 @@ function cargarArchivo(event: Event) {
         if (tasaDolar.value) {
           actualizarPreciosBs()
         }
+        guardarEnLocalStorage();
       } else {
         throw new Error('El archivo JSON no tiene el formato correcto.')
       }
@@ -125,6 +155,7 @@ function agregarProducto() {
   }
 
   productos.value.push(producto)
+  guardarEnLocalStorage();
   resetearFormulario()
 }
 
@@ -141,10 +172,43 @@ function resetearFormulario() {
 
 function eliminarProducto(id: number) {
   productos.value = productos.value.filter(producto => producto.id !== id)
+  guardarEnLocalStorage();
+}
+
+function exportarAJSON() {
+  const datos = {
+    productos: productos.value,
+    tasaDolar: tasaDolar.value,
+    fechaExportacion: new Date().toISOString()
+  };
+
+  const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `productos-${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function limpiarLocalStorage() {
+  if (confirm('¿Estás seguro de que quieres borrar todos los datos guardados?')) {
+    localStorage.removeItem(STORAGE_KEY);
+    productos.value = [];
+    tasaDolar.value = 0;
+  }
 }
 
 onMounted(() => {
-  cargarTasaDolar()
+  cargarDesdeLocalStorage();
+  // Solo cargar tasa de dólar si no tenemos una guardada
+  if (!tasaDolar.value) {
+    cargarTasaDolar();
+  } else if (productos.value.length) {
+    actualizarPreciosBs();
+  }
 })
 </script>
 
@@ -168,8 +232,16 @@ onMounted(() => {
           Agregar Producto
         </button>
 
+        <button @click="exportarAJSON" class="export-button">
+          Exportar a JSON
+        </button>
+
+        <button @click="limpiarLocalStorage" class="clear-button">
+          Limpiar Datos
+        </button>
+
         <div v-if="tasaDolar" class="tasa-info">
-          Tasa de dólar actual: {{ tasaDolar.toFixed(2) }} Bs
+          Tasa de dólar: {{ tasaDolar.toFixed(2) }} Bs
         </div>
       </div>
 
@@ -254,7 +326,7 @@ onMounted(() => {
 .controls {
   margin: 20px 0;
   display: flex;
-  gap: 15px;
+  gap: 10px;
   align-items: center;
   flex-wrap: wrap;
 }
@@ -266,11 +338,12 @@ onMounted(() => {
 }
 
 button {
-  padding: 8px 16px;
+  padding: 8px 12px;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  font-size: 0.9em;
 }
 
 button:disabled {
@@ -292,9 +365,21 @@ button:not(:disabled) {
   font-size: 0.8em;
 }
 
+.export-button {
+  background-color: #9c27b0;
+}
+
+.clear-button {
+  background-color: #ff9800;
+}
+
 .tasa-info {
   font-weight: bold;
   color: #2c3e50;
+  margin-left: auto;
+  padding: 8px 12px;
+  background-color: #e3f2fd;
+  border-radius: 4px;
 }
 
 .form-container {
