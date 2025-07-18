@@ -14,6 +14,10 @@ import { RouterLink, RouterView } from 'vue-router'
           <span class="link-icon">🛒</span>
           <span class="link-text">Compras</span>
         </RouterLink>
+        <RouterLink to="/drive" class="nav-link">
+          <span class="link-icon">☁️</span>
+          <span class="link-text">Google Drive</span>
+        </RouterLink>
       </div>
     </nav>
 
@@ -102,11 +106,27 @@ import { RouterLink, RouterView } from 'vue-router'
   .nav-container {
     padding: 1rem;
     gap: 0.5rem;
+    justify-content: space-around;
   }
 
   .nav-link {
-    padding: 0.5rem 0.75rem;
+    padding: 0.5rem;
     font-size: 0.9rem;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .nav-link.router-link-exact-active::after {
+    bottom: -4px;
+  }
+
+  .link-icon {
+    font-size: 1.2em;
+  }
+
+  .link-text {
+    font-size: 0.7rem;
+    top: 0;
   }
 
   .content-wrapper {
