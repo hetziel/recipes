@@ -1,0 +1,16 @@
+{
+    "productos": [
+      {
+        "nombre": "pollo",
+        "precio": 0.5,
+        "peso": 1,
+        "fecha": "12-06-2025"
+      },
+      {
+        "nombre": "carne",
+        "precio": 1.2,
+        "peso": 0.8,
+        "fecha": "15-07-2025"
+      }
+    ]
+  }

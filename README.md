@@ -1,46 +1,39 @@
-# JSON Recipes App
+# recipes
 
-Este proyecto es una aplicación simple que lee un archivo JSON de recetas y muestra la lista de recetas en la consola o en una interfaz de usuario.
+This template should help get you started developing with Vue 3 in Vite.
 
-## Estructura del Proyecto
+## Recommended IDE Setup
 
-```
-json-recipes-app
-├── src
-│   ├── app.ts               # Punto de entrada de la aplicación
-│   ├── recipes
-│   │   └── recipes.json     # Archivo JSON que contiene las recetas
-│   └── types
-│       └── recipe.ts        # Interfaz que define la estructura de una receta
-├── package.json              # Configuración de npm
-├── tsconfig.json             # Configuración de TypeScript
-└── README.md                 # Documentación del proyecto
-```
+[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
 
-## Instalación
+## Type Support for `.vue` Imports in TS
 
-1. Clona el repositorio:
-   ```
-   git clone <URL_DEL_REPOSITORIO>
-   ```
-2. Navega al directorio del proyecto:
-   ```
-   cd json-recipes-app
-   ```
-3. Instala las dependencias:
-   ```
-   npm install
-   ```
+TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
 
-## Ejecución
+## Customize configuration
 
-Para ejecutar la aplicación, utiliza el siguiente comando:
-```
-npm start
+See [Vite Configuration Reference](https://vite.dev/config/).
+
+## Project Setup
+
+```sh
+npm install
 ```
 
-Esto iniciará la aplicación y mostrará la lista de recetas en la consola.
+### Compile and Hot-Reload for Development
 
-## Contribuciones
+```sh
+npm run dev
+```
 
-Las contribuciones son bienvenidas. Si deseas mejorar el proyecto, por favor abre un issue o un pull request.
+### Type-Check, Compile and Minify for Production
+
+```sh
+npm run build
+```
+
+### Lint with [ESLint](https://eslint.org/)
+
+```sh
+npm run lint
+```
