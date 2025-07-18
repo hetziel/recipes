@@ -34,7 +34,7 @@ const STORAGE_KEY = 'productos-app-data'
 
 const productos = ref<Producto[]>([])
 const tasaDolar = ref<number>(0)
-const origenTasa = ref<'api' | 'local' | null>(null)
+const origenTasa = ref<'api' | 'local' | 'drive' | null>(null)
 const error = ref<string | null>(null)
 const cargando = ref<boolean>(false)
 const nuevoProducto = ref<Producto>({
@@ -188,6 +188,56 @@ function cargarArchivo(event: Event) {
   lector.readAsText(archivo)
 }
 
+// Buscar archivos JSON en Drive
+async function cargarDesdeDrive() {
+  cargando.value = true
+  error.value = null
+
+  try {
+    // Buscar archivos JSON en Drive
+    const archivos = await driveUploaderRef.value.searchFiles();
+    if (archivos.length === 0) {
+      error.value = 'No se encontraron archivos JSON en Drive';
+      return;
+    }
+
+    // Ordenar por fecha de modificación (más reciente primero)
+    archivos.sort((a, b) => 
+      new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime()
+    );
+
+    // Descargar el archivo más reciente
+    const contenido = await driveUploaderRef.value.downloadFile(archivos[0].id);
+    const datos = JSON.parse(contenido);
+
+    // Procesar los datos como lo haces en cargarArchivo
+    if (datos.productos && Array.isArray(datos.productos)) {
+      productos.value = datos.productos.map((p: Producto) => ({
+        ...p,
+        id: p.id || generarId(),
+      }));
+
+      if (datos.tasaDolar) {
+        tasaLocal.value = datos.tasaDolar;
+        fechaActualizacionLocal.value = new Date().toISOString();
+        tasaDolar.value = datos.tasaDolar;
+        origenTasa.value = 'drive';
+      }
+
+      if (tasaDolar.value) {
+        actualizarPreciosBs();
+      }
+      
+      guardarEnLocalStorage();
+      uploadStatus.value = `Datos cargados desde: ${archivos[0].name}`;
+    }
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Error al cargar datos de Drive';
+  } finally {
+    cargando.value = false
+  }
+}
+
 function agregarProducto() {
   if (!nuevoProducto.value.nombre) {
     error.value = 'El nombre del producto es requerido'
@@ -295,13 +345,7 @@ onMounted(() => {
       </div>
 
       <div class="controls">
-        <input
-          type="file"
-          accept=".json"
-          @change="cargarArchivo"
-          class="file-input"
-          :disabled="cargando"
-        />
+        <input type="file" accept=".json" @change="cargarArchivo" class="file-input" :disabled="cargando" />
 
         <button @click="cargarTasaDolar" :disabled="cargando">
           {{ cargando ? 'Actualizando...' : 'Actualizar tasa' }}
@@ -315,10 +359,7 @@ onMounted(() => {
       </div>
 
       <div class="tasa-info-container">
-        <div
-          class="tasa-info"
-          :class="{ 'tasa-actual': origenTasa === 'api', 'tasa-local': origenTasa === 'local' }"
-        >
+        <div class="tasa-info" :class="{ 'tasa-actual': origenTasa === 'api', 'tasa-local': origenTasa === 'local' }">
           <strong>Tasa actual:</strong> {{ tasaDolar.toFixed(2) }} Bs
           <span v-if="origenTasa === 'api'" class="origen-tasa api">(API - Actualizada)</span>
           <span v-else-if="origenTasa === 'local'" class="origen-tasa local">(Local)</span>
@@ -330,9 +371,7 @@ onMounted(() => {
         <div v-if="tasaLocal && origenTasa !== 'local'" class="tasa-secundaria">
           <small>
             <strong>Tasa local:</strong> {{ tasaLocal.toFixed(2) }} Bs
-            <span v-if="fechaActualizacionLocal"
-              >({{ formatearFecha(fechaActualizacionLocal) }})</span
-            >
+            <span v-if="fechaActualizacionLocal">({{ formatearFecha(fechaActualizacionLocal) }})</span>
           </small>
         </div>
 
@@ -397,11 +436,7 @@ onMounted(() => {
               <td>{{ producto.peso || '-' }}</td>
               <td>{{ producto.fecha || '-' }}</td>
               <td>
-                <button
-                  @click="eliminarProducto(producto.id!)"
-                  class="delete-button"
-                  title="Eliminar"
-                >
+                <button @click="eliminarProducto(producto.id!)" class="delete-button" title="Eliminar">
                   &times;
                 </button>
               </td>

@@ -173,6 +173,42 @@ const listFiles = async () => {
   }
 };
 
+const searchFiles = async (query = "name contains '.json'") => {
+  try {
+    // @ts-ignore
+    const response = await gapi.client.drive.files.list({
+      q: query,
+      pageSize: 10,
+      fields: 'files(id, name, mimeType, webViewLink, modifiedTime)',
+      orderBy: 'modifiedTime desc'
+    });
+    return response.result.files;
+  } catch (error) {
+    console.error("Error al buscar archivos:", error);
+    return [];
+  }
+};
+
+const downloadFile = async (fileId: string) => {
+  try {
+    // @ts-ignore
+    const response = await gapi.client.drive.files.get({
+      fileId: fileId,
+      alt: 'media'
+    });
+    return response.body;
+  } catch (error) {
+    console.error("Error al descargar archivo:", error);
+    throw error;
+  }
+};
+
+// Expón estos métodos para que puedan ser usados desde el padre
+defineExpose({
+  searchFiles,
+  downloadFile
+});
+
 // Cargar APIs al montar el componente
 onMounted(async () => {
   await initClient();
