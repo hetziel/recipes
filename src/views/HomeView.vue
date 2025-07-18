@@ -258,12 +258,6 @@ function limpiarLocalStorage() {
   if (confirm('¿Estás seguro de que quieres borrar todos los datos guardados?')) {
     localStorage.removeItem(STORAGE_KEY);
     productos.value = [];
-    tasaDolar.value = 0;
-    tasaLocal.value = null;
-    tasaApi.value = null;
-    origenTasa.value = null;
-    fechaActualizacionLocal.value = null;
-    fechaActualizacionApi.value = null;
   }
 }
 
@@ -274,6 +268,7 @@ function formatearFecha(fecha: string | null) {
 
 onMounted(() => {
   cargarDesdeLocalStorage();
+  cargarTasaDolar();
 
   // Cargar tasa de dólar si no hay una reciente
   const fechaLocal = fechaActualizacionLocal.value ? new Date(fechaActualizacionLocal.value) : null;
@@ -385,26 +380,27 @@ onMounted(() => {
         <table v-if="productos.length" class="product-table">
           <thead>
             <tr>
-              <th>Acciones</th>
+
               <th>Nombre</th>
               <th>Precio ($)</th>
               <th>Precio (Bs)</th>
               <th>Peso</th>
               <th>Fecha</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="producto in productos" :key="producto.id">
-              <td>
-                <button @click="eliminarProducto(producto.id!)" class="delete-button">
-                  Eliminar
-                </button>
-              </td>
               <td>{{ producto.nombre }}</td>
               <td>{{ producto.precio?.toFixed(2) || '-' }}</td>
               <td>{{ producto.precioBs || '-' }}</td>
               <td>{{ producto.peso || '-' }}</td>
               <td>{{ producto.fecha || '-' }}</td>
+              <td>
+                <button @click="eliminarProducto(producto.id!)" class="delete-button" title="Eliminar">
+                  &times;
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>
