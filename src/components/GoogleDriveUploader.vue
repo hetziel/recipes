@@ -31,29 +31,52 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 
-// Configuración de la API
+// Configuración
 const CLIENT_ID = '218046682607-38m1j3lhpnlboeoblqqpjnj0l506ujb8.apps.googleusercontent.com';
-const API_KEY = ''; // Opcional si usas API key
+const API_KEY = ''; // No necesaria para OAuth
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
 
-// Estados reactivos
+// Estados
 const isAuthenticated = ref(false);
-const file = ref < File | null > (null);
+const file = ref<File | null>(null);
 const uploadStatus = ref('');
-const files = ref < any[] > ([]);
-const gapiLoaded = ref(false);
+const files = ref<any[]>([]);
+const tokenClient = ref<any>(null);
 
-// Cargar la API de Google
-const loadGapi = () => {
-  return new Promise < void> ((resolve) => {
+// Inicializar el cliente de Google
+const initClient = async () => {
+  return new Promise<void>((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.onload = () => {
+      // @ts-ignore
+      tokenClient.value = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: '', // Definido más tarde
+      });
+      resolve();
+    };
+    document.head.appendChild(script);
+  });
+};
+
+// Cargar la API de Drive
+const loadGapi = async () => {
+  return new Promise<void>((resolve) => {
     const script = document.createElement('script');
     script.src = 'https://apis.google.com/js/api.js';
     script.onload = () => {
-      gapi.load('client:auth2', () => {
-        resolve();
+      // @ts-ignore
+      gapi.load('client', () => {
+        // @ts-ignore
+        gapi.client.init({
+          apiKey: API_KEY,
+          discoveryDocs: DISCOVERY_DOCS,
+        }).then(resolve);
       });
     };
     document.head.appendChild(script);
@@ -63,38 +86,40 @@ const loadGapi = () => {
 // Autenticación
 const authenticate = async () => {
   try {
-    if (!gapiLoaded.value) {
+    if (!tokenClient.value) {
+      await initClient();
       await loadGapi();
-      gapiLoaded.value = true;
     }
 
-    await gapi.client.init({
-      apiKey: API_KEY,
-      clientId: CLIENT_ID,
-      discoveryDocs: DISCOVERY_DOCS,
-      scope: SCOPES
-    });
+    tokenClient.value.callback = async (resp: any) => {
+      if (resp.error !== undefined) {
+        throw resp;
+      }
+      isAuthenticated.value = true;
+      uploadStatus.value = 'Autenticado correctamente';
+    };
 
-    const authInstance = gapi.auth2.getAuthInstance();
-    await authInstance.signIn();
-
-    isAuthenticated.value = true;
-    uploadStatus.value = 'Autenticado correctamente con Google Drive';
+    // @ts-ignore
+    if (google.accounts.oauth2.hasGrantedAllScopes(tokenClient.value, SCOPES)) {
+      isAuthenticated.value = true;
+      uploadStatus.value = 'Ya autenticado';
+    } else {
+      // @ts-ignore
+      tokenClient.value.requestAccessToken({ prompt: 'consent' });
+    }
   } catch (error) {
     console.error("Error de autenticación:", error);
-    uploadStatus.value = 'Error al autenticar con Google Drive';
+    uploadStatus.value = 'Error al autenticar: ' + error.message;
   }
 };
 
-// Manejar subida de archivo
+// Manejar archivo seleccionado
 const handleFileUpload = (event: Event) => {
   const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    file.value = target.files[0];
-  }
+  file.value = target.files?.[0] || null;
 };
 
-// Subir archivo a Drive
+// Subir archivo
 const uploadFile = async () => {
   if (!file.value) return;
 
@@ -102,55 +127,61 @@ const uploadFile = async () => {
     const metadata = {
       name: file.value.name,
       mimeType: file.value.type,
-      parents: [] // Opcional: ID de carpeta específica
     };
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as ArrayBuffer;
-      const base64Data = btoa(
-        new Uint8Array(content).reduce(
-          (data, byte) => data + String.fromCharCode(byte),
-          ''
-        )
-      );
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', file.value);
 
-      gapi.client.drive.files.create({
-        resource: metadata,
-        media: {
-          mimeType: file.value?.type,
-          body: base64Data
-        },
-        fields: 'id,name,mimeType,webViewLink'
-      }).then((response: any) => {
-        uploadStatus.value = `Archivo "${response.result.name}" subido correctamente a Drive`;
-        file.value = null;
-        listFiles();
-      });
-    };
-    reader.readAsArrayBuffer(file.value);
+    // @ts-ignore
+    const accessToken = gapi.client.getToken().access_token;
+
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: new Headers({
+        'Authorization': 'Bearer ' + accessToken
+      }),
+      body: form,
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    const result = await response.json();
+    uploadStatus.value = `Archivo "${result.name}" subido correctamente`;
+    file.value = null;
+    await listFiles();
   } catch (error) {
     console.error("Error al subir:", error);
-    uploadStatus.value = 'Error al subir el archivo a Drive';
+    uploadStatus.value = 'Error al subir: ' + error.message;
   }
 };
 
-// Listar archivos de Drive
+// Listar archivos
 const listFiles = async () => {
   try {
+    // @ts-ignore
     const response = await gapi.client.drive.files.list({
       pageSize: 10,
-      fields: 'files(id, name, mimeType, webViewLink)'
+      fields: 'files(id, name, mimeType, webViewLink)',
     });
     files.value = response.result.files;
   } catch (error) {
-    console.error("Error al listar archivos:", error);
-    uploadStatus.value = 'Error al listar archivos de Drive';
+    console.error("Error al listar:", error);
+    uploadStatus.value = 'Error al listar: ' + error.message;
   }
 };
+
+// Cargar APIs al montar el componente
+onMounted(async () => {
+  await initClient();
+  await loadGapi();
+});
 </script>
 
 <style scoped>
+/* Estilos anteriores se mantienen igual */
 .drive-uploader {
   margin-top: 2rem;
   padding: 1.5rem;
