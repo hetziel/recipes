@@ -6,6 +6,12 @@
     </div>
 
     <div class="content-section">
+      <div class="controls">
+        <button @click="resetSelecciones" class="reset-button" v-if="productos.length">
+          <span class="reset-icon">🔄</span> Reiniciar selecciones
+        </button>
+      </div>
+
       <div class="table-container" v-if="productos.length">
         <table class="product-table">
           <thead>
@@ -22,14 +28,14 @@
           <tbody>
             <tr v-for="producto in productos" :key="producto.id" class="product-row">
               <td class="checkbox-cell">
-                <input type="checkbox" v-model="producto.seleccionado" @change="actualizarProductosSeleccionados" />
+                <input type="checkbox" v-model="producto.seleccionado" @change="guardarSelecciones" />
               </td>
               <td class="product-name">{{ producto.nombre }}</td>
               <td class="numeric">{{ producto.precio ? '$' + producto.precio.toFixed(2) : '-' }}</td>
               <td class="numeric">{{ producto.precioBs ? 'Bs ' + producto.precioBs : '-' }}</td>
               <td class="numeric">
                 <input type="number" v-model.number="producto.cantidad" min="1" class="quantity-input"
-                  @change="actualizarProductosSeleccionados" />
+                  @change="guardarSelecciones" />
               </td>
               <td class="numeric">{{ producto.peso ? producto.peso + ' kg' : '-' }}</td>
               <td class="product-date">{{ producto.fecha ? formatDate(producto.fecha) : '-' }}</td>
@@ -55,7 +61,10 @@
 
       <!-- Tabla de productos seleccionados -->
       <div v-if="productosSeleccionados.length > 0" class="selected-products-section">
-        <h2 class="selected-title">Productos para comprar</h2>
+        <div class="selected-header">
+          <h2 class="selected-title">Productos para comprar</h2>
+          <span class="selected-count">{{ productosSeleccionados.length }} seleccionados</span>
+        </div>
         <table class="selected-table">
           <thead>
             <tr>
@@ -72,8 +81,7 @@
               <td class="numeric">{{ producto.cantidad }}</td>
               <td class="numeric">${{ producto.precio?.toFixed(2) || '0.00' }}</td>
               <td class="numeric">${{ (producto.precio * producto.cantidad).toFixed(2) }}</td>
-              <td class="numeric">Bs {{ (parseFloat(producto.precioBs || '0') *
-                producto.cantidad).toFixed(2) }}</td>
+              <td class="numeric">Bs {{ (parseFloat(producto.precioBs || '0') * producto.cantidad).toFixed(2) }}</td>
             </tr>
           </tbody>
           <tfoot>
@@ -91,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 
 interface Producto {
   id?: number;
@@ -106,6 +114,7 @@ interface Producto {
 }
 
 const STORAGE_KEY = 'productos-app-data';
+const SELECTION_KEY = 'productos-seleccionados';
 const productos = ref<Producto[]>([]);
 const productosSeleccionados = ref<Producto[]>([]);
 
@@ -153,18 +162,71 @@ function cargarProductos() {
       const datos = JSON.parse(datosGuardados);
       productos.value = (datos.productos || []).map((p: Producto) => ({
         ...p,
-        seleccionado: false,
         cantidad: p.cantidad || 1
       }));
+      cargarSeleccionesGuardadas();
     } catch (err) {
       productos.value = [];
     }
   }
 }
 
+function cargarSeleccionesGuardadas() {
+  const seleccionesGuardadas = localStorage.getItem(SELECTION_KEY);
+  if (seleccionesGuardadas) {
+    try {
+      const selecciones = JSON.parse(seleccionesGuardadas);
+
+      productos.value.forEach(producto => {
+        const productoGuardado = selecciones.find((p: Producto) => p.id === producto.id);
+        if (productoGuardado) {
+          producto.seleccionado = productoGuardado.seleccionado;
+          producto.cantidad = productoGuardado.cantidad || 1;
+        } else {
+          producto.seleccionado = false;
+          producto.cantidad = producto.cantidad || 1;
+        }
+      });
+
+      actualizarProductosSeleccionados();
+    } catch (err) {
+      console.error('Error al cargar selecciones:', err);
+    }
+  }
+}
+
+function guardarSelecciones() {
+  actualizarProductosSeleccionados();
+
+  const seleccionesParaGuardar = productos.value.map(producto => ({
+    id: producto.id,
+    seleccionado: producto.seleccionado,
+    cantidad: producto.cantidad
+  }));
+
+  localStorage.setItem(SELECTION_KEY, JSON.stringify(seleccionesParaGuardar));
+}
+
 function actualizarProductosSeleccionados() {
   productosSeleccionados.value = productos.value.filter(p => p.seleccionado);
 }
+
+function resetSelecciones() {
+  if (confirm('¿Estás seguro de que deseas reiniciar todas las selecciones y cantidades?')) {
+    productos.value.forEach(producto => {
+      producto.seleccionado = false;
+      producto.cantidad = 1;
+    });
+
+    productosSeleccionados.value = [];
+    localStorage.removeItem(SELECTION_KEY);
+  }
+}
+
+// Watcher para actualizar automáticamente cuando cambian los productos
+watch(productos, () => {
+  guardarSelecciones();
+}, { deep: true });
 
 onMounted(cargarProductos);
 </script>
@@ -201,6 +263,35 @@ onMounted(cargarProductos);
   border-radius: 10px;
   box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
   padding: 1.5rem;
+}
+
+.controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+.reset-button {
+  background-color: #f5f5f5;
+  color: #555;
+  border: 1px solid #ddd;
+  padding: 8px 16px;
+  border-radius: 5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reset-button:hover {
+  background-color: #e0e0e0;
+  border-color: #ccc;
+}
+
+.reset-icon {
+  font-size: 1.1em;
 }
 
 .table-container {
@@ -264,6 +355,12 @@ onMounted(cargarProductos);
   text-align: center;
   border: 1px solid #ddd;
   border-radius: 4px;
+  transition: border-color 0.2s;
+}
+
+.quantity-input:focus {
+  border-color: #3498db;
+  outline: none;
 }
 
 .product-date {
@@ -319,11 +416,25 @@ onMounted(cargarProductos);
   border-radius: 8px;
 }
 
+/* .selected-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+} */
+
 .selected-title {
   color: #2c3e50;
-  margin-top: 0;
-  margin-bottom: 1rem;
+  margin: 0;
   font-size: 1.3rem;
+}
+
+.selected-count {
+  background-color: #e3e3e3;
+  padding: 5px 10px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 .selected-table {
@@ -377,6 +488,11 @@ onMounted(cargarProductos);
 
   .quantity-input {
     width: 50px;
+  }
+
+  .reset-button {
+    padding: 6px 12px;
+    font-size: 0.9rem;
   }
 }
 </style>
