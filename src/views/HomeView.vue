@@ -2,35 +2,35 @@
 import { ref, onMounted } from 'vue'
 
 interface Producto {
-  id?: number;
-  nombre: string;
-  precio?: number;
-  precioBs?: string;
-  peso?: number | string;
-  fecha?: string;
-  [key: string]: any;
+  id?: number
+  nombre: string
+  precio?: number
+  precioBs?: string
+  peso?: number | string
+  fecha?: string
+  [key: string]: any
 }
 
 interface DolarData {
-  fuente: string;
-  nombre: string;
-  compra: number | null;
-  venta: number | null;
-  promedio: number;
-  fechaActualizacion: string;
+  fuente: string
+  nombre: string
+  compra: number | null
+  venta: number | null
+  promedio: number
+  fechaActualizacion: string
 }
 
 interface LocalStorageData {
-  productos: Producto[];
-  tasaDolar: number;
-  fechaGuardado: string;
+  productos: Producto[]
+  tasaDolar: number
+  fechaGuardado: string
   tasaApi?: {
-    valor: number;
-    fechaActualizacion: string;
-  };
+    valor: number
+    fechaActualizacion: string
+  }
 }
 
-const STORAGE_KEY = 'productos-app-data';
+const STORAGE_KEY = 'productos-app-data'
 
 const productos = ref<Producto[]>([])
 const tasaDolar = ref<number>(0)
@@ -41,7 +41,7 @@ const nuevoProducto = ref<Producto>({
   nombre: '',
   precio: undefined,
   peso: '',
-  fecha: new Date().toISOString().split('T')[0]
+  fecha: new Date().toISOString().split('T')[0],
 })
 const mostrarFormulario = ref<boolean>(false)
 const tasaLocal = ref<number | null>(null)
@@ -51,21 +51,21 @@ const fechaActualizacionApi = ref<string | null>(null)
 
 // Cargar datos del LocalStorage al iniciar
 function cargarDesdeLocalStorage() {
-  const datosGuardados = localStorage.getItem(STORAGE_KEY);
+  const datosGuardados = localStorage.getItem(STORAGE_KEY)
   if (datosGuardados) {
     try {
-      const datos: LocalStorageData = JSON.parse(datosGuardados);
-      tasaLocal.value = datos.tasaDolar || null;
-      fechaActualizacionLocal.value = datos.fechaGuardado || null;
+      const datos: LocalStorageData = JSON.parse(datosGuardados)
+      tasaLocal.value = datos.tasaDolar || null
+      fechaActualizacionLocal.value = datos.fechaGuardado || null
 
       if (datos.tasaApi) {
-        tasaApi.value = datos.tasaApi.valor;
-        fechaActualizacionApi.value = datos.tasaApi.fechaActualizacion;
+        tasaApi.value = datos.tasaApi.valor
+        fechaActualizacionApi.value = datos.tasaApi.fechaActualizacion
       }
 
-      productos.value = datos.productos || [];
+      productos.value = datos.productos || []
     } catch (err) {
-      console.error('Error al cargar datos del LocalStorage:', err);
+      console.error('Error al cargar datos del LocalStorage:', err)
     }
   }
 }
@@ -75,123 +75,123 @@ function guardarEnLocalStorage(tasaApiData?: DolarData) {
   const datosAGuardar: LocalStorageData = {
     productos: productos.value,
     tasaDolar: tasaDolar.value,
-    fechaGuardado: new Date().toISOString()
-  };
+    fechaGuardado: new Date().toISOString(),
+  }
 
   if (tasaApiData) {
     datosAGuardar.tasaApi = {
       valor: tasaApiData.promedio,
-      fechaActualizacion: tasaApiData.fechaActualizacion
-    };
+      fechaActualizacion: tasaApiData.fechaActualizacion,
+    }
   }
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(datosAGuardar));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(datosAGuardar))
 }
 
 // Determinar la mejor tasa disponible
 function determinarMejorTasa(apiData: DolarData | null) {
   if (apiData) {
     // Priorizar API si está disponible
-    tasaDolar.value = apiData.promedio;
-    origenTasa.value = 'api';
-    fechaActualizacionApi.value = apiData.fechaActualizacion;
-    guardarEnLocalStorage(apiData);
+    tasaDolar.value = apiData.promedio
+    origenTasa.value = 'api'
+    fechaActualizacionApi.value = apiData.fechaActualizacion
+    guardarEnLocalStorage(apiData)
   } else if (tasaLocal.value) {
     // Usar tasa local si no hay datos de API
-    tasaDolar.value = tasaLocal.value;
-    origenTasa.value = 'local';
+    tasaDolar.value = tasaLocal.value
+    origenTasa.value = 'local'
   } else {
     // No hay tasas disponibles
-    tasaDolar.value = 0;
-    origenTasa.value = null;
+    tasaDolar.value = 0
+    origenTasa.value = null
   }
 }
 
 async function cargarTasaDolar() {
-  cargando.value = true;
-  error.value = null;
+  cargando.value = true
+  error.value = null
 
   try {
-    const response = await fetch('https://ve.dolarapi.com/v1/dolares');
-    if (!response.ok) throw new Error('Error al obtener datos del dólar');
+    const response = await fetch('https://ve.dolarapi.com/v1/dolares')
+    if (!response.ok) throw new Error('Error al obtener datos del dólar')
 
-    const data: DolarData[] = await response.json();
-    determinarMejorTasa(data[0]);
+    const data: DolarData[] = await response.json()
+    determinarMejorTasa(data[0])
 
     if (productos.value.length) {
-      actualizarPreciosBs();
+      actualizarPreciosBs()
     }
   } catch (err) {
-    console.error('Error al cargar el precio del dólar:', err);
+    console.error('Error al cargar el precio del dólar:', err)
 
     // Si falla la API, usar datos locales si existen
     if (tasaLocal.value) {
-      tasaDolar.value = tasaLocal.value;
-      origenTasa.value = 'local';
-      error.value = 'Error al actualizar tasa. Usando valor local.';
+      tasaDolar.value = tasaLocal.value
+      origenTasa.value = 'local'
+      error.value = 'Error al actualizar tasa. Usando valor local.'
     } else {
-      error.value = err instanceof Error ? err.message : 'Error desconocido al cargar tasa';
+      error.value = err instanceof Error ? err.message : 'Error desconocido al cargar tasa'
     }
   } finally {
-    cargando.value = false;
+    cargando.value = false
   }
 }
 
 function actualizarPreciosBs() {
-  productos.value.forEach(producto => {
+  productos.value.forEach((producto) => {
     if (producto.precio && tasaDolar.value) {
-      producto.precioBs = (producto.precio * tasaDolar.value).toFixed(2);
+      producto.precioBs = (producto.precio * tasaDolar.value).toFixed(2)
     }
-  });
-  guardarEnLocalStorage();
+  })
+  guardarEnLocalStorage()
 }
 
 function cargarArchivo(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const archivo = input.files?.[0];
+  const input = event.target as HTMLInputElement
+  const archivo = input.files?.[0]
 
-  if (!archivo) return;
+  if (!archivo) return
 
-  const lector = new FileReader();
+  const lector = new FileReader()
   lector.onload = (e) => {
     try {
-      const resultado = e.target?.result as string;
-      const datos = JSON.parse(resultado);
+      const resultado = e.target?.result as string
+      const datos = JSON.parse(resultado)
 
       if (datos.productos && Array.isArray(datos.productos)) {
         productos.value = datos.productos.map((p: Producto) => ({
           ...p,
-          id: p.id || generarId()
-        }));
+          id: p.id || generarId(),
+        }))
 
         if (datos.tasaDolar) {
-          tasaLocal.value = datos.tasaDolar;
-          fechaActualizacionLocal.value = new Date().toISOString();
-          guardarEnLocalStorage();
+          tasaLocal.value = datos.tasaDolar
+          fechaActualizacionLocal.value = new Date().toISOString()
+          guardarEnLocalStorage()
         }
 
         if (tasaDolar.value) {
-          actualizarPreciosBs();
+          actualizarPreciosBs()
         }
       } else {
-        throw new Error('El archivo JSON no tiene el formato correcto.');
+        throw new Error('El archivo JSON no tiene el formato correcto.')
       }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Error al leer el archivo';
+      error.value = err instanceof Error ? err.message : 'Error al leer el archivo'
     }
-  };
+  }
 
   lector.onerror = () => {
-    error.value = 'Error al leer el archivo';
-  };
+    error.value = 'Error al leer el archivo'
+  }
 
-  lector.readAsText(archivo);
+  lector.readAsText(archivo)
 }
 
 function agregarProducto() {
   if (!nuevoProducto.value.nombre) {
-    error.value = 'El nombre del producto es requerido';
-    return;
+    error.value = 'El nombre del producto es requerido'
+    return
   }
 
   const producto: Producto = {
@@ -199,22 +199,20 @@ function agregarProducto() {
     nombre: nuevoProducto.value.nombre,
     precio: nuevoProducto.value.precio || 0,
     peso: nuevoProducto.value.peso || '',
-    fecha: nuevoProducto.value.fecha || new Date().toISOString().split('T')[0]
-  };
-
-  if (producto.precio && tasaDolar.value) {
-    producto.precioBs = (producto.precio * tasaDolar.value).toFixed(2);
+    fecha: nuevoProducto.value.fecha || new Date().toISOString().split('T')[0],
   }
 
-  productos.value.push(producto);
-  guardarEnLocalStorage();
-  resetearFormulario();
+  if (producto.precio && tasaDolar.value) {
+    producto.precioBs = (producto.precio * tasaDolar.value).toFixed(2)
+  }
+
+  productos.value.push(producto)
+  guardarEnLocalStorage()
+  resetearFormulario()
 }
 
 function generarId() {
-  return productos.value.length > 0
-    ? Math.max(...productos.value.map(p => p.id || 0)) + 1
-    : 1;
+  return productos.value.length > 0 ? Math.max(...productos.value.map((p) => p.id || 0)) + 1 : 1
 }
 
 function resetearFormulario() {
@@ -222,15 +220,15 @@ function resetearFormulario() {
     nombre: '',
     precio: undefined,
     peso: '',
-    fecha: new Date().toISOString().split('T')[0]
-  };
-  mostrarFormulario.value = false;
-  error.value = null;
+    fecha: new Date().toISOString().split('T')[0],
+  }
+  mostrarFormulario.value = false
+  error.value = null
 }
 
 function eliminarProducto(id: number) {
-  productos.value = productos.value.filter(producto => producto.id !== id);
-  guardarEnLocalStorage();
+  productos.value = productos.value.filter((producto) => producto.id !== id)
+  guardarEnLocalStorage()
 }
 
 function exportarAJSON() {
@@ -240,51 +238,51 @@ function exportarAJSON() {
     origenTasa: origenTasa.value,
     fechaExportacion: new Date().toISOString(),
     tasaLocal: tasaLocal.value,
-    tasaApi: tasaApi.value
-  };
+    tasaApi: tasaApi.value,
+  }
 
-  const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `productos-${new Date().toISOString().split('T')[0]}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `productos-${new Date().toISOString().split('T')[0]}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 function limpiarLocalStorage() {
   if (confirm('¿Estás seguro de que quieres borrar todos los datos guardados?')) {
-    localStorage.removeItem(STORAGE_KEY);
-    productos.value = [];
+    localStorage.removeItem(STORAGE_KEY)
+    productos.value = []
   }
 }
 
 function formatearFecha(fecha: string | null) {
-  if (!fecha) return 'N/A';
-  return new Date(fecha).toLocaleString();
+  if (!fecha) return 'N/A'
+  return new Date(fecha).toLocaleString()
 }
 
 onMounted(() => {
-  cargarDesdeLocalStorage();
-  cargarTasaDolar();
+  cargarDesdeLocalStorage()
+  cargarTasaDolar()
 
   // Cargar tasa de dólar si no hay una reciente
-  const fechaLocal = fechaActualizacionLocal.value ? new Date(fechaActualizacionLocal.value) : null;
-  const umbralActualizacion = 1000 * 60 * 60 * 2; // 2 horas
+  const fechaLocal = fechaActualizacionLocal.value ? new Date(fechaActualizacionLocal.value) : null
+  const umbralActualizacion = 1000 * 60 * 60 * 2 // 2 horas
 
-  if (!fechaLocal || (new Date().getTime() - fechaLocal.getTime()) > umbralActualizacion) {
-    cargarTasaDolar();
+  if (!fechaLocal || new Date().getTime() - fechaLocal.getTime() > umbralActualizacion) {
+    cargarTasaDolar()
   } else if (tasaLocal.value) {
-    tasaDolar.value = tasaLocal.value;
-    origenTasa.value = 'local';
+    tasaDolar.value = tasaLocal.value
+    origenTasa.value = 'local'
 
     if (productos.value.length) {
-      actualizarPreciosBs();
+      actualizarPreciosBs()
     }
   }
-});
+})
 </script>
 
 <template>
@@ -297,27 +295,30 @@ onMounted(() => {
       </div>
 
       <div class="controls">
-        <input type="file" accept=".json" @change="cargarArchivo" class="file-input" :disabled="cargando" />
+        <input
+          type="file"
+          accept=".json"
+          @change="cargarArchivo"
+          class="file-input"
+          :disabled="cargando"
+        />
 
         <button @click="cargarTasaDolar" :disabled="cargando">
           {{ cargando ? 'Actualizando...' : 'Actualizar tasa' }}
         </button>
 
-        <button @click="mostrarFormulario = true" class="add-button">
-          Agregar Producto
-        </button>
+        <button @click="mostrarFormulario = true" class="add-button">Agregar Producto</button>
 
-        <button @click="exportarAJSON" class="export-button">
-          Exportar a JSON
-        </button>
+        <button @click="exportarAJSON" class="export-button">Exportar a JSON</button>
 
-        <button @click="limpiarLocalStorage" class="clear-button">
-          Limpiar Datos
-        </button>
+        <button @click="limpiarLocalStorage" class="clear-button">Limpiar Datos</button>
       </div>
 
       <div class="tasa-info-container">
-        <div class="tasa-info" :class="{ 'tasa-actual': origenTasa === 'api', 'tasa-local': origenTasa === 'local' }">
+        <div
+          class="tasa-info"
+          :class="{ 'tasa-actual': origenTasa === 'api', 'tasa-local': origenTasa === 'local' }"
+        >
           <strong>Tasa actual:</strong> {{ tasaDolar.toFixed(2) }} Bs
           <span v-if="origenTasa === 'api'" class="origen-tasa api">(API - Actualizada)</span>
           <span v-else-if="origenTasa === 'local'" class="origen-tasa local">(Local)</span>
@@ -329,7 +330,9 @@ onMounted(() => {
         <div v-if="tasaLocal && origenTasa !== 'local'" class="tasa-secundaria">
           <small>
             <strong>Tasa local:</strong> {{ tasaLocal.toFixed(2) }} Bs
-            <span v-if="fechaActualizacionLocal">({{ formatearFecha(fechaActualizacionLocal) }})</span>
+            <span v-if="fechaActualizacionLocal"
+              >({{ formatearFecha(fechaActualizacionLocal) }})</span
+            >
           </small>
         </div>
 
@@ -341,9 +344,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-if="cargando" class="loading">
-        Cargando datos...
-      </div>
+      <div v-if="cargando" class="loading">Cargando datos...</div>
 
       <div v-else>
         <!-- Formulario para agregar nuevo producto -->
@@ -380,7 +381,6 @@ onMounted(() => {
         <table v-if="productos.length" class="product-table">
           <thead>
             <tr>
-
               <th>Nombre</th>
               <th>Precio ($)</th>
               <th>Precio (Bs)</th>
@@ -397,7 +397,11 @@ onMounted(() => {
               <td>{{ producto.peso || '-' }}</td>
               <td>{{ producto.fecha || '-' }}</td>
               <td>
-                <button @click="eliminarProducto(producto.id!)" class="delete-button" title="Eliminar">
+                <button
+                  @click="eliminarProducto(producto.id!)"
+                  class="delete-button"
+                  title="Eliminar"
+                >
                   &times;
                 </button>
               </td>
@@ -506,7 +510,7 @@ button:not(:disabled) {
 }
 
 .add-button {
-  background-color: #2196F3;
+  background-color: #2196f3;
 }
 
 .delete-button {

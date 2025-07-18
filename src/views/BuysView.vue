@@ -1,5 +1,67 @@
 <template>
   <main class="compras-container">
+    <!-- Botón para abrir el modal -->
+    <div class="controls">
+      <button @click="showModal = true" class="add-button">
+        <span class="add-icon">+</span> Agregar Producto
+      </button>
+      <button @click="resetSelecciones" class="reset-button" v-if="productos.length">
+        <span class="reset-icon">🔄</span> Reiniciar selecciones
+      </button>
+    </div>
+
+    <!-- Modal para agregar productos -->
+    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
+      <div class="modal-content">
+        <h2 class="modal-title">Agregar Nuevo Producto</h2>
+
+        <div class="form-group">
+          <label for="nombre">Nombre del Producto</label>
+          <input id="nombre" v-model="nuevoProducto.nombre" type="text" class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <label for="moneda">Moneda</label>
+          <select id="moneda" v-model="nuevoProducto.moneda" @change="convertirMoneda" class="form-select">
+            <option value="USD">Dólares (USD)</option>
+            <option value="BS">Bolívares (BS)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="precio">Precio</label>
+          <input id="precio" v-model.number="nuevoProducto.precio" type="number" min="0" step="0.01"
+            @input="convertirMoneda" class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <label for="precioConvertido">{{
+            nuevoProducto.moneda === 'USD' ? 'Precio en Bs' : 'Precio en $'
+            }}</label>
+          <input id="precioConvertido" :value="precioConvertido" type="text" readonly class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <label for="peso">Peso (kg)</label>
+          <input id="peso" v-model.number="nuevoProducto.peso" type="number" min="0" step="0.1" class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <label for="fecha">Fecha</label>
+          <input id="fecha" v-model="nuevoProducto.fecha" type="date" class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <label for="cantidad">Cantidad</label>
+          <input id="cantidad" v-model.number="nuevoProducto.cantidad" type="number" min="1" class="form-input" />
+        </div>
+
+        <div class="modal-actions">
+          <button @click="showModal = false" class="modal-button cancel">Cancelar</button>
+          <button @click="agregarProducto" class="modal-button confirm">Agregar</button>
+        </div>
+      </div>
+    </div>
     <div class="header-section">
       <h1 class="page-title">Mis Compras Importadas</h1>
       <p class="page-subtitle">Resumen de productos adquiridos en el exterior</p>
@@ -31,7 +93,9 @@
                 <input type="checkbox" v-model="producto.seleccionado" @change="guardarSelecciones" />
               </td>
               <td class="product-name">{{ producto.nombre }}</td>
-              <td class="numeric">{{ producto.precio ? '$' + producto.precio.toFixed(2) : '-' }}</td>
+              <td class="numeric">
+                {{ producto.precio ? '$' + producto.precio.toFixed(2) : '-' }}
+              </td>
               <td class="numeric">{{ producto.precioBs ? 'Bs ' + producto.precioBs : '-' }}</td>
               <td class="numeric">
                 <input type="number" v-model.number="producto.cantidad" min="1" class="quantity-input"
@@ -81,7 +145,9 @@
               <td class="numeric">{{ producto.cantidad }}</td>
               <td class="numeric">${{ producto.precio?.toFixed(2) || '0.00' }}</td>
               <td class="numeric">${{ (producto.precio * producto.cantidad).toFixed(2) }}</td>
-              <td class="numeric">Bs {{ (parseFloat(producto.precioBs || '0') * producto.cantidad).toFixed(2) }}</td>
+              <td class="numeric">
+                Bs {{ (parseFloat(producto.precioBs || '0') * producto.cantidad).toFixed(2) }}
+              </td>
             </tr>
           </tbody>
           <tfoot>
@@ -102,21 +168,21 @@
 import { ref, onMounted, computed, watch } from 'vue'
 
 interface Producto {
-  id?: number;
-  nombre: string;
-  precio?: number;
-  precioBs?: string;
-  peso?: number | string;
-  fecha?: string;
-  seleccionado?: boolean;
-  cantidad?: number;
-  [key: string]: any;
+  id?: number
+  nombre: string
+  precio?: number
+  precioBs?: string
+  peso?: number | string
+  fecha?: string
+  seleccionado?: boolean
+  cantidad?: number
+  [key: string]: any
 }
 
-const STORAGE_KEY = 'productos-app-data';
-const SELECTION_KEY = 'productos-seleccionados';
-const productos = ref<Producto[]>([]);
-const productosSeleccionados = ref<Producto[]>([]);
+const STORAGE_KEY = 'productos-app-data'
+const SELECTION_KEY = 'productos-seleccionados'
+const productos = ref<Producto[]>([])
+const productosSeleccionados = ref<Producto[]>([])
 
 // Computed properties
 const totalBs = computed(() => {
@@ -126,9 +192,11 @@ const totalBs = computed(() => {
 })
 
 const totalPeso = computed(() => {
-  return productos.value.reduce((sum, producto) => {
-    return sum + (parseFloat(producto.peso?.toString() || '0') || 0)
-  }, 0).toFixed(2)
+  return productos.value
+    .reduce((sum, producto) => {
+      return sum + (parseFloat(producto.peso?.toString() || '0') || 0)
+    }, 0)
+    .toFixed(2)
 })
 
 const totalCantidad = computed(() => {
@@ -145,90 +213,182 @@ const totalSeleccionadoUSD = computed(() => {
 
 const totalSeleccionadoBS = computed(() => {
   return productosSeleccionados.value.reduce((sum, producto) => {
-    return sum + (parseFloat(producto.precioBs || '0') * (producto.cantidad || 1))
+    return sum + parseFloat(producto.precioBs || '0') * (producto.cantidad || 1)
   }, 0)
 })
 
 // Methods
 function formatDate(dateString: string) {
-  const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' }
+  const options: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }
   return new Date(dateString).toLocaleDateString('es-ES', options)
 }
 
 function cargarProductos() {
-  const datosGuardados = localStorage.getItem(STORAGE_KEY);
+  const datosGuardados = localStorage.getItem(STORAGE_KEY)
   if (datosGuardados) {
     try {
-      const datos = JSON.parse(datosGuardados);
+      const datos = JSON.parse(datosGuardados)
       productos.value = (datos.productos || []).map((p: Producto) => ({
         ...p,
-        cantidad: p.cantidad || 1
-      }));
-      cargarSeleccionesGuardadas();
+        cantidad: p.cantidad || 1,
+      }))
+      if (datos.tasaCambio) {
+        tasaCambio.value = datos.tasaCambio
+      }
+      cargarSeleccionesGuardadas()
     } catch (err) {
-      productos.value = [];
+      productos.value = []
     }
   }
 }
 
 function cargarSeleccionesGuardadas() {
-  const seleccionesGuardadas = localStorage.getItem(SELECTION_KEY);
+  const seleccionesGuardadas = localStorage.getItem(SELECTION_KEY)
   if (seleccionesGuardadas) {
     try {
-      const selecciones = JSON.parse(seleccionesGuardadas);
+      const selecciones = JSON.parse(seleccionesGuardadas)
 
-      productos.value.forEach(producto => {
-        const productoGuardado = selecciones.find((p: Producto) => p.id === producto.id);
+      productos.value.forEach((producto) => {
+        const productoGuardado = selecciones.find((p: Producto) => p.id === producto.id)
         if (productoGuardado) {
-          producto.seleccionado = productoGuardado.seleccionado;
-          producto.cantidad = productoGuardado.cantidad || 1;
+          producto.seleccionado = productoGuardado.seleccionado
+          producto.cantidad = productoGuardado.cantidad || 1
         } else {
-          producto.seleccionado = false;
-          producto.cantidad = producto.cantidad || 1;
+          producto.seleccionado = false
+          producto.cantidad = producto.cantidad || 1
         }
-      });
+      })
 
-      actualizarProductosSeleccionados();
+      actualizarProductosSeleccionados()
     } catch (err) {
-      console.error('Error al cargar selecciones:', err);
+      console.error('Error al cargar selecciones:', err)
     }
   }
 }
 
 function guardarSelecciones() {
-  actualizarProductosSeleccionados();
+  actualizarProductosSeleccionados()
 
-  const seleccionesParaGuardar = productos.value.map(producto => ({
+  const seleccionesParaGuardar = productos.value.map((producto) => ({
     id: producto.id,
     seleccionado: producto.seleccionado,
-    cantidad: producto.cantidad
-  }));
+    cantidad: producto.cantidad,
+  }))
 
-  localStorage.setItem(SELECTION_KEY, JSON.stringify(seleccionesParaGuardar));
+  localStorage.setItem(SELECTION_KEY, JSON.stringify(seleccionesParaGuardar))
 }
 
 function actualizarProductosSeleccionados() {
-  productosSeleccionados.value = productos.value.filter(p => p.seleccionado);
+  productosSeleccionados.value = productos.value.filter((p) => p.seleccionado)
 }
 
 function resetSelecciones() {
   if (confirm('¿Estás seguro de que deseas reiniciar todas las selecciones y cantidades?')) {
-    productos.value.forEach(producto => {
-      producto.seleccionado = false;
-      producto.cantidad = 1;
-    });
+    productos.value.forEach((producto) => {
+      producto.seleccionado = false
+      producto.cantidad = 1
+    })
 
-    productosSeleccionados.value = [];
-    localStorage.removeItem(SELECTION_KEY);
+    productosSeleccionados.value = []
+    localStorage.removeItem(SELECTION_KEY)
   }
 }
 
-// Watcher para actualizar automáticamente cuando cambian los productos
-watch(productos, () => {
-  guardarSelecciones();
-}, { deep: true });
+// Nuevas variables para el modal
+const showModal = ref(false)
+const nuevoProducto = ref({
+  nombre: '',
+  precio: 0,
+  precioBs: '',
+  moneda: 'USD',
+  peso: 0,
+  fecha: new Date().toISOString().split('T')[0],
+  cantidad: 1,
+})
+const tasaCambio = ref(36.5) // Puedes hacer esto dinámico si lo necesitas
 
-onMounted(cargarProductos);
+// Computed para el precio convertido
+const precioConvertido = computed(() => {
+  if (!nuevoProducto.value.precio) return '0.00'
+
+  if (nuevoProducto.value.moneda === 'USD') {
+    return (nuevoProducto.value.precio * tasaCambio.value).toFixed(2) + ' Bs'
+  } else {
+    return (nuevoProducto.value.precio / tasaCambio.value).toFixed(2) + ' USD'
+  }
+})
+
+// Método para convertir moneda
+function convertirMoneda() {
+  // La conversión se maneja automáticamente con el computed property
+}
+
+// Método para agregar producto
+function agregarProducto() {
+  if (!nuevoProducto.value.nombre) {
+    alert('Por favor ingresa un nombre para el producto')
+    return
+  }
+
+  const producto: Producto = {
+    id: Date.now(), // Usamos timestamp como ID simple
+    nombre: nuevoProducto.value.nombre,
+    cantidad: nuevoProducto.value.cantidad || 1,
+    peso: nuevoProducto.value.peso || 0,
+    fecha: nuevoProducto.value.fecha,
+    seleccionado: false,
+  }
+
+  // Asignar precios según la moneda seleccionada
+  if (nuevoProducto.value.moneda === 'USD') {
+    producto.precio = nuevoProducto.value.precio
+    producto.precioBs = (nuevoProducto.value.precio * tasaCambio.value).toFixed(2)
+  } else {
+    producto.precioBs = nuevoProducto.value.precio.toFixed(2)
+    producto.precio = nuevoProducto.value.precio / tasaCambio.value
+  }
+
+  productos.value.push(producto)
+  guardarEnLocalStorage()
+
+  // Resetear el formulario
+  nuevoProducto.value = {
+    nombre: '',
+    precio: 0,
+    precioBs: '',
+    moneda: 'USD',
+    peso: 0,
+    fecha: new Date().toISOString().split('T')[0],
+    cantidad: 1,
+  }
+
+  showModal.value = false
+}
+
+function guardarEnLocalStorage() {
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      productos: productos.value,
+      tasaCambio: tasaCambio.value,
+    }),
+  )
+}
+
+// Watcher para actualizar automáticamente cuando cambian los productos
+watch(
+  productos,
+  () => {
+    guardarSelecciones()
+  },
+  { deep: true },
+)
+
+onMounted(cargarProductos)
 </script>
 
 <style scoped>
@@ -416,13 +576,6 @@ onMounted(cargarProductos);
   border-radius: 8px;
 }
 
-/* .selected-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-} */
-
 .selected-title {
   color: #2c3e50;
   margin: 0;
@@ -493,6 +646,134 @@ onMounted(cargarProductos);
   .reset-button {
     padding: 6px 12px;
     font-size: 0.9rem;
+  }
+}
+
+/* Estilos para el botón de agregar */
+.add-button {
+  background-color: #2ecc71;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 10px;
+}
+
+.add-button:hover {
+  background-color: #27ae60;
+}
+
+.add-icon {
+  font-size: 1.1em;
+}
+
+/* Estilos para el modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  overflow: auto;
+  height: 80vh;
+}
+
+.modal-title {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  color: #2c3e50;
+  font-size: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1.2rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #34495e;
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.form-input:focus,
+.form-select:focus {
+  border-color: #3498db;
+  outline: none;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 2rem;
+}
+
+.modal-button {
+  padding: 10px 20px;
+  border-radius: 5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.modal-button.cancel {
+  background-color: #f5f5f5;
+  color: #555;
+}
+
+.modal-button.cancel:hover {
+  background-color: #e0e0e0;
+}
+
+.modal-button.confirm {
+  background-color: #3498db;
+  color: white;
+}
+
+.modal-button.confirm:hover {
+  background-color: #2980b9;
+}
+
+@media (max-width: 600px) {
+  .modal-content {
+    padding: 1.5rem;
+    margin: 0 1rem;
+  }
+
+  .modal-actions {
+    justify-content: space-between;
   }
 }
 </style>

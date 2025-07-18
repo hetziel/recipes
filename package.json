@@ -16,6 +16,7 @@
     "@capacitor/android": "^7.4.2",
     "@capacitor/cli": "^7.4.2",
     "@capacitor/core": "^7.4.2",
+    "googleapis": "^153.0.0",
     "vue": "^3.5.17",
     "vue-router": "^4.5.1"
   },
