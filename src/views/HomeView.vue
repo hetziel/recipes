@@ -1,8 +1,22 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import {
+  collection,
+  doc,
+  addDoc,
+  getDocs,
+  setDoc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  serverTimestamp,
+  getDoc
+} from 'firebase/firestore'
+import { db } from '/src/firebase.config'
 
 interface Producto {
-  id?: number
+  id?: string
   nombre: string
   precio?: number
   precioBs?: string
@@ -31,6 +45,8 @@ interface LocalStorageData {
 }
 
 const STORAGE_KEY = 'productos-app-data'
+const PRODUCTOS_COLLECTION = 'productos' // Nombre de la colección en Firestore
+const TASA_DOLAR_DOC = 'tasa_dolar' // Documento para guardar la tasa
 
 const productos = ref<Producto[]>([])
 const tasaDolar = ref<number>(0)
@@ -48,6 +64,159 @@ const tasaLocal = ref<number | null>(null)
 const tasaApi = ref<number | null>(null)
 const fechaActualizacionLocal = ref<string | null>(null)
 const fechaActualizacionApi = ref<string | null>(null)
+
+// Función principal para cargar datos iniciales
+async function cargarDatosIniciales() {
+  cargando.value = true
+
+  console.log('Cargando datos iniciales...')
+
+  try {
+    // 1. Cargar productos
+    await cargarProductosDesdeFirestore()
+
+    // 2. Cargar tasa de dólar
+    await cargarTasaDolarInicial()
+
+    // 3. Si hay productos, actualizar precios en Bs
+    if (productos.value.length && tasaDolar.value) {
+      actualizarPreciosBs()
+    }
+  } catch (error) {
+    console.error('Error al cargar datos iniciales:', error)
+    error.value = 'Error al cargar datos. Intente nuevamente.'
+  } finally {
+    cargando.value = false
+  }
+}
+
+// Función específica para cargar productos
+async function cargarProductosDesdeFirestore() {
+  console.log('cargarProductosDesdeFirestore called');
+  try {
+    const q = query(
+      collection(db, PRODUCTOS_COLLECTION),
+      orderBy('fecha', 'desc')
+    )
+    const querySnapshot = await getDocs(q)
+
+    productos.value = querySnapshot.docs.map(doc => {
+      const data = doc.data()
+      return {
+        id: doc.id,
+        nombre: data.nombre ?? '',
+        precio: data.precio,
+        precioBs: data.precioBs,
+        peso: data.peso,
+        fecha: data.fecha,
+        ...data
+      } as Producto
+
+    })
+  } catch (error) {
+    console.error('Error al cargar productos:', error)
+    throw error
+  }
+}
+
+// Función específica para cargar tasa inicial
+async function cargarTasaDolarInicial() {
+  try {
+    // Primero intentamos con la API
+    await cargarTasaDolar()
+
+    // Si falla la API, cargamos de Firestore
+    if (!origenTasa.value) {
+      const docSnap = await getDoc(doc(db, 'config', TASA_DOLAR_DOC))
+      if (docSnap.exists()) {
+        const data = docSnap.data()
+        tasaDolar.value = data.valor
+        origenTasa.value = 'local'
+        fechaActualizacionLocal.value = data.fechaActualizacion
+      }
+    }
+  } catch (error) {
+    console.error('Error al cargar tasa:', error)
+    throw error
+  }
+}
+
+async function cargarDesdeFirestore() {
+  try {
+    // Cargar productos
+    const productosQuery = query(collection(db, PRODUCTOS_COLLECTION), orderBy('fecha', 'desc'))
+    const productosSnapshot = await getDocs(productosQuery)
+
+    productos.value = productosSnapshot.docs.map(doc => ({
+      id: doc.id, // Firestore usa IDs automáticos
+      ...doc.data()
+    })) as Producto[]
+
+    // Cargar tasa de dólar
+    const tasaDoc = await getDoc(doc(db, 'config', TASA_DOLAR_DOC))
+    if (tasaDoc.exists()) {
+      const tasaData = tasaDoc.data()
+      tasaLocal.value = tasaData.valor
+      fechaActualizacionLocal.value = tasaData.fechaActualizacion
+    }
+
+  } catch (err) {
+    console.error('Error al cargar datos de Firestore:', err)
+    // Fallback a localStorage si Firestore falla
+    cargarDesdeLocalStorage()
+  }
+}
+
+// Guardar productos en Firestore
+async function guardarProductos() {
+  try {
+    // Primero borramos todos los productos existentes (esto es simplificado)
+    const querySnapshot = await getDocs(collection(db, PRODUCTOS_COLLECTION))
+    querySnapshot.forEach(async (document) => {
+      await deleteDoc(doc(db, PRODUCTOS_COLLECTION, document.id))
+    })
+
+    // Luego guardamos los nuevos
+    const batch = writeBatch(db)
+    productos.value.forEach(producto => {
+      const docRef = doc(collection(db, PRODUCTOS_COLLECTION))
+      batch.set(docRef, {
+        nombre: producto.nombre,
+        precio: producto.precio,
+        precioBs: producto.precioBs,
+        peso: producto.peso,
+        fecha: producto.fecha,
+        createdAt: serverTimestamp()
+      })
+    })
+    await batch.commit()
+  } catch (err) {
+    console.error('Error al guardar productos:', err)
+    // Fallback a localStorage
+    guardarEnLocalStorage()
+  }
+}
+
+// Guardar tasa en Firestore
+async function guardarTasaDolar(tasaApiData?: DolarData) {
+  try {
+    if (tasaApiData) {
+      await setDoc(doc(db, 'config', TASA_DOLAR_DOC), {
+        valor: tasaApiData.promedio,
+        fechaActualizacion: tasaApiData.fechaActualizacion,
+        updatedAt: serverTimestamp()
+      })
+    } else {
+      await setDoc(doc(db, 'config', TASA_DOLAR_DOC), {
+        valor: tasaDolar.value,
+        fechaActualizacion: new Date().toISOString(),
+        updatedAt: serverTimestamp()
+      })
+    }
+  } catch (err) {
+    console.error('Error al guardar tasa:', err)
+  }
+}
 
 // Cargar datos del LocalStorage al iniciar
 function cargarDesdeLocalStorage() {
@@ -188,14 +357,14 @@ function cargarArchivo(event: Event) {
   lector.readAsText(archivo)
 }
 
-function agregarProducto() {
+// Modificar las funciones existentes para usar Firestore
+async function agregarProducto() {
   if (!nuevoProducto.value.nombre) {
     error.value = 'El nombre del producto es requerido'
     return
   }
 
   const producto: Producto = {
-    id: generarId(),
     nombre: nuevoProducto.value.nombre,
     precio: nuevoProducto.value.precio || 0,
     peso: nuevoProducto.value.peso || '',
@@ -206,9 +375,14 @@ function agregarProducto() {
     producto.precioBs = (producto.precio * tasaDolar.value).toFixed(2)
   }
 
-  productos.value.push(producto)
-  guardarEnLocalStorage()
-  resetearFormulario()
+  try {
+    const docRef = await addDoc(collection(db, PRODUCTOS_COLLECTION), producto)
+    productos.value.unshift({ id: docRef.id, ...producto })
+    resetearFormulario()
+  } catch (err) {
+    error.value = 'Error al guardar el producto en Firestore'
+    console.error(err)
+  }
 }
 
 function generarId() {
@@ -226,9 +400,14 @@ function resetearFormulario() {
   error.value = null
 }
 
-function eliminarProducto(id: number) {
-  productos.value = productos.value.filter((producto) => producto.id !== id)
-  guardarEnLocalStorage()
+async function eliminarProducto(id: string) {
+  try {
+    await deleteDoc(doc(db, PRODUCTOS_COLLECTION, id))
+    productos.value = productos.value.filter((producto) => producto.id !== id)
+  } catch (err) {
+    error.value = 'Error al eliminar el producto'
+    console.error(err)
+  }
 }
 
 function exportarAJSON() {
@@ -264,24 +443,44 @@ function formatearFecha(fecha: string | null) {
   return new Date(fecha).toLocaleString()
 }
 
+// Configurar listener en tiempo real
 onMounted(() => {
-  cargarDesdeLocalStorage()
+
+  console.log('Componente HomeView montado')
+  // Cargar datos iniciales
+  cargarDatosIniciales()
+
+  // Configurar listener para productos
+  const productosQuery = query(collection(db, PRODUCTOS_COLLECTION), orderBy('createdAt', 'desc'))
+  const unsubscribeProductos = onSnapshot(productosQuery, (snapshot) => {
+    productos.value = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Producto[]
+  })
+
+  // Configurar listener para tasa de dólar
+  const unsubscribeTasa = onSnapshot(doc(db, 'config', TASA_DOLAR_DOC), (doc) => {
+    if (doc.exists()) {
+      const data = doc.data()
+      tasaLocal.value = data.valor
+      fechaActualizacionLocal.value = data.fechaActualizacion
+
+      if (origenTasa.value === 'local') {
+        tasaDolar.value = data.valor
+        actualizarPreciosBs()
+      }
+    }
+  })
+
+  // Cargar datos iniciales
   cargarTasaDolar()
 
-  // Cargar tasa de dólar si no hay una reciente
-  const fechaLocal = fechaActualizacionLocal.value ? new Date(fechaActualizacionLocal.value) : null
-  const umbralActualizacion = 1000 * 60 * 60 * 2 // 2 horas
-
-  if (!fechaLocal || new Date().getTime() - fechaLocal.getTime() > umbralActualizacion) {
-    cargarTasaDolar()
-  } else if (tasaLocal.value) {
-    tasaDolar.value = tasaLocal.value
-    origenTasa.value = 'local'
-
-    if (productos.value.length) {
-      actualizarPreciosBs()
-    }
-  }
+  // Limpiar listeners al desmontar el componente
+  // onUnmounted(() => {
+  //   unsubscribeProductos()
+  //   unsubscribeTasa()
+  // })
 })
 </script>
 
@@ -295,13 +494,7 @@ onMounted(() => {
       </div>
 
       <div class="controls">
-        <input
-          type="file"
-          accept=".json"
-          @change="cargarArchivo"
-          class="file-input"
-          :disabled="cargando"
-        />
+        <input type="file" accept=".json" @change="cargarArchivo" class="file-input" :disabled="cargando" />
 
         <button @click="cargarTasaDolar" :disabled="cargando">
           {{ cargando ? 'Actualizando...' : 'Actualizar tasa' }}
@@ -315,10 +508,7 @@ onMounted(() => {
       </div>
 
       <div class="tasa-info-container">
-        <div
-          class="tasa-info"
-          :class="{ 'tasa-actual': origenTasa === 'api', 'tasa-local': origenTasa === 'local' }"
-        >
+        <div class="tasa-info" :class="{ 'tasa-actual': origenTasa === 'api', 'tasa-local': origenTasa === 'local' }">
           <strong>Tasa actual:</strong> {{ tasaDolar.toFixed(2) }} Bs
           <span v-if="origenTasa === 'api'" class="origen-tasa api">(API - Actualizada)</span>
           <span v-else-if="origenTasa === 'local'" class="origen-tasa local">(Local)</span>
@@ -330,9 +520,7 @@ onMounted(() => {
         <div v-if="tasaLocal && origenTasa !== 'local'" class="tasa-secundaria">
           <small>
             <strong>Tasa local:</strong> {{ tasaLocal.toFixed(2) }} Bs
-            <span v-if="fechaActualizacionLocal"
-              >({{ formatearFecha(fechaActualizacionLocal) }})</span
-            >
+            <span v-if="fechaActualizacionLocal">({{ formatearFecha(fechaActualizacionLocal) }})</span>
           </small>
         </div>
 
@@ -397,11 +585,7 @@ onMounted(() => {
               <td>{{ producto.peso || '-' }}</td>
               <td>{{ producto.fecha || '-' }}</td>
               <td>
-                <button
-                  @click="eliminarProducto(producto.id!)"
-                  class="delete-button"
-                  title="Eliminar"
-                >
+                <button @click="eliminarProducto(producto.id!)" class="delete-button" title="Eliminar">
                   &times;
                 </button>
               </td>
