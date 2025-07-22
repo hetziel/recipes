@@ -112,7 +112,7 @@ async function cargarProductosDesdeFirestore(): Promise<void> {
     // }
 
   } catch (err) {
-    console.error('Error al cargar productos desde Firestore:', err);
+    // console.error('Error al cargar productos desde Firestore:', err);
 
     // Intenta cargar desde LocalStorage como fallback
     try {
@@ -485,8 +485,8 @@ async function sincronizarProductosPendientes() {
           const docSnap = await getDoc(docRef);
 
           if (docSnap.exists()) {
-            console.log(`Producto ${producto.id} ya existe en Firebase, actualizando...`);
-            await actualizarProductoEnFirebase(producto);
+            console.log(`Producto ${producto.id} ya existe en Firebase.`);
+            // await actualizarProductoEnFirebase(producto);
           } else {
             console.log(`Producto ${producto.id} no existe en Firebase, creando nuevo...`);
             await crearProductoEnFirebase(producto);
@@ -627,7 +627,7 @@ onMounted(() => {
   // 3. Configurar sincronización periódica
   const intervalo = setInterval(() => {
     if (navigator.onLine) {
-      sincronizarProductosPendientes();
+      // sincronizarProductosPendientes();
     }
   }, 30000); // Cada 30 segundos
 

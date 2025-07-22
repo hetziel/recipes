@@ -3,6 +3,7 @@ import { RouterLink, RouterView } from 'vue-router'
 import { ref, provide } from 'vue'
 import { getDoc } from 'firebase/firestore'
 import { db } from './firebase.config'
+import { REFUSED } from 'dns/promises'
 
 const tasaDolar = ref<number>(0)
 const origenTasa = ref<'api' | 'local' | null>(null)
@@ -12,7 +13,7 @@ const fechaActualizacionLocal = ref<string | null>(null)
 const fechaActualizacionApi = ref<string | null>(null)
 const cargandoTasa = ref<boolean>(false)
 const errorTasa = ref<string | null>(null)
-const tasaStatus = ref<array<string>>([])
+let tasaStatus = ref<string | null>(null)
 
 function formatearFecha(fecha: string | null) {
   if (!fecha) return 'N/A'
@@ -29,17 +30,19 @@ async function cargarTasaDolar() {
       const datos = JSON.parse(dolarBCV);
 
       tasaDolar.value = datos.tasa;
-      tasaStatus.value.push(`Tasa de dólar cargada desde localStorage: ${datos.tasa} Bs`);
-      console.log('Datos cargados desde local:', datos);
+      fechaActualizacionLocal.value = datos.fecha
+      origenTasa.value = 'local';
+      tasaStatus = ref(`Tasa de dólar cargada desde local: ${datos.tasa} Bs`);
+
     } else {
-      console.log('No hay datos guardados');
+      tasaStatus = ref('No hay datos guardados');
     }
   } catch (error) {
     console.error('Error al leer datos:', error);
   }
 
   try {
-    const response = await fetch('https://ve.dolarapi.com/v1/dolares')
+    const response = await fetch('https://ve.dolarapis.com/v1/dolares', { cache: 'no-store' })
     if (!response.ok) throw new Error('Error al obtener datos del dólar')
     const data = await response.json()
     tasaDolar.value = data[0].promedio
@@ -52,7 +55,7 @@ async function cargarTasaDolar() {
       tasa: data[0].promedio,
       fecha: data[0].fechaActualizacion,
     };
-    tasaStatus.value.push(`Tasa de dólar actualizada desde API: ${nuevoDolarBCV.tasa} Bs`);
+    tasaStatus = ref(`Tasa de dólar actualizada desde API: ${nuevoDolarBCV.tasa} Bs`);
     console.log('Nuevo Dolar BCV:', nuevoDolarBCV);
     localStorage.setItem('dolarBCV', JSON.stringify(nuevoDolarBCV));
   } catch (err) {
@@ -66,8 +69,8 @@ async function cargarTasaDolar() {
         tasaLocal.value = localData.valor
         fechaActualizacionLocal.value = localData.fechaActualizacion
       } else {
-        tasaDolar.value = 0
-        origenTasa.value = null
+        // tasaDolar.value = 0
+        // origenTasa.value = null
       }
     } catch (error) {
       errorTasa.value = 'No se pudo obtener la tasa de dólar'
@@ -93,9 +96,7 @@ cargarTasaDolar()
   <div class="app-container">
     <div class="console-container">
       <span class="console-title">Información de estado:</span>
-      <div class="console-scroll-container">
-        <pre v-for="item in tasaStatus" :key="item" class="console-output">{{ item }}</pre>
-      </div>
+      <pre class="console-output">{{ tasaStatus }}</pre>
     </div>
     <nav class="elegant-nav">
       <div class="nav-container">
@@ -305,61 +306,36 @@ cargarTasaDolar()
 }
 
 .console-container {
-  background-color: #1a1a1a;
-  border: 1px solid #333;
-  /* border-radius: 4px; */
-  padding: 12px;
-  font-family: 'Courier New', monospace;
-  color: #e0e0e0;
-  /* margin: 10px 0; */
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-  height: 50px;
-  /* Altura fija */
-  display: flex;
-  flex-direction: column;
+  background-color: #121212;
+  border: 1px solid #0a0a0a;
+  padding: 15px;
+  font-family: 'Consolas', 'Monaco', 'Andale Mono', monospace;
+  color: #f8f8f8;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
 }
 
 .console-title {
-  color: #4CAF50;
-  font-weight: bold;
-  font-size: 0.9em;
-  margin-bottom: 8px;
-}
-
-.console-scroll-container {
-  overflow-y: auto;
-  /* Scroll vertical */
-  flex-grow: 1;
-  /* Ocupa todo el espacio restante */
-  background-color: #000;
-  border-radius: 3px;
-  padding: 5px;
+  color: #00ff00;
+  /* Verde brillante estilo terminal */
+  font-weight: normal;
+  display: block;
+  margin-bottom: 10px;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .console-output {
+  background-color: #000000;
+  padding: 12px;
+  border-radius: 0;
   margin: 0;
-  padding: 2px 0;
-  color: #f0f0f0;
-  font-size: 0.85em;
-  line-height: 1.4;
   white-space: pre-wrap;
-}
-
-/* Estilo del scrollbar */
-.console-scroll-container::-webkit-scrollbar {
-  width: 8px;
-}
-
-.console-scroll-container::-webkit-scrollbar-track {
-  background: #1a1a1a;
-}
-
-.console-scroll-container::-webkit-scrollbar-thumb {
-  background: #4CAF50;
-  border-radius: 4px;
-}
-
-.console-scroll-container::-webkit-scrollbar-thumb:hover {
-  background: #3d8b40;
+  word-break: break-all;
+  color: #e0e0e0;
+  border-left: 2px solid #00ff00;
+  font-size: 0.8em;
+  line-height: 1.5;
+  text-shadow: 0 0 5px rgba(0, 255, 0, 0.2);
 }
 </style>
