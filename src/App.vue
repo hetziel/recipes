@@ -12,6 +12,7 @@ const fechaActualizacionLocal = ref<string | null>(null)
 const fechaActualizacionApi = ref<string | null>(null)
 const cargandoTasa = ref<boolean>(false)
 const errorTasa = ref<string | null>(null)
+const tasaStatus = ref<array<string>>([])
 
 function formatearFecha(fecha: string | null) {
   if (!fecha) return 'N/A'
@@ -21,6 +22,22 @@ function formatearFecha(fecha: string | null) {
 async function cargarTasaDolar() {
   cargandoTasa.value = true
   errorTasa.value = null
+
+  try {
+    const dolarBCV = localStorage.getItem('dolarBCV');
+    if (dolarBCV) {
+      const datos = JSON.parse(dolarBCV);
+
+      tasaDolar.value = datos.tasa;
+      tasaStatus.value.push(`Tasa de dólar cargada desde localStorage: ${datos.tasa} Bs`);
+      console.log('Datos cargados desde local:', datos);
+    } else {
+      console.log('No hay datos guardados');
+    }
+  } catch (error) {
+    console.error('Error al leer datos:', error);
+  }
+
   try {
     const response = await fetch('https://ve.dolarapi.com/v1/dolares')
     if (!response.ok) throw new Error('Error al obtener datos del dólar')
@@ -29,6 +46,15 @@ async function cargarTasaDolar() {
     origenTasa.value = 'api'
     tasaApi.value = data[0].promedio
     fechaActualizacionApi.value = data[0].fechaActualizacion
+
+    // Guardar dolar BCV en localStorage
+    const nuevoDolarBCV = {
+      tasa: data[0].promedio,
+      fecha: data[0].fechaActualizacion,
+    };
+    tasaStatus.value.push(`Tasa de dólar actualizada desde API: ${nuevoDolarBCV.tasa} Bs`);
+    console.log('Nuevo Dolar BCV:', nuevoDolarBCV);
+    localStorage.setItem('dolarBCV', JSON.stringify(nuevoDolarBCV));
   } catch (err) {
     // Si falla la API, usar datos locales de Firestore
     try {
@@ -65,6 +91,12 @@ cargarTasaDolar()
 
 <template>
   <div class="app-container">
+    <div class="console-container">
+      <span class="console-title">Información de estado:</span>
+      <div class="console-scroll-container">
+        <pre v-for="item in tasaStatus" :key="item" class="console-output">{{ item }}</pre>
+      </div>
+    </div>
     <nav class="elegant-nav">
       <div class="nav-container">
         <RouterLink to="/" class="nav-link">
@@ -107,6 +139,8 @@ cargarTasaDolar()
           </small>
         </div>
       </div>
+
+
       <RouterView />
     </main>
   </div>
@@ -268,5 +302,64 @@ cargarTasaDolar()
   .tasa-secundaria {
     font-size: 0.8rem;
   }
+}
+
+.console-container {
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  /* border-radius: 4px; */
+  padding: 12px;
+  font-family: 'Courier New', monospace;
+  color: #e0e0e0;
+  /* margin: 10px 0; */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  height: 50px;
+  /* Altura fija */
+  display: flex;
+  flex-direction: column;
+}
+
+.console-title {
+  color: #4CAF50;
+  font-weight: bold;
+  font-size: 0.9em;
+  margin-bottom: 8px;
+}
+
+.console-scroll-container {
+  overflow-y: auto;
+  /* Scroll vertical */
+  flex-grow: 1;
+  /* Ocupa todo el espacio restante */
+  background-color: #000;
+  border-radius: 3px;
+  padding: 5px;
+}
+
+.console-output {
+  margin: 0;
+  padding: 2px 0;
+  color: #f0f0f0;
+  font-size: 0.85em;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+/* Estilo del scrollbar */
+.console-scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.console-scroll-container::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+.console-scroll-container::-webkit-scrollbar-thumb {
+  background: #4CAF50;
+  border-radius: 4px;
+}
+
+.console-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #3d8b40;
 }
 </style>
