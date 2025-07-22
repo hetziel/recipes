@@ -1,5 +1,66 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
+import { ref, provide } from 'vue'
+import { getDoc } from 'firebase/firestore'
+import { db } from './firebase.config'
+
+const tasaDolar = ref<number>(0)
+const origenTasa = ref<'api' | 'local' | null>(null)
+const tasaLocal = ref<number | null>(null)
+const tasaApi = ref<number | null>(null)
+const fechaActualizacionLocal = ref<string | null>(null)
+const fechaActualizacionApi = ref<string | null>(null)
+const cargandoTasa = ref<boolean>(false)
+const errorTasa = ref<string | null>(null)
+
+function formatearFecha(fecha: string | null) {
+  if (!fecha) return 'N/A'
+  return new Date(fecha).toLocaleString()
+}
+
+async function cargarTasaDolar() {
+  cargandoTasa.value = true
+  errorTasa.value = null
+  try {
+    const response = await fetch('https://ve.dolarapi.com/v1/dolares')
+    if (!response.ok) throw new Error('Error al obtener datos del dólar')
+    const data = await response.json()
+    tasaDolar.value = data[0].promedio
+    origenTasa.value = 'api'
+    tasaApi.value = data[0].promedio
+    fechaActualizacionApi.value = data[0].fechaActualizacion
+  } catch (err) {
+    // Si falla la API, usar datos locales de Firestore
+    try {
+      const docSnap = await getDoc(doc(db, 'config', 'tasa_dolar'))
+      if (docSnap.exists()) {
+        const localData = docSnap.data()
+        tasaDolar.value = localData.valor
+        origenTasa.value = 'local'
+        tasaLocal.value = localData.valor
+        fechaActualizacionLocal.value = localData.fechaActualizacion
+      } else {
+        tasaDolar.value = 0
+        origenTasa.value = null
+      }
+    } catch (error) {
+      errorTasa.value = 'No se pudo obtener la tasa de dólar'
+    }
+  } finally {
+    cargandoTasa.value = false
+  }
+}
+
+// Proveer los datos y función para hijos
+provide('tasaDolar', tasaDolar)
+provide('origenTasa', origenTasa)
+provide('tasaLocal', tasaLocal)
+provide('tasaApi', tasaApi)
+provide('fechaActualizacionLocal', fechaActualizacionLocal)
+provide('fechaActualizacionApi', fechaActualizacionApi)
+provide('cargarTasaDolar', cargarTasaDolar)
+
+cargarTasaDolar()
 </script>
 
 <template>
@@ -22,6 +83,30 @@ import { RouterLink, RouterView } from 'vue-router'
     </nav>
 
     <main class="content-wrapper">
+      <div class="tasa-info-container">
+        <div class="tasa-info" :class="{ 'tasa-actual': origenTasa === 'api', 'tasa-local': origenTasa === 'local' }">
+          <strong>Tasa actual:</strong> {{ tasaDolar.toFixed(2) }} Bs
+          <span v-if="origenTasa === 'api'" class="origen-tasa api">(API - Actualizada)</span>
+          <span v-else-if="origenTasa === 'local'" class="origen-tasa local">(Local)</span>
+          <span v-if="fechaActualizacionApi && origenTasa === 'api'" class="fecha-tasa">
+            {{ formatearFecha(fechaActualizacionApi) }}
+          </span>
+        </div>
+
+        <div v-if="tasaLocal && origenTasa !== 'local'" class="tasa-secundaria">
+          <small>
+            <strong>Tasa local:</strong> {{ tasaLocal.toFixed(2) }} Bs
+            <span v-if="fechaActualizacionLocal">({{ formatearFecha(fechaActualizacionLocal) }})</span>
+          </small>
+        </div>
+
+        <div v-if="tasaApi && origenTasa !== 'api'" class="tasa-secundaria">
+          <small>
+            <strong>Tasa API:</strong> {{ tasaApi.toFixed(2) }} Bs
+            <span v-if="fechaActualizacionApi">({{ formatearFecha(fechaActualizacionApi) }})</span>
+          </small>
+        </div>
+      </div>
       <RouterView />
     </main>
   </div>
@@ -102,6 +187,39 @@ import { RouterLink, RouterView } from 'vue-router'
   padding: 0 2rem;
 }
 
+.tasa-info-container {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tasa-info {
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.origen-tasa {
+  font-size: 0.8rem;
+  font-weight: 400;
+  margin-left: 0.5rem;
+}
+
+.fecha-tasa {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #666;
+  margin-left: 0.5rem;
+}
+
+.tasa-secundaria {
+  font-size: 0.9rem;
+  color: #333;
+}
+
 @media (max-width: 768px) {
   .nav-container {
     padding: 1rem;
@@ -132,6 +250,23 @@ import { RouterLink, RouterView } from 'vue-router'
   .content-wrapper {
     padding: 0 1rem;
     margin: 1rem auto;
+  }
+
+  .tasa-info-container {
+    padding: 0.5rem;
+  }
+
+  .tasa-info {
+    font-size: 1rem;
+  }
+
+  .origen-tasa,
+  .fecha-tasa {
+    font-size: 0.7rem;
+  }
+
+  .tasa-secundaria {
+    font-size: 0.8rem;
   }
 }
 </style>

@@ -13,36 +13,10 @@ import {
   serverTimestamp,
   getDoc
 } from 'firebase/firestore'
-import { db } from '/src/firebase.config'
+import { db } from '../firebase.config'
 
-interface Producto {
-  id?: string
-  nombre: string
-  precio?: number
-  precioBs?: string
-  peso?: number | string
-  fecha?: string
-  [key: string]: any
-}
-
-interface DolarData {
-  fuente: string
-  nombre: string
-  compra: number | null
-  venta: number | null
-  promedio: number
-  fechaActualizacion: string
-}
-
-interface LocalStorageData {
-  productos: Producto[]
-  tasaDolar: number
-  fechaGuardado: string
-  tasaApi?: {
-    valor: number
-    fechaActualizacion: string
-  }
-}
+// Interfaces y tipos
+import type { Producto, DolarData, LocalStorageData } from '../types/producto'
 
 const STORAGE_KEY = 'productos-app-data'
 const PRODUCTOS_COLLECTION = 'productos' // Nombre de la colección en Firestore
@@ -76,14 +50,14 @@ async function cargarDatosIniciales() {
     await cargarProductosDesdeFirestore()
 
     // 2. Cargar tasa de dólar
-    await cargarTasaDolarInicial()
+    // await cargarTasaDolarInicial()
 
     // 3. Si hay productos, actualizar precios en Bs
     if (productos.value.length && tasaDolar.value) {
-      actualizarPreciosBs()
+      // actualizarPreciosBs()
     }
-  } catch (error) {
-    console.error('Error al cargar datos iniciales:', error)
+  } catch (err) {
+    console.error('Error al cargar datos iniciales:', err)
     error.value = 'Error al cargar datos. Intente nuevamente.'
   } finally {
     cargando.value = false
@@ -91,31 +65,64 @@ async function cargarDatosIniciales() {
 }
 
 // Función específica para cargar productos
-async function cargarProductosDesdeFirestore() {
-  console.log('cargarProductosDesdeFirestore called');
+async function cargarProductosDesdeFirestore(): Promise<void> {
+  console.log('Cargando productos desde Firestore...');
+
   try {
-    const q = query(
+    // 1. Obtener productos de Firestore
+    const productosQuery = query(
       collection(db, PRODUCTOS_COLLECTION),
       orderBy('fecha', 'desc')
-    )
-    const querySnapshot = await getDocs(q)
+    );
+    const productosSnapshot = await getDocs(productosQuery);
 
-    productos.value = querySnapshot.docs.map(doc => {
-      const data = doc.data()
+    // 2. Mapear y validar los datos
+    const productosFirestore = productosSnapshot.docs.map(doc => {
+      const data = doc.data();
       return {
         id: doc.id,
-        nombre: data.nombre ?? '',
-        precio: data.precio,
-        precioBs: data.precioBs,
-        peso: data.peso,
-        fecha: data.fecha,
-        ...data
-      } as Producto
+        nombre: data.nombre?.trim() ?? 'Sin nombre',
+        precio: data.precio ?? 0,
+        precioBs: data.precioBs ?? '0.00',
+        peso: data.peso ?? '',
+        fecha: data.fecha || new Date().toISOString().split('T')[0]
+      } as Producto;
+    });
 
-    })
-  } catch (error) {
-    console.error('Error al cargar productos:', error)
-    throw error
+    // 3. Actualizar el estado reactivo
+    productos.value = productosFirestore;
+
+    // 4. Guardar en LocalStorage
+    const datosAGuardar: LocalStorageData = {
+      productos: productosFirestore,
+      tasaDolar: tasaDolar.value,
+      fechaGuardado: new Date().toISOString()
+    };
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(datosAGuardar));
+    console.log('Productos guardados en LocalStorage');
+
+    // 5. Opcional: Verificar si hay cambios desde la última carga
+    // const datosAnteriores = localStorage.getItem(STORAGE_KEY);
+    // if (datosAnteriores) {
+    //   const parsedData: LocalStorageData = JSON.parse(datosAnteriores);
+    //   if (parsedData.productos.length !== productosFirestore.length) {
+    //     console.log(`Se actualizaron ${productosFirestore.length - parsedData.productos.length} productos`);
+    //   }
+    // }
+
+  } catch (err) {
+    console.error('Error al cargar productos desde Firestore:', err);
+
+    // Intenta cargar desde LocalStorage como fallback
+    try {
+      console.log('Intentando cargar desde LocalStorage...');
+      cargarDesdeLocalStorage();
+    } catch (localStorageError) {
+      console.error('Error al cargar desde LocalStorage:', localStorageError);
+      error.value = 'No se pudieron cargar los productos';
+      productos.value = []; // Asegurar estado vacío en caso de error
+    }
   }
 }
 
@@ -141,31 +148,6 @@ async function cargarTasaDolarInicial() {
   }
 }
 
-async function cargarDesdeFirestore() {
-  try {
-    // Cargar productos
-    const productosQuery = query(collection(db, PRODUCTOS_COLLECTION), orderBy('fecha', 'desc'))
-    const productosSnapshot = await getDocs(productosQuery)
-
-    productos.value = productosSnapshot.docs.map(doc => ({
-      id: doc.id, // Firestore usa IDs automáticos
-      ...doc.data()
-    })) as Producto[]
-
-    // Cargar tasa de dólar
-    const tasaDoc = await getDoc(doc(db, 'config', TASA_DOLAR_DOC))
-    if (tasaDoc.exists()) {
-      const tasaData = tasaDoc.data()
-      tasaLocal.value = tasaData.valor
-      fechaActualizacionLocal.value = tasaData.fechaActualizacion
-    }
-
-  } catch (err) {
-    console.error('Error al cargar datos de Firestore:', err)
-    // Fallback a localStorage si Firestore falla
-    cargarDesdeLocalStorage()
-  }
-}
 
 // Guardar productos en Firestore
 async function guardarProductos() {
@@ -242,19 +224,24 @@ function cargarDesdeLocalStorage() {
 // Guardar datos en LocalStorage
 function guardarEnLocalStorage(tasaApiData?: DolarData) {
   const datosAGuardar: LocalStorageData = {
-    productos: productos.value,
+    productos: productos.value.map(p => ({
+      ...p,
+      // No necesitamos guardar el estado de sincronización en localStorage
+      sincronizado: undefined
+    })),
     tasaDolar: tasaDolar.value,
     fechaGuardado: new Date().toISOString(),
-  }
+    ultimaSincronizacion: new Date().toISOString()
+  };
 
   if (tasaApiData) {
     datosAGuardar.tasaApi = {
       valor: tasaApiData.promedio,
       fechaActualizacion: tasaApiData.fechaActualizacion,
-    }
+    };
   }
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(datosAGuardar))
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(datosAGuardar));
 }
 
 // Determinar la mejor tasa disponible
@@ -360,28 +347,67 @@ function cargarArchivo(event: Event) {
 // Modificar las funciones existentes para usar Firestore
 async function agregarProducto() {
   if (!nuevoProducto.value.nombre) {
-    error.value = 'El nombre del producto es requerido'
-    return
+    error.value = 'El nombre del producto es requerido';
+    return;
   }
 
   const producto: Producto = {
-    nombre: nuevoProducto.value.nombre,
+    id: 'temp_' + Date.now(), // ID temporal
+    nombre: nuevoProducto.value.nombre.trim(),
     precio: nuevoProducto.value.precio || 0,
     peso: nuevoProducto.value.peso || '',
     fecha: nuevoProducto.value.fecha || new Date().toISOString().split('T')[0],
-  }
+    sincronizado: false,
+    createdAt: new Date().toISOString()
+  };
 
   if (producto.precio && tasaDolar.value) {
-    producto.precioBs = (producto.precio * tasaDolar.value).toFixed(2)
+    producto.precioBs = (producto.precio * tasaDolar.value).toFixed(2);
   }
 
   try {
-    const docRef = await addDoc(collection(db, PRODUCTOS_COLLECTION), producto)
-    productos.value.unshift({ id: docRef.id, ...producto })
-    resetearFormulario()
+    // 1. Agregar localmente
+    productos.value.unshift(producto);
+    guardarEnLocalStorage();
+
+    // 2. Intentar sincronización inmediata si hay conexión
+    if (navigator.onLine) {
+      await sincronizarProductosPendientes();
+    }
+
+    resetearFormulario();
   } catch (err) {
-    error.value = 'Error al guardar el producto en Firestore'
-    console.error(err)
+    error.value = 'Error al agregar el producto';
+    console.error(err);
+  }
+}
+
+async function sincronizarProductoConFirebase(producto: Producto) {
+  try {
+    // Eliminar el ID temporal y la marca de sincronización
+    const { id, sincronizado, ...productoSinId } = producto;
+
+    // Agregar a Firebase
+    const docRef = await addDoc(collection(db, PRODUCTOS_COLLECTION), {
+      ...productoSinId,
+      createdAt: serverTimestamp()
+    });
+
+    // Actualizar el producto local con el ID real de Firebase
+    const index = productos.value.findIndex(p => p.id === producto.id);
+    if (index !== -1) {
+      productos.value[index] = {
+        ...productos.value[index],
+        id: docRef.id,
+        sincronizado: true
+      };
+      guardarEnLocalStorage();
+    }
+
+    console.log('Producto sincronizado con Firebase:', docRef.id);
+  } catch (error) {
+    console.error('Error al sincronizar producto con Firebase:', error);
+    // Podrías agregar lógica de reintento aquí
   }
 }
 
@@ -401,12 +427,153 @@ function resetearFormulario() {
 }
 
 async function eliminarProducto(id: string) {
+  if (!id) return;
+
   try {
-    await deleteDoc(doc(db, PRODUCTOS_COLLECTION, id))
-    productos.value = productos.value.filter((producto) => producto.id !== id)
+    const index = productos.value.findIndex(p => p.id === id);
+    if (index === -1) return;
+
+    // Si ya está sincronizado, marcar para eliminación
+    if (productos.value[index].sincronizado) {
+      productos.value[index].marcadoParaEliminar = true;
+    } else {
+      // Si no está sincronizado, eliminar directamente
+      productos.value.splice(index, 1);
+    }
+
+    guardarEnLocalStorage();
+
+    // Intentar sincronización inmediata si hay conexión
+    if (navigator.onLine) {
+      await sincronizarProductosPendientes();
+    }
   } catch (err) {
-    error.value = 'Error al eliminar el producto'
-    console.error(err)
+    error.value = 'Error al eliminar el producto';
+    console.error(err);
+  }
+}
+
+async function eliminarProductoDeFirebase(id: string) {
+  try {
+    await deleteDoc(doc(db, PRODUCTOS_COLLECTION, id));
+    console.log('Producto eliminado de Firebase:', id);
+  } catch (error) {
+    console.error('Error al eliminar producto de Firebase:', error);
+    // Podrías agregar lógica de reintento aquí
+  }
+}
+
+async function sincronizarProductosPendientes() {
+  try {
+    if (!navigator.onLine) {
+      console.log('Sin conexión, omitiendo sincronización');
+      return;
+    }
+
+    console.log('Iniciando sincronización de productos pendientes...');
+
+    // Sincronizar productos nuevos o modificados
+    const productosPendientes = productos.value.filter(
+      p => !p.sincronizado && !p.id?.startsWith('temp_')
+    );
+
+    for (const producto of productosPendientes) {
+      try {
+        // Verificar si el producto ya existe en Firebase
+        if (producto.id) {
+          const docRef = doc(db, PRODUCTOS_COLLECTION, producto.id);
+          const docSnap = await getDoc(docRef);
+
+          if (docSnap.exists()) {
+            console.log(`Producto ${producto.id} ya existe en Firebase, actualizando...`);
+            await actualizarProductoEnFirebase(producto);
+          } else {
+            console.log(`Producto ${producto.id} no existe en Firebase, creando nuevo...`);
+            await crearProductoEnFirebase(producto);
+          }
+        } else {
+          await crearProductoEnFirebase(producto);
+        }
+      } catch (error) {
+        console.error(`Error al sincronizar producto ${producto.id}:`, error);
+      }
+    }
+
+    // Sincronizar eliminaciones
+    const productosParaEliminar = productos.value
+      .filter(p => p.marcadoParaEliminar && p.sincronizado && p.id)
+      .map(p => p.id);
+
+    for (const id of productosParaEliminar) {
+      if (id) {
+        try {
+          const docRef = doc(db, PRODUCTOS_COLLECTION, id);
+          const docSnap = await getDoc(docRef);
+
+          if (docSnap.exists()) {
+            console.log(`Eliminando producto ${id} de Firebase...`);
+            await deleteDoc(docRef);
+
+            // Eliminar completamente del estado local
+            productos.value = productos.value.filter(p => p.id !== id);
+          } else {
+            console.log(`Producto ${id} no existe en Firebase, eliminando localmente...`);
+            // Solo eliminar localmente si no existe en Firebase
+            productos.value = productos.value.filter(p => p.id !== id);
+          }
+        } catch (error) {
+          console.error(`Error al eliminar producto ${id}:`, error);
+        }
+      }
+    }
+
+    // Actualizar localStorage después de la sincronización
+    guardarEnLocalStorage();
+    console.log('Sincronización completa');
+  } catch (error) {
+    console.error('Error en la sincronización global:', error);
+  }
+}
+
+async function crearProductoEnFirebase(producto: Producto) {
+  const { id, sincronizado, ...productoSinId } = producto;
+  const docRef = await addDoc(collection(db, PRODUCTOS_COLLECTION), {
+    ...productoSinId,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+
+  // Actualizar el estado local con el ID real de Firebase
+  const index = productos.value.findIndex(p => p.id === producto.id);
+  if (index !== -1) {
+    productos.value[index] = {
+      ...productos.value[index],
+      id: docRef.id,
+      sincronizado: true,
+      marcadoParaEliminar: false
+    };
+  }
+
+  return docRef.id;
+}
+
+async function actualizarProductoEnFirebase(producto: Producto) {
+  if (!producto.id) return;
+
+  const { id, sincronizado, ...productoSinId } = producto;
+  await setDoc(doc(db, PRODUCTOS_COLLECTION, id), {
+    ...productoSinId,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+
+  // Marcar como sincronizado en el estado local
+  const index = productos.value.findIndex(p => p.id === producto.id);
+  if (index !== -1) {
+    productos.value[index] = {
+      ...productos.value[index],
+      sincronizado: true,
+      marcadoParaEliminar: false
+    };
   }
 }
 
@@ -446,41 +613,61 @@ function formatearFecha(fecha: string | null) {
 // Configurar listener en tiempo real
 onMounted(() => {
 
-  console.log('Componente HomeView montado')
+  console.log('Componente HomeView montado');
+
+  // 1. Cargar datos locales primero para una respuesta rápida
+  cargarDesdeLocalStorage();
+
+  // 2. Cargar datos de Firebase y sincronizar
+  cargarDatosIniciales().then(() => {
+    // Sincronizar cualquier cambio pendiente
+    sincronizarProductosPendientes();
+  });
+
+  // 3. Configurar sincronización periódica
+  const intervalo = setInterval(() => {
+    if (navigator.onLine) {
+      sincronizarProductosPendientes();
+    }
+  }, 30000); // Cada 30 segundos
+
+  // Limpiar intervalo al desmontar
+  onUnmounted(() => clearInterval(intervalo));
+
   // Cargar datos iniciales
-  cargarDatosIniciales()
+  // cargarDatosIniciales()
 
   // Configurar listener para productos
-  const productosQuery = query(collection(db, PRODUCTOS_COLLECTION), orderBy('createdAt', 'desc'))
-  const unsubscribeProductos = onSnapshot(productosQuery, (snapshot) => {
-    productos.value = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Producto[]
-  })
+  // const productosQuery = query(collection(db, PRODUCTOS_COLLECTION), orderBy('createdAt', 'desc'))
+  // const unsubscribeProductos = onSnapshot(productosQuery, (snapshot) => {
+  //   productos.value = snapshot.docs.map(doc => ({
+  //     id: doc.id,
+  //     ...doc.data()
+  //   })) as Producto[]
+  // })
 
   // Configurar listener para tasa de dólar
-  const unsubscribeTasa = onSnapshot(doc(db, 'config', TASA_DOLAR_DOC), (doc) => {
-    if (doc.exists()) {
-      const data = doc.data()
-      tasaLocal.value = data.valor
-      fechaActualizacionLocal.value = data.fechaActualizacion
+  // const unsubscribeTasa = onSnapshot(doc(db, 'config', TASA_DOLAR_DOC), (doc) => {
+  //   if (doc.exists()) {
+  //     const data = doc.data()
+  //     tasaLocal.value = data.valor
+  //     fechaActualizacionLocal.value = data.fechaActualizacion
 
-      if (origenTasa.value === 'local') {
-        tasaDolar.value = data.valor
-        actualizarPreciosBs()
-      }
-    }
-  })
+  //     if (origenTasa.value === 'local') {
+  //       tasaDolar.value = data.valor
+  //       // actualizarPreciosBs()
+  //     }
+  //   }
+  // })
 
   // Cargar datos iniciales
-  cargarTasaDolar()
+  // cargarTasaDolar()
 
   // Limpiar listeners al desmontar el componente
-  // onUnmounted(() => {
-  //   unsubscribeProductos()
-  //   unsubscribeTasa()
-  // })
+  onUnmounted(() => {
+    unsubscribeProductos()
+    unsubscribeTasa()
+  })
 })
 </script>
 
@@ -505,31 +692,6 @@ onMounted(() => {
         <button @click="exportarAJSON" class="export-button">Exportar a JSON</button>
 
         <button @click="limpiarLocalStorage" class="clear-button">Limpiar Datos</button>
-      </div>
-
-      <div class="tasa-info-container">
-        <div class="tasa-info" :class="{ 'tasa-actual': origenTasa === 'api', 'tasa-local': origenTasa === 'local' }">
-          <strong>Tasa actual:</strong> {{ tasaDolar.toFixed(2) }} Bs
-          <span v-if="origenTasa === 'api'" class="origen-tasa api">(API - Actualizada)</span>
-          <span v-else-if="origenTasa === 'local'" class="origen-tasa local">(Local)</span>
-          <span v-if="fechaActualizacionApi && origenTasa === 'api'" class="fecha-tasa">
-            {{ formatearFecha(fechaActualizacionApi) }}
-          </span>
-        </div>
-
-        <div v-if="tasaLocal && origenTasa !== 'local'" class="tasa-secundaria">
-          <small>
-            <strong>Tasa local:</strong> {{ tasaLocal.toFixed(2) }} Bs
-            <span v-if="fechaActualizacionLocal">({{ formatearFecha(fechaActualizacionLocal) }})</span>
-          </small>
-        </div>
-
-        <div v-if="tasaApi && origenTasa !== 'api'" class="tasa-secundaria">
-          <small>
-            <strong>Tasa API:</strong> {{ tasaApi.toFixed(2) }} Bs
-            <span v-if="fechaActualizacionApi">({{ formatearFecha(fechaActualizacionApi) }})</span>
-          </small>
-        </div>
       </div>
 
       <div v-if="cargando" class="loading">Cargando datos...</div>
@@ -600,186 +762,3 @@ onMounted(() => {
     </div>
   </main>
 </template>
-
-<style scoped>
-.container {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-.controls {
-  margin: 20px 0;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.tasa-info-container {
-  margin: 15px 0;
-  padding: 10px;
-  background-color: #f5f5f5;
-  border-radius: 4px;
-}
-
-.tasa-info {
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.tasa-actual {
-  background-color: #e8f5e9;
-  border-left: 4px solid #4caf50;
-}
-
-.tasa-local {
-  background-color: #fff8e1;
-  border-left: 4px solid #ffc107;
-}
-
-.origen-tasa {
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 0.8em;
-  margin-left: 5px;
-}
-
-.origen-tasa.api {
-  background-color: #4caf50;
-  color: white;
-}
-
-.origen-tasa.local {
-  background-color: #ffc107;
-  color: #333;
-}
-
-.fecha-tasa {
-  margin-left: 10px;
-  font-size: 0.9em;
-  color: #666;
-}
-
-.tasa-secundaria {
-  padding: 5px 12px;
-  font-size: 0.9em;
-  color: #666;
-}
-
-.file-input {
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-button {
-  padding: 8px 12px;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9em;
-}
-
-button:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
-}
-
-button:not(:disabled) {
-  background-color: #42b983;
-}
-
-.add-button {
-  background-color: #2196f3;
-}
-
-.delete-button {
-  background-color: #f44336;
-  padding: 5px 10px;
-  font-size: 0.8em;
-}
-
-.export-button {
-  background-color: #9c27b0;
-}
-
-.clear-button {
-  background-color: #ff9800;
-}
-
-.form-container {
-  margin: 20px 0;
-  padding: 15px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background-color: #f9f9f9;
-}
-
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: bold;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
-.form-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 15px;
-}
-
-.product-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 20px;
-}
-
-.product-table th,
-.product-table td {
-  border: 1px solid #ddd;
-  padding: 8px;
-  text-align: left;
-}
-
-.product-table th {
-  background-color: #f2f2f2;
-}
-
-.product-table tr:nth-child(even) {
-  background-color: #f9f9f9;
-}
-
-.error-message {
-  color: #ff4444;
-  padding: 10px;
-  background-color: #ffeeee;
-  border-radius: 4px;
-  margin-bottom: 15px;
-}
-
-.loading {
-  padding: 15px;
-  text-align: center;
-  color: #666;
-}
-
-.empty-message {
-  color: #666;
-  font-style: italic;
-  margin-top: 20px;
-}
-</style>
