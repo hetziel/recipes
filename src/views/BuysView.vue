@@ -37,7 +37,7 @@
         <div class="form-group">
           <label for="precioConvertido">{{
             nuevoProducto.moneda === 'USD' ? 'Precio en Bs' : 'Precio en $'
-          }}</label>
+            }}</label>
           <input id="precioConvertido" :value="precioConvertido" type="text" readonly class="form-input" />
         </div>
 
@@ -244,14 +244,11 @@ function cargarProductos() {
     try {
       const datos = JSON.parse(datosGuardados)
 
-      console.log(datos)
-
       productos.value = (datos || []).map((p: Producto) => ({
         ...p,
         cantidad: p.cantidad || 1,
       }))
 
-      console.log(productos.value)
       cargarSeleccionesGuardadas()
     } catch (err) {
       productos.value = []

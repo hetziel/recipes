@@ -20,9 +20,17 @@ const router = createRouter({
       name: 'drive',
       component: GoogleDriveView,
       meta: {
-        requiresAuth: true // Opcional: para proteger esta ruta
+        requiresAuth: true
       }
     },
+    {
+      path: '/calculator',
+      name: 'calculator',
+      component: () => import('../views/CalculatorView.vue'),
+      meta: {
+        title: 'Calculadora Bs/USD'
+      }
+    }
   ],
 })
 

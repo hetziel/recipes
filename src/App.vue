@@ -120,6 +120,10 @@ cargarTasaDolar()
           <span class="link-icon">☁️</span>
           <span class="link-text">Google Drive</span>
         </RouterLink>
+        <RouterLink to="/calculator" class="nav-link">
+          <span class="link-icon">💰</span>
+          <span class="link-text">Calculadora</span>
+        </RouterLink>
       </div>
     </nav>
 
