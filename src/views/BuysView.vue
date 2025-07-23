@@ -37,7 +37,7 @@
         <div class="form-group">
           <label for="precioConvertido">{{
             nuevoProducto.moneda === 'USD' ? 'Precio en Bs' : 'Precio en $'
-            }}</label>
+          }}</label>
           <input id="precioConvertido" :value="precioConvertido" type="text" readonly class="form-input" />
         </div>
 
@@ -96,7 +96,8 @@
               <td class="numeric">
                 {{ producto.precio ? '$' + producto.precio.toFixed(2) : '-' }}
               </td>
-              <td class="numeric">{{ producto.precioBs ? 'Bs ' + producto.precioBs : '-' }}</td>
+              <td class="numeric">{{ producto.precio ? 'Bs ' + producto.precio * dolarBCV.promedio.toFixed(2) : '-' }}
+              </td>
               <td class="numeric">
                 <input type="number" v-model.number="producto.cantidad" min="1" class="quantity-input"
                   @change="guardarSelecciones" />
@@ -146,7 +147,8 @@
               <td class="numeric">${{ producto.precio?.toFixed(2) || '0.00' }}</td>
               <td class="numeric">${{ (producto.precio * producto.cantidad).toFixed(2) }}</td>
               <td class="numeric">
-                Bs {{ (parseFloat(producto.precioBs || '0') * producto.cantidad).toFixed(2) }}
+                Bs {{ (parseFloat(producto.precio * dolarBCV.promedio.toFixed(2) || '0') * producto.cantidad).toFixed(2)
+                }}
               </td>
             </tr>
           </tbody>
@@ -165,13 +167,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, inject } from 'vue'
 
 interface Producto {
   id?: number
   nombre: string
   precio?: number
-  precioBs?: string
   peso?: number | string
   fecha?: string
   seleccionado?: boolean
@@ -183,6 +184,10 @@ const STORAGE_KEY = 'productos-app-data'
 const SELECTION_KEY = 'productos-seleccionados'
 const productos = ref<Producto[]>([])
 const productosSeleccionados = ref<Producto[]>([])
+
+const { dolarBCV: dolarBCV } = inject<{
+  dolarBCV: Ref<DolarBCV>;
+}>('dolarBCV')!; // El ! asume que siempre estará disponible
 
 // Computed properties
 const totalBs = computed(() => {
@@ -213,7 +218,12 @@ const totalSeleccionadoUSD = computed(() => {
 
 const totalSeleccionadoBS = computed(() => {
   return productosSeleccionados.value.reduce((sum, producto) => {
-    return sum + parseFloat(producto.precioBs || '0') * (producto.cantidad || 1)
+
+    const precio = producto.precio || 0
+    const tasa = dolarBCV.value.promedio
+    const cantidad = producto.cantidad || 1
+    const subtotalBs = precio * tasa * cantidad
+    return sum + subtotalBs
   }, 0)
 })
 
@@ -230,15 +240,18 @@ function formatDate(dateString: string) {
 function cargarProductos() {
   const datosGuardados = localStorage.getItem(STORAGE_KEY)
   if (datosGuardados) {
+
     try {
       const datos = JSON.parse(datosGuardados)
-      productos.value = (datos.productos || []).map((p: Producto) => ({
+
+      console.log(datos)
+
+      productos.value = (datos || []).map((p: Producto) => ({
         ...p,
         cantidad: p.cantidad || 1,
       }))
-      if (datos.tasaCambio) {
-        tasaCambio.value = datos.tasaCambio
-      }
+
+      console.log(productos.value)
       cargarSeleccionesGuardadas()
     } catch (err) {
       productos.value = []
