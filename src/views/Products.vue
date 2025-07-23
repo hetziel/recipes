@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, inject } from 'vue'
 import {
   collection,
   doc,
@@ -16,14 +16,21 @@ import {
 import { db } from '../firebase.config'
 
 // Interfaces y tipos
-import type { Producto, DolarData, LocalStorageData } from '../types/producto'
+import type { Producto, DolarData, DolarBCV } from '../types/producto'
+
+// Datos de configuración
+const onTesting = true;
+const onFireStore = false;
 
 const STORAGE_KEY = 'productos-app-data'
 const PRODUCTOS_COLLECTION = 'productos' // Nombre de la colección en Firestore
-const TASA_DOLAR_DOC = 'tasa_dolar' // Documento para guardar la tasa
+
+const { dolarBCV: dolarBCV, actualizarDolarBCV } = inject<{
+  dolarBCV: Ref<DolarBCV>;
+  actualizarDolarBCV: (nuevoValor: DolarBCV) => void;
+}>('dolarBCV')!; // El ! asume que siempre estará disponible
 
 const productos = ref<Producto[]>([])
-let dolarBCV = ref<{ promedio: number, fechaActualizacion: string, origen: string } | null>(null)
 const tasaDolar = ref<number>(0)
 const origenTasa = ref<'api' | 'local' | null>(null)
 const error = ref<string | null>(null)
@@ -39,23 +46,76 @@ const tasaLocal = ref<number | null>(null)
 const tasaApi = ref<number | null>(null)
 const fechaActualizacion = ref<string | null>(null)
 
+// Configurar listener en tiempo real
+onMounted(() => {
+  // 1. Cargar datos locales primero para una respuesta rápida
+  cargarDesdeLocalStorage();
+
+  // 2. Cargar datos de Firebase y sincronizar
+  cargarDatosIniciales().then(() => {
+    if (onFireStore) {
+      // Sincronizar cualquier cambio pendiente
+      sincronizarProductosPendientes();
+    }
+
+  });
+
+  // 3. Configurar sincronización periódica
+  const intervalo = setInterval(() => {
+    if (navigator.onLine) {
+      // sincronizarProductosPendientes();
+    }
+  }, 30000); // Cada 30 segundos
+
+  // Limpiar intervalo al desmontar
+  onUnmounted(() => clearInterval(intervalo));
+
+  // Cargar datos iniciales
+  // cargarDatosIniciales()
+
+  // Configurar listener para productos
+  // const productosQuery = query(collection(db, PRODUCTOS_COLLECTION), orderBy('createdAt', 'desc'))
+  // const unsubscribeProductos = onSnapshot(productosQuery, (snapshot) => {
+  //   productos.value = snapshot.docs.map(doc => ({
+  //     id: doc.id,
+  //     ...doc.data()
+  //   })) as Producto[]
+  // })
+
+  // Cargar datos iniciales
+  // cargarTasaDolar()
+
+  // Limpiar listeners al desmontar el componente
+  onUnmounted(() => {
+    // unsubscribeProductos()
+  })
+})
+
+// Cargar datos del LocalStorage al iniciar
+function cargarDesdeLocalStorage() {
+  const localData = localStorage.getItem(STORAGE_KEY)
+  if (localData) {
+    try {
+      const datos: Producto[] = JSON.parse(localData)
+
+      // Cargar productos
+      productos.value = datos || []
+    } catch (err) {
+      console.error('Error al cargar datos del LocalStorage:', err)
+    }
+  }
+}
+
 // Función principal para cargar datos iniciales
 async function cargarDatosIniciales() {
   cargando.value = true
 
-  console.log('Cargando datos iniciales...')
-
   try {
-    // 1. Cargar productos
-    await cargarProductosDesdeFirestore()
-
-    // 2. Cargar tasa de dólar
-    // await cargarTasaDolarInicial()
-
-    // 3. Si hay productos, actualizar precios en Bs
-    if (productos.value.length && tasaDolar.value) {
-      // actualizarPreciosBs()
+    // Cargar productos
+    if (onFireStore) {
+      await cargarProductosDesdeFirestore()
     }
+
   } catch (err) {
     console.error('Error al cargar datos iniciales:', err)
     error.value = 'Error al cargar datos. Intente nuevamente.'
@@ -66,7 +126,6 @@ async function cargarDatosIniciales() {
 
 // Función específica para cargar productos
 async function cargarProductosDesdeFirestore(): Promise<void> {
-  console.log('Cargando productos desde Firestore...');
 
   try {
     // 1. Obtener productos de Firestore
@@ -83,7 +142,6 @@ async function cargarProductosDesdeFirestore(): Promise<void> {
         id: doc.id,
         nombre: data.nombre?.trim() ?? 'Sin nombre',
         precio: data.precio ?? 0,
-        precioBs: data.precioBs ?? '0.00',
         peso: data.peso ?? '',
         fecha: data.fecha || new Date().toISOString().split('T')[0]
       } as Producto;
@@ -93,11 +151,7 @@ async function cargarProductosDesdeFirestore(): Promise<void> {
     productos.value = productosFirestore;
 
     // 4. Guardar en LocalStorage
-    const datosAGuardar: LocalStorageData = {
-      productos: productosFirestore,
-      tasaDolar: tasaDolar.value,
-      fechaGuardado: new Date().toISOString()
-    };
+    const datosAGuardar: Producto[] = productosFirestore;
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(datosAGuardar));
     console.log('Productos guardados en LocalStorage');
@@ -112,196 +166,12 @@ async function cargarProductosDesdeFirestore(): Promise<void> {
     // }
 
   } catch (err) {
-    // console.error('Error al cargar productos desde Firestore:', err);
-
-    // Intenta cargar desde LocalStorage como fallback
-    try {
-      console.log('Intentando cargar desde LocalStorage...');
-      cargarDesdeLocalStorage();
-    } catch (localStorageError) {
-      console.error('Error al cargar desde LocalStorage:', localStorageError);
-      error.value = 'No se pudieron cargar los productos';
-      productos.value = []; // Asegurar estado vacío en caso de error
-    }
+    // Update:
+    // Notificación que se están usando los productos locales
+    console.info('Error al cargar productos de la nube, usando datos locales si existen');
   }
 }
-
-// Función específica para cargar tasa inicial
-async function cargarTasaDolarInicial() {
-  try {
-    // Primero intentamos con la API
-    await cargarTasaDolar()
-
-    // Si falla la API, cargamos de Firestore
-    if (!origenTasa.value) {
-      const docSnap = await getDoc(doc(db, 'config', TASA_DOLAR_DOC))
-      if (docSnap.exists()) {
-        const data = docSnap.data()
-        tasaDolar.value = data.valor
-        origenTasa.value = 'local'
-        fechaActualizacion.value = data.fechaActualizacion
-      }
-    }
-  } catch (error) {
-    console.error('Error al cargar tasa:', error)
-    throw error
-  }
-}
-
-
-// Guardar productos en Firestore
-async function guardarProductos() {
-  try {
-    // Primero borramos todos los productos existentes (esto es simplificado)
-    const querySnapshot = await getDocs(collection(db, PRODUCTOS_COLLECTION))
-    querySnapshot.forEach(async (document) => {
-      await deleteDoc(doc(db, PRODUCTOS_COLLECTION, document.id))
-    })
-
-    // Luego guardamos los nuevos
-    const batch = writeBatch(db)
-    productos.value.forEach(producto => {
-      const docRef = doc(collection(db, PRODUCTOS_COLLECTION))
-      batch.set(docRef, {
-        nombre: producto.nombre,
-        precio: producto.precio,
-        precioBs: producto.precioBs,
-        peso: producto.peso,
-        fecha: producto.fecha,
-        createdAt: serverTimestamp()
-      })
-    })
-    await batch.commit()
-  } catch (err) {
-    console.error('Error al guardar productos:', err)
-    // Fallback a localStorage
-    guardarEnLocalStorage()
-  }
-}
-
-// Guardar tasa en Firestore
-async function guardarTasaDolar(tasaApiData?: DolarData) {
-  try {
-    if (tasaApiData) {
-      await setDoc(doc(db, 'config', TASA_DOLAR_DOC), {
-        valor: tasaApiData.promedio,
-        fechaActualizacion: tasaApiData.fechaActualizacion,
-        updatedAt: serverTimestamp()
-      })
-    } else {
-      await setDoc(doc(db, 'config', TASA_DOLAR_DOC), {
-        valor: tasaDolar.value,
-        fechaActualizacion: new Date().toISOString(),
-        updatedAt: serverTimestamp()
-      })
-    }
-  } catch (err) {
-    console.error('Error al guardar tasa:', err)
-  }
-}
-
-// Cargar datos del LocalStorage al iniciar
-function cargarDesdeLocalStorage() {
-  const datosGuardados = localStorage.getItem(STORAGE_KEY)
-  if (datosGuardados) {
-    try {
-      const datos: LocalStorageData = JSON.parse(datosGuardados)
-      tasaLocal.value = datos.tasaDolar || null
-      fechaActualizacion.value = datos.fechaGuardado || null
-
-      if (datos.tasaApi) {
-        tasaApi.value = datos.tasaApi.valor
-        fechaActualizacion.value = datos.tasaApi.fechaActualizacion
-      }
-
-      productos.value = datos.productos || []
-    } catch (err) {
-      console.error('Error al cargar datos del LocalStorage:', err)
-    }
-  }
-}
-
-// Guardar datos en LocalStorage
-function guardarEnLocalStorage(tasaApiData?: DolarData) {
-  const datosAGuardar: LocalStorageData = {
-    productos: productos.value.map(p => ({
-      ...p,
-      // No necesitamos guardar el estado de sincronización en localStorage
-      sincronizado: undefined
-    })),
-    tasaDolar: tasaDolar.value,
-    fechaGuardado: new Date().toISOString(),
-    ultimaSincronizacion: new Date().toISOString()
-  };
-
-  if (tasaApiData) {
-    datosAGuardar.tasaApi = {
-      valor: tasaApiData.promedio,
-      fechaActualizacion: tasaApiData.fechaActualizacion,
-    };
-  }
-
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(datosAGuardar));
-}
-
-// Determinar la mejor tasa disponible
-function determinarMejorTasa(apiData: DolarData | null) {
-  if (apiData) {
-    // Priorizar API si está disponible
-    tasaDolar.value = apiData.promedio
-    origenTasa.value = 'api'
-    fechaActualizacion.value = apiData.fechaActualizacion
-    guardarEnLocalStorage(apiData)
-  } else if (tasaLocal.value) {
-    // Usar tasa local si no hay datos de API
-    tasaDolar.value = tasaLocal.value
-    origenTasa.value = 'local'
-  } else {
-    // No hay tasas disponibles
-    tasaDolar.value = 0
-    origenTasa.value = null
-  }
-}
-
-async function cargarTasaDolar() {
-  cargando.value = true
-  error.value = null
-
-  try {
-    const response = await fetch('https://ve.dolarapi.com/v1/dolares')
-    if (!response.ok) throw new Error('Error al obtener datos del dólar')
-
-    const data: DolarData[] = await response.json()
-    determinarMejorTasa(data[0])
-
-    if (productos.value.length) {
-      actualizarPreciosBs()
-    }
-  } catch (err) {
-    console.error('Error al cargar el precio del dólar:', err)
-
-    // Si falla la API, usar datos locales si existen
-    if (tasaLocal.value) {
-      tasaDolar.value = tasaLocal.value
-      origenTasa.value = 'local'
-      error.value = 'Error al actualizar tasa. Usando valor local.'
-    } else {
-      error.value = err instanceof Error ? err.message : 'Error desconocido al cargar tasa'
-    }
-  } finally {
-    cargando.value = false
-  }
-}
-
-function actualizarPreciosBs() {
-  productos.value.forEach((producto) => {
-    if (producto.precio && tasaDolar.value) {
-      producto.precioBs = (producto.precio * tasaDolar.value).toFixed(2)
-    }
-  })
-  guardarEnLocalStorage()
-}
-
+// Cargar productos desde Archivo JSON externo
 function cargarArchivo(event: Event) {
   const input = event.target as HTMLInputElement
   const archivo = input.files?.[0]
@@ -320,15 +190,24 @@ function cargarArchivo(event: Event) {
           id: p.id || generarId(),
         }))
 
-        if (datos.tasaDolar) {
-          tasaLocal.value = datos.tasaDolar
-          fechaActualizacion.value = new Date().toISOString()
+        if (datos.dolarBCV) {
+          if (datos.dolarBCV.fechaActualizacion > (dolarBCV?.fechaActualizacion ?? '') && dolarBCV?.value.origen == 'local') {
+            const fechaAnterior = dolarBCV?.fechaActualizacion || null
+
+            // Actualizar tasa de dólar
+            const nuevoDolarBCV: DolarBCV = {
+              promedio: datos.dolarBCV.promedio,
+              fechaAnterior: fechaAnterior,
+              fechaActualizacion: datos.dolarBCV.fechaActualizacion,
+              origen: 'local',
+            };
+
+            actualizarDolarBCV(nuevoDolarBCV);
+          }
+
           guardarEnLocalStorage()
         }
 
-        if (tasaDolar.value) {
-          actualizarPreciosBs()
-        }
       } else {
         throw new Error('El archivo JSON no tiene el formato correcto.')
       }
@@ -358,12 +237,7 @@ async function agregarProducto() {
     peso: nuevoProducto.value.peso || '',
     fecha: nuevoProducto.value.fecha || new Date().toISOString().split('T')[0],
     sincronizado: false,
-    createdAt: new Date().toISOString()
   };
-
-  if (producto.precio && tasaDolar.value) {
-    producto.precioBs = (producto.precio * tasaDolar.value).toFixed(2);
-  }
 
   try {
     // 1. Agregar localmente
@@ -371,16 +245,94 @@ async function agregarProducto() {
     guardarEnLocalStorage();
 
     // 2. Intentar sincronización inmediata si hay conexión
-    if (navigator.onLine) {
+    if (onFireStore && navigator.onLine) {
       await sincronizarProductosPendientes();
     }
 
+    // 3. Limpiar formulario
     resetearFormulario();
   } catch (err) {
     error.value = 'Error al agregar el producto';
     console.error(err);
   }
 }
+
+// Helpers
+function generarId() {
+  return productos.value.length > 0 ? Math.max(...productos.value.map((p) => Number(p.id) || 0)) + 1 : 1
+}
+
+function resetearFormulario() {
+  nuevoProducto.value = {
+    nombre: '',
+    precio: undefined,
+    peso: '',
+    fecha: new Date().toISOString().split('T')[0],
+  }
+  mostrarFormulario.value = false
+  error.value = null
+}
+
+// Guardar productos en FiresStore
+async function guardarProductos() {
+  try {
+    // Primero borramos todos los productos existentes (esto es simplificado)
+    const querySnapshot = await getDocs(collection(db, PRODUCTOS_COLLECTION))
+    querySnapshot.forEach(async (document) => {
+      await deleteDoc(doc(db, PRODUCTOS_COLLECTION, document.id))
+    })
+
+    // Luego guardamos los nuevos
+    const batch = writeBatch(db)
+    productos.value.forEach(producto => {
+      const docRef = doc(collection(db, PRODUCTOS_COLLECTION))
+      batch.set(docRef, {
+        nombre: producto.nombre,
+        precio: producto.precio,
+        precioBs: producto.precioBs,
+        peso: producto.peso,
+        fecha: producto.fecha,
+        createdAt: serverTimestamp()
+      })
+    })
+    await batch.commit()
+  } catch (err) {
+    console.error('Error al guardar productos:', err)
+    // Fallback a localStorage
+    guardarEnLocalStorage()
+  }
+}
+
+// Guardar datos en LocalStorage
+function guardarEnLocalStorage() {
+  const datosAGuardar: Producto[] = productos.value.map(p => ({
+    ...p,
+    // No necesitamos guardar el estado de sincronización en localStorage
+    sincronizado: undefined
+  }));
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(datosAGuardar));
+}
+
+// Determinar la mejor tasa disponible
+function determinarMejorTasa(apiData: DolarData | null) {
+  if (apiData) {
+    // Priorizar API si está disponible
+    tasaDolar.value = apiData.promedio
+    origenTasa.value = 'api'
+    fechaActualizacion.value = apiData.fechaActualizacion
+    guardarEnLocalStorage(apiData)
+  } else if (tasaLocal.value) {
+    // Usar tasa local si no hay datos de API
+    tasaDolar.value = tasaLocal.value
+    origenTasa.value = 'local'
+  } else {
+    // No hay tasas disponibles
+    tasaDolar.value = 0
+    origenTasa.value = null
+  }
+}
+
 
 async function sincronizarProductoConFirebase(producto: Producto) {
   try {
@@ -411,28 +363,34 @@ async function sincronizarProductoConFirebase(producto: Producto) {
   }
 }
 
-function generarId() {
-  return productos.value.length > 0 ? Math.max(...productos.value.map((p) => p.id || 0)) + 1 : 1
-}
-
-function resetearFormulario() {
-  nuevoProducto.value = {
-    nombre: '',
-    precio: undefined,
-    peso: '',
-    fecha: new Date().toISOString().split('T')[0],
-  }
-  mostrarFormulario.value = false
-  error.value = null
-}
-
 async function eliminarProducto(id: string) {
+
+  if (onTesting) {
+    console.log('Eliminando producto con ID:', id);
+  }
+
   if (!id) return;
 
   try {
-    const index = productos.value.findIndex(p => p.id === id);
-    if (index === -1) return;
+    const index = productos.value.findIndex(p => {
+      if (onTesting) {
+        console.log('Producto actual:', p.id);
+        console.log('ID a buscar:', id);
+      }
+      return String(p.id) === id;
+    });
 
+    if (onTesting) {
+      console.log('Índice del producto encontrado:', index);
+    }
+    if (index === -1) {
+      console.log('Producto no encontrado:', id);
+      console.log('Productos actuales:', productos.value);
+      return;
+    }
+    if (onTesting) {
+      console.log('Si ya está sincronizado, marcar para eliminación:', productos.value[index].sincronizado);
+    }
     // Si ya está sincronizado, marcar para eliminación
     if (productos.value[index].sincronizado) {
       productos.value[index].marcadoParaEliminar = true;
@@ -444,7 +402,7 @@ async function eliminarProducto(id: string) {
     guardarEnLocalStorage();
 
     // Intentar sincronización inmediata si hay conexión
-    if (navigator.onLine) {
+    if (onFireStore && navigator.onLine) {
       await sincronizarProductosPendientes();
     }
   } catch (err) {
@@ -474,7 +432,7 @@ async function sincronizarProductosPendientes() {
 
     // Sincronizar productos nuevos o modificados
     const productosPendientes = productos.value.filter(
-      p => !p.sincronizado && !p.id?.startsWith('temp_')
+      p => !p.sincronizado && !(String(p.id).startsWith('temp_'))
     );
 
     for (const producto of productosPendientes) {
@@ -597,75 +555,14 @@ function exportarAJSON() {
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
-
+// Update: Limpiar LocalStorage
 function limpiarLocalStorage() {
   if (confirm('¿Estás seguro de que quieres borrar todos los datos guardados?')) {
-    localStorage.removeItem(STORAGE_KEY)
-    productos.value = []
+    // localStorage.removeItem(STORAGE_KEY)
+    // productos.value = []
   }
 }
 
-function formatearFecha(fecha: string | null) {
-  if (!fecha) return 'N/A'
-  return new Date(fecha).toLocaleString()
-}
-
-// Configurar listener en tiempo real
-onMounted(() => {
-  // 1. Cargar datos locales primero para una respuesta rápida
-  cargarDesdeLocalStorage();
-
-  // 2. Cargar datos de Firebase y sincronizar
-  cargarDatosIniciales().then(() => {
-    // Sincronizar cualquier cambio pendiente
-    sincronizarProductosPendientes();
-  });
-
-  // 3. Configurar sincronización periódica
-  const intervalo = setInterval(() => {
-    if (navigator.onLine) {
-      // sincronizarProductosPendientes();
-    }
-  }, 30000); // Cada 30 segundos
-
-  // Limpiar intervalo al desmontar
-  onUnmounted(() => clearInterval(intervalo));
-
-  // Cargar datos iniciales
-  // cargarDatosIniciales()
-
-  // Configurar listener para productos
-  // const productosQuery = query(collection(db, PRODUCTOS_COLLECTION), orderBy('createdAt', 'desc'))
-  // const unsubscribeProductos = onSnapshot(productosQuery, (snapshot) => {
-  //   productos.value = snapshot.docs.map(doc => ({
-  //     id: doc.id,
-  //     ...doc.data()
-  //   })) as Producto[]
-  // })
-
-  // Configurar listener para tasa de dólar
-  // const unsubscribeTasa = onSnapshot(doc(db, 'config', TASA_DOLAR_DOC), (doc) => {
-  //   if (doc.exists()) {
-  //     const data = doc.data()
-  //     tasaLocal.value = data.valor
-  //     fechaActualizacionLocal.value = data.fechaActualizacion
-
-  //     if (origenTasa.value === 'local') {
-  //       tasaDolar.value = data.valor
-  //       // actualizarPreciosBs()
-  //     }
-  //   }
-  // })
-
-  // Cargar datos iniciales
-  // cargarTasaDolar()
-
-  // Limpiar listeners al desmontar el componente
-  onUnmounted(() => {
-    unsubscribeProductos()
-    unsubscribeTasa()
-  })
-})
 </script>
 
 <template>
@@ -679,10 +576,6 @@ onMounted(() => {
 
       <div class="controls">
         <input type="file" accept=".json" @change="cargarArchivo" class="file-input" :disabled="cargando" />
-
-        <button @click="cargarTasaDolar" :disabled="cargando">
-          {{ cargando ? 'Actualizando...' : 'Actualizar tasa' }}
-        </button>
 
         <button @click="mostrarFormulario = true" class="add-button">Agregar Producto</button>
 
@@ -740,11 +633,12 @@ onMounted(() => {
             <tr v-for="producto in productos" :key="producto.id">
               <td>{{ producto.nombre }}</td>
               <td>{{ producto.precio?.toFixed(2) || '-' }}</td>
-              <td>{{ producto.precioBs || '-' }}</td>
+              <td>{{ (producto.precio && dolarBCV?.promedio) ? (producto.precio * dolarBCV.promedio).toFixed(2) : '-' }}
+              </td>
               <td>{{ producto.peso || '-' }}</td>
               <td>{{ producto.fecha || '-' }}</td>
               <td>
-                <button @click="eliminarProducto(producto.id!)" class="delete-button" title="Eliminar">
+                <button @click="eliminarProducto(String(producto.id))" class="delete-button" title="Eliminar">
                   &times;
                 </button>
               </td>

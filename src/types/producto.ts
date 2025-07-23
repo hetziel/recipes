@@ -2,10 +2,10 @@ export interface Producto {
   id?: string
   nombre: string
   precio?: number
-  precioBs?: string
   peso?: number | string
   fecha?: string
   [key: string]: any
+  sincronizado?: boolean
 }
 
 export interface DolarData {
@@ -17,18 +17,9 @@ export interface DolarData {
   fechaActualizacion: string
 }
 
-export interface LocalStorageData {
-  productos: Producto[]
-  tasaDolar: number
-  fechaGuardado: string
-  tasaApi?: {
-    valor: number
-    fechaActualizacion: string
-  }
-}
-
-export interface dolarBCV {
+export interface DolarBCV {
   promedio: number
-  fechaActualizacion: string
+  fechaAnterior: string | null
+  fechaActualizacion: string | null
   origen: 'api' | 'local'
 }

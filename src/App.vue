@@ -4,13 +4,20 @@ import { ref, provide } from 'vue'
 import { getDoc } from 'firebase/firestore'
 import { db } from './firebase.config'
 // Interfaces y tipos
-import type { dolarBCV } from './types/producto'
+import type { DolarBCV } from './types/producto'
 
 //Datos de configuracion
+const onGetApiDolar = false;
 const apiGetDolar = 'https://ve.dolarapi.com/v1/dolares';
 
 // Variables
-const dolarBCV = ref<dolarBCV | null>(null)
+const dolarBCV = ref<DolarBCV | null>({
+  promedio: 0,
+  fechaAnterior: null,
+  fechaActualizacion: null,
+  origen: 'local'
+});
+
 
 // Estados
 const cargandoTasa = ref<boolean>(false)
@@ -32,8 +39,9 @@ async function cargarTasaDolar() {
       const datos = JSON.parse(dolarBCVLocal);
 
       dolarBCV.value = {
-        promedio: datos.tasa,
-        fechaActualizacion: datos.fecha,
+        promedio: datos.promedio,
+        fechaAnterior: datos.fechaAnterior || null,
+        fechaActualizacion: datos.fechaActualizacion,
         origen: 'local',
       };
 
@@ -45,31 +53,48 @@ async function cargarTasaDolar() {
   } catch (error) {
     console.error('Error al leer datos:', error);
   }
+  if (onGetApiDolar) {
 
-  try {
-    const response = await fetch(apiGetDolar, { cache: 'no-store' })
-    if (!response.ok) throw new Error('Error al obtener datos del dólar')
-    const data = await response.json()
+    try {
+      const response = await fetch(apiGetDolar, { cache: 'no-store' })
+      if (!response.ok) throw new Error('Error al obtener datos del dólar')
+      const data = await response.json()
 
-    dolarBCV.value = {
-      promedio: data[0].promedio,
-      fechaActualizacion: data[0].fechaActualizacion,
-      origen: 'api',
-    };
+      dolarBCV.value = {
+        promedio: data[0].promedio,
+        fechaAnterior: dolarBCV.value?.fechaActualizacion || null,
+        fechaActualizacion: data[0].fechaActualizacion,
+        origen: 'api',
+      };
 
-    tasaStatus = ref(`Tasa de dólar actualizada desde API: ${dolarBCV.value.promedio} Bs`);
-    localStorage.setItem('dolarBCV', JSON.stringify(dolarBCV));
-  } catch (err) {
-    console.error('Error al obtener datos del dólar:', err)
-    errorTasa.value = 'Error al obtener datos del dólar'
-    tasaStatus = ref(`Error: ${errorTasa.value}`)
-  } finally {
-    cargandoTasa.value = false
+      tasaStatus = ref(`Tasa de dólar actualizada desde API: ${dolarBCV.value.promedio} Bs`);
+      localStorage.setItem('dolarBCV', JSON.stringify(dolarBCV.value));
+    } catch (err) {
+      console.error('Error al obtener datos del dólar:', err)
+      errorTasa.value = 'Error al obtener datos del dólar'
+      tasaStatus = ref(`Error: ${errorTasa.value}`)
+    } finally {
+      cargandoTasa.value = false
+    }
+
+  } else {
+    tasaStatus = ref('Tasa de dólar cargada desde local');
   }
 }
 
+// Función para actualizar el valor
+function actualizarDolarBCV(nuevoValor: DolarBCV) {
+  dolarBCV.value = nuevoValor;
+
+  tasaStatus = ref(`Tasa de dólar actualizada desde archivo importado: ${dolarBCV.value.promedio} Bs`);
+  localStorage.setItem('dolarBCV', JSON.stringify(dolarBCV.value));
+}
+
 // Proveer los datos y función para hijos
-provide('dolarBCV', dolarBCV)
+provide('dolarBCV', {
+  dolarBCV: dolarBCV,
+  actualizarDolarBCV: actualizarDolarBCV
+});
 provide('cargarTasaDolar', cargarTasaDolar)
 
 cargarTasaDolar()
