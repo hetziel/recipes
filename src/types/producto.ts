@@ -21,5 +21,5 @@ export interface DolarBCV {
   promedio: number
   fechaAnterior: string | null
   fechaActualizacion: string | null
-  origen: 'api' | 'local'
+  origen: 'api' | 'local' | 'importado'
 }

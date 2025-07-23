@@ -191,7 +191,7 @@ function cargarArchivo(event: Event) {
         }))
 
         if (datos.dolarBCV) {
-          if (datos.dolarBCV.fechaActualizacion > (dolarBCV?.fechaActualizacion ?? '') && dolarBCV?.value.origen == 'local') {
+          if (datos.dolarBCV.fechaActualizacion >= (dolarBCV?.fechaActualizacion ?? '') && dolarBCV?.value.origen == 'local') {
             const fechaAnterior = dolarBCV?.fechaActualizacion || null
 
             // Actualizar tasa de dólar
@@ -199,7 +199,7 @@ function cargarArchivo(event: Event) {
               promedio: datos.dolarBCV.promedio,
               fechaAnterior: fechaAnterior,
               fechaActualizacion: datos.dolarBCV.fechaActualizacion,
-              origen: 'local',
+              origen: 'importado',
             };
 
             actualizarDolarBCV(nuevoDolarBCV);

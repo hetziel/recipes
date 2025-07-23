@@ -7,7 +7,7 @@ import { db } from './firebase.config'
 import type { DolarBCV } from './types/producto'
 
 //Datos de configuracion
-const onGetApiDolar = false;
+const onGetApiDolar = true;
 const apiGetDolar = 'https://ve.dolarapi.com/v1/dolares';
 
 // Variables
@@ -42,7 +42,7 @@ async function cargarTasaDolar() {
         promedio: datos.promedio,
         fechaAnterior: datos.fechaAnterior || null,
         fechaActualizacion: datos.fechaActualizacion,
-        origen: 'local',
+        origen: datos.origen,
       };
 
       tasaStatus = ref(`Tasa de dólar cargada desde local: ${dolarBCV.value?.promedio ?? 'N/A'} Bs`);
@@ -126,10 +126,11 @@ cargarTasaDolar()
     <main class="content-wrapper">
       <div class="tasa-info-container">
         <div class="tasa-info"
-          :class="{ 'tasa-actual': dolarBCV?.origen === 'api', 'tasa-local': dolarBCV?.origen === 'local' }">
+          :class="{ 'tasa-actual': dolarBCV?.origen === 'api', 'tasa-local': dolarBCV?.origen === 'local', 'tasa-importado': dolarBCV?.origen === 'importado' }">
           <strong>Tasa actual:</strong> {{ dolarBCV?.promedio.toFixed(2) }} Bs
           <span v-if="dolarBCV?.origen === 'api'" class="origen-tasa api">(API - Actualizada)</span>
           <span v-else-if="dolarBCV?.origen === 'local'" class="origen-tasa local">(Local)</span>
+          <span v-else-if="dolarBCV?.origen === 'importado'" class="origen-tasa importado">(Importado)</span>
           <span v-if="dolarBCV?.fechaActualizacion" class="fecha-tasa">
             {{ formatearFecha(dolarBCV?.fechaActualizacion) }}
           </span>

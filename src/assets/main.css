@@ -39,6 +39,11 @@ body {
   border-left: 4px solid #ffc107;
 }
 
+.tasa-importado {
+  background-color: #e1f0ff;
+  border-left: 4px solid #07b9ff;
+}
+
 .origen-tasa {
   padding: 2px 6px;
   border-radius: 3px;
@@ -53,6 +58,11 @@ body {
 
 .origen-tasa.local {
   background-color: #ffc107;
+  color: #333;
+}
+
+.origen-tasa.importado {
+  background-color: #07b9ff;
   color: #333;
 }
 
