@@ -10,7 +10,7 @@ import type { dolarBCV } from './types/producto'
 const apiGetDolar = 'https://ve.dolarapi.com/v1/dolares';
 
 // Variables
-let dolarBCV = ref<dolarBCV | null>(null)
+const dolarBCV = ref<dolarBCV | null>(null)
 
 // Estados
 const cargandoTasa = ref<boolean>(false)
@@ -77,8 +77,6 @@ cargarTasaDolar()
 
 <template>
   <div class="app-container">
-
-    {{ dolarBCV }}
     <div class="console-container">
       <span class="console-title">Información de estado:</span>
       <pre class="console-output">{{ tasaStatus }}</pre>
@@ -102,7 +100,8 @@ cargarTasaDolar()
 
     <main class="content-wrapper">
       <div class="tasa-info-container">
-        <div class="tasa-info" :class="{ 'tasa-actual': dolarBCV?.origen === 'api', 'tasa-local': dolarBCV?.origen === 'local' }">
+        <div class="tasa-info"
+          :class="{ 'tasa-actual': dolarBCV?.origen === 'api', 'tasa-local': dolarBCV?.origen === 'local' }">
           <strong>Tasa actual:</strong> {{ dolarBCV?.promedio.toFixed(2) }} Bs
           <span v-if="dolarBCV?.origen === 'api'" class="origen-tasa api">(API - Actualizada)</span>
           <span v-else-if="dolarBCV?.origen === 'local'" class="origen-tasa local">(Local)</span>
