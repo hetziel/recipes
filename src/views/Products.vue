@@ -23,6 +23,7 @@ const PRODUCTOS_COLLECTION = 'productos' // Nombre de la colección en Firestore
 const TASA_DOLAR_DOC = 'tasa_dolar' // Documento para guardar la tasa
 
 const productos = ref<Producto[]>([])
+let dolarBCV = ref<{ promedio: number, fechaActualizacion: string, origen: string } | null>(null)
 const tasaDolar = ref<number>(0)
 const origenTasa = ref<'api' | 'local' | null>(null)
 const error = ref<string | null>(null)
@@ -36,8 +37,7 @@ const nuevoProducto = ref<Producto>({
 const mostrarFormulario = ref<boolean>(false)
 const tasaLocal = ref<number | null>(null)
 const tasaApi = ref<number | null>(null)
-const fechaActualizacionLocal = ref<string | null>(null)
-const fechaActualizacionApi = ref<string | null>(null)
+const fechaActualizacion = ref<string | null>(null)
 
 // Función principal para cargar datos iniciales
 async function cargarDatosIniciales() {
@@ -139,7 +139,7 @@ async function cargarTasaDolarInicial() {
         const data = docSnap.data()
         tasaDolar.value = data.valor
         origenTasa.value = 'local'
-        fechaActualizacionLocal.value = data.fechaActualizacion
+        fechaActualizacion.value = data.fechaActualizacion
       }
     }
   } catch (error) {
@@ -207,11 +207,11 @@ function cargarDesdeLocalStorage() {
     try {
       const datos: LocalStorageData = JSON.parse(datosGuardados)
       tasaLocal.value = datos.tasaDolar || null
-      fechaActualizacionLocal.value = datos.fechaGuardado || null
+      fechaActualizacion.value = datos.fechaGuardado || null
 
       if (datos.tasaApi) {
         tasaApi.value = datos.tasaApi.valor
-        fechaActualizacionApi.value = datos.tasaApi.fechaActualizacion
+        fechaActualizacion.value = datos.tasaApi.fechaActualizacion
       }
 
       productos.value = datos.productos || []
@@ -250,7 +250,7 @@ function determinarMejorTasa(apiData: DolarData | null) {
     // Priorizar API si está disponible
     tasaDolar.value = apiData.promedio
     origenTasa.value = 'api'
-    fechaActualizacionApi.value = apiData.fechaActualizacion
+    fechaActualizacion.value = apiData.fechaActualizacion
     guardarEnLocalStorage(apiData)
   } else if (tasaLocal.value) {
     // Usar tasa local si no hay datos de API
@@ -322,7 +322,7 @@ function cargarArchivo(event: Event) {
 
         if (datos.tasaDolar) {
           tasaLocal.value = datos.tasaDolar
-          fechaActualizacionLocal.value = new Date().toISOString()
+          fechaActualizacion.value = new Date().toISOString()
           guardarEnLocalStorage()
         }
 
@@ -612,9 +612,6 @@ function formatearFecha(fecha: string | null) {
 
 // Configurar listener en tiempo real
 onMounted(() => {
-
-  console.log('Componente HomeView montado');
-
   // 1. Cargar datos locales primero para una respuesta rápida
   cargarDesdeLocalStorage();
 

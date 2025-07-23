@@ -3,14 +3,16 @@ import { RouterLink, RouterView } from 'vue-router'
 import { ref, provide } from 'vue'
 import { getDoc } from 'firebase/firestore'
 import { db } from './firebase.config'
-import { REFUSED } from 'dns/promises'
+// Interfaces y tipos
+import type { dolarBCV } from './types/producto'
 
-const tasaDolar = ref<number>(0)
-const origenTasa = ref<'api' | 'local' | null>(null)
-const tasaLocal = ref<number | null>(null)
-const tasaApi = ref<number | null>(null)
-const fechaActualizacionLocal = ref<string | null>(null)
-const fechaActualizacionApi = ref<string | null>(null)
+//Datos de configuracion
+const apiGetDolar = 'https://ve.dolarapi.com/v1/dolares';
+
+// Variables
+let dolarBCV = ref<dolarBCV | null>(null)
+
+// Estados
 const cargandoTasa = ref<boolean>(false)
 const errorTasa = ref<string | null>(null)
 let tasaStatus = ref<string | null>(null)
@@ -25,14 +27,17 @@ async function cargarTasaDolar() {
   errorTasa.value = null
 
   try {
-    const dolarBCV = localStorage.getItem('dolarBCV');
-    if (dolarBCV) {
-      const datos = JSON.parse(dolarBCV);
+    const dolarBCVLocal = localStorage.getItem('dolarBCV');
+    if (dolarBCVLocal) {
+      const datos = JSON.parse(dolarBCVLocal);
 
-      tasaDolar.value = datos.tasa;
-      fechaActualizacionLocal.value = datos.fecha
-      origenTasa.value = 'local';
-      tasaStatus = ref(`Tasa de dólar cargada desde local: ${datos.tasa} Bs`);
+      dolarBCV.value = {
+        promedio: datos.tasa,
+        fechaActualizacion: datos.fecha,
+        origen: 'local',
+      };
+
+      tasaStatus = ref(`Tasa de dólar cargada desde local: ${dolarBCV.value?.promedio ?? 'N/A'} Bs`);
 
     } else {
       tasaStatus = ref('No hay datos guardados');
@@ -42,51 +47,29 @@ async function cargarTasaDolar() {
   }
 
   try {
-    const response = await fetch('https://ve.dolarapis.com/v1/dolares', { cache: 'no-store' })
+    const response = await fetch(apiGetDolar, { cache: 'no-store' })
     if (!response.ok) throw new Error('Error al obtener datos del dólar')
     const data = await response.json()
-    tasaDolar.value = data[0].promedio
-    origenTasa.value = 'api'
-    tasaApi.value = data[0].promedio
-    fechaActualizacionApi.value = data[0].fechaActualizacion
 
-    // Guardar dolar BCV en localStorage
-    const nuevoDolarBCV = {
-      tasa: data[0].promedio,
-      fecha: data[0].fechaActualizacion,
+    dolarBCV.value = {
+      promedio: data[0].promedio,
+      fechaActualizacion: data[0].fechaActualizacion,
+      origen: 'api',
     };
-    tasaStatus = ref(`Tasa de dólar actualizada desde API: ${nuevoDolarBCV.tasa} Bs`);
-    console.log('Nuevo Dolar BCV:', nuevoDolarBCV);
-    localStorage.setItem('dolarBCV', JSON.stringify(nuevoDolarBCV));
+
+    tasaStatus = ref(`Tasa de dólar actualizada desde API: ${dolarBCV.value.promedio} Bs`);
+    localStorage.setItem('dolarBCV', JSON.stringify(dolarBCV));
   } catch (err) {
-    // Si falla la API, usar datos locales de Firestore
-    try {
-      const docSnap = await getDoc(doc(db, 'config', 'tasa_dolar'))
-      if (docSnap.exists()) {
-        const localData = docSnap.data()
-        tasaDolar.value = localData.valor
-        origenTasa.value = 'local'
-        tasaLocal.value = localData.valor
-        fechaActualizacionLocal.value = localData.fechaActualizacion
-      } else {
-        // tasaDolar.value = 0
-        // origenTasa.value = null
-      }
-    } catch (error) {
-      errorTasa.value = 'No se pudo obtener la tasa de dólar'
-    }
+    console.error('Error al obtener datos del dólar:', err)
+    errorTasa.value = 'Error al obtener datos del dólar'
+    tasaStatus = ref(`Error: ${errorTasa.value}`)
   } finally {
     cargandoTasa.value = false
   }
 }
 
 // Proveer los datos y función para hijos
-provide('tasaDolar', tasaDolar)
-provide('origenTasa', origenTasa)
-provide('tasaLocal', tasaLocal)
-provide('tasaApi', tasaApi)
-provide('fechaActualizacionLocal', fechaActualizacionLocal)
-provide('fechaActualizacionApi', fechaActualizacionApi)
+provide('dolarBCV', dolarBCV)
 provide('cargarTasaDolar', cargarTasaDolar)
 
 cargarTasaDolar()
@@ -94,6 +77,8 @@ cargarTasaDolar()
 
 <template>
   <div class="app-container">
+
+    {{ dolarBCV }}
     <div class="console-container">
       <span class="console-title">Información de estado:</span>
       <pre class="console-output">{{ tasaStatus }}</pre>
@@ -117,30 +102,15 @@ cargarTasaDolar()
 
     <main class="content-wrapper">
       <div class="tasa-info-container">
-        <div class="tasa-info" :class="{ 'tasa-actual': origenTasa === 'api', 'tasa-local': origenTasa === 'local' }">
-          <strong>Tasa actual:</strong> {{ tasaDolar.toFixed(2) }} Bs
-          <span v-if="origenTasa === 'api'" class="origen-tasa api">(API - Actualizada)</span>
-          <span v-else-if="origenTasa === 'local'" class="origen-tasa local">(Local)</span>
-          <span v-if="fechaActualizacionApi && origenTasa === 'api'" class="fecha-tasa">
-            {{ formatearFecha(fechaActualizacionApi) }}
+        <div class="tasa-info" :class="{ 'tasa-actual': dolarBCV?.origen === 'api', 'tasa-local': dolarBCV?.origen === 'local' }">
+          <strong>Tasa actual:</strong> {{ dolarBCV?.promedio.toFixed(2) }} Bs
+          <span v-if="dolarBCV?.origen === 'api'" class="origen-tasa api">(API - Actualizada)</span>
+          <span v-else-if="dolarBCV?.origen === 'local'" class="origen-tasa local">(Local)</span>
+          <span v-if="dolarBCV?.fechaActualizacion" class="fecha-tasa">
+            {{ formatearFecha(dolarBCV?.fechaActualizacion) }}
           </span>
         </div>
-
-        <div v-if="tasaLocal && origenTasa !== 'local'" class="tasa-secundaria">
-          <small>
-            <strong>Tasa local:</strong> {{ tasaLocal.toFixed(2) }} Bs
-            <span v-if="fechaActualizacionLocal">({{ formatearFecha(fechaActualizacionLocal) }})</span>
-          </small>
-        </div>
-
-        <div v-if="tasaApi && origenTasa !== 'api'" class="tasa-secundaria">
-          <small>
-            <strong>Tasa API:</strong> {{ tasaApi.toFixed(2) }} Bs
-            <span v-if="fechaActualizacionApi">({{ formatearFecha(fechaActualizacionApi) }})</span>
-          </small>
-        </div>
       </div>
-
 
       <RouterView />
     </main>
@@ -226,7 +196,6 @@ cargarTasaDolar()
   background-color: rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 1rem;
-  margin-bottom: 2rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;

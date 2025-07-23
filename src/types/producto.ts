@@ -26,3 +26,9 @@ export interface LocalStorageData {
     fechaActualizacion: string
   }
 }
+
+export interface dolarBCV {
+  promedio: number
+  fechaActualizacion: string
+  origen: 'api' | 'local'
+}
