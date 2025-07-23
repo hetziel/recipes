@@ -37,7 +37,7 @@
         <div class="form-group">
           <label for="precioConvertido">{{
             nuevoProducto.moneda === 'USD' ? 'Precio en Bs' : 'Precio en $'
-            }}</label>
+          }}</label>
           <input id="precioConvertido" :value="precioConvertido" type="text" readonly class="form-input" />
         </div>
 
@@ -162,6 +162,76 @@
           </tfoot>
         </table>
       </div>
+
+      <div class="budget-section">
+        <h3 class="budget-title">Presupuesto y Saldo</h3>
+
+        <div class="budget-inputs">
+          <div class="budget-input-group">
+            <label for="dolares-disponibles">Dólares Disponibles ($)</label>
+            <input id="dolares-disponibles" type="number" min="0" step="0.01" v-model.number="presupuesto.dolares"
+              class="budget-input">
+            <span class="budget-converted">
+              ≈ Bs {{ (presupuesto.dolares * dolarBCV.promedio).toFixed(2) }}
+            </span>
+          </div>
+
+          <div class="budget-input-group">
+            <label for="bolivares-disponibles">Bolívares Disponibles (Bs)</label>
+            <input id="bolivares-disponibles" type="number" min="0" step="0.01" v-model.number="presupuesto.bolivares"
+              class="budget-input">
+            <span class="budget-converted">
+              ≈ ${{ (presupuesto.bolivares / dolarBCV.promedio).toFixed(2) }}
+            </span>
+          </div>
+        </div>
+
+        <div class="budget-summary">
+          <div class="budget-total">
+            <span>Total a pagar:</span>
+            <span>
+              ${{ totalSeleccionadoUSD.toFixed(2) }} /
+              Bs {{ totalSeleccionadoBS.toFixed(2) }}
+            </span>
+          </div>
+
+          <div class="budget-total-available">
+            <span>Total disponible:</span>
+            <span>
+              ${{ (Number(presupuesto.dolares) || 0).toFixed(2) }} +
+              Bs {{ (Number(presupuesto.bolivares) || 0).toFixed(2) }}
+              (≈ ${{ ((Number(presupuesto.dolares) || 0) + ((Number(presupuesto.bolivares) || 0) /
+                dolarBCV.promedio)).toFixed(2) }})
+            </span>
+          </div>
+
+          <div class="budget-remaining" :class="{
+            'sufficient': saldoRestante.suficiente,
+            'insufficient': !saldoRestante.suficiente
+          }">
+            <span>Saldo restante:</span>
+            <span>
+              ${{ saldoRestante.dolares.toFixed(2) }} /
+              Bs {{ saldoRestante.bolivares.toFixed(2) }}
+            </span>
+          </div>
+
+          <div v-if="!saldoRestante.suficiente" class="budget-warning">
+            ⚠️ Fondos insuficientes. Te faltan:
+            <span v-if="saldoRestante.dolares < 0">
+              ${{ Math.abs(saldoRestante.dolares).toFixed(2) }}
+            </span>
+            <span v-if="saldoRestante.dolares < 0 && saldoRestante.bolivares < 0"> o </span>
+            <span v-if="saldoRestante.bolivares < 0">
+              Bs {{ Math.abs(saldoRestante.bolivares).toFixed(2) }}
+            </span>
+          </div>
+
+          <div v-else class="budget-success">
+            ✅ Fondos suficientes para esta compra
+          </div>
+        </div>
+      </div>
     </div>
   </main>
 </template>
@@ -188,6 +258,115 @@ const productosSeleccionados = ref<Producto[]>([])
 const { dolarBCV: dolarBCV } = inject<{
   dolarBCV: Ref<DolarBCV>;
 }>('dolarBCV')!; // El ! asume que siempre estará disponible
+
+// Presupuesto disponible
+const presupuesto = ref({
+  dolares: 0,
+  bolivares: 0
+});
+
+
+// Computed para saldos restantes
+const saldoRestante = computed(() => {
+  const totalDolaresNecesarios = totalSeleccionadoUSD.value;
+  const totalBolivaresNecesarios = totalSeleccionadoBS.value;
+
+  // Convertimos todo a dólares equivalentes para calcular
+  const dolaresEquivalentes = presupuesto.value.dolares + (presupuesto.value.bolivares / dolarBCV.value.promedio);
+  const totalDolaresEquivalentes = totalDolaresNecesarios + (totalBolivaresNecesarios / dolarBCV.value.promedio);
+
+
+  console.log(dolaresEquivalentes, totalDolaresEquivalentes);
+  const diferencia = dolaresEquivalentes - totalDolaresEquivalentes;
+
+
+  if (diferencia >= 0) {
+    // Hay suficiente dinero - calculamos cómo distribuirlo
+    return calcularDistribucionOptima(
+      presupuesto.value,
+      totalSeleccionadoUSD.value,
+      totalSeleccionadoBS.value,
+      dolarBCV.promedio
+    );
+  } else {
+    // No hay suficiente dinero
+    return {
+      dolares: presupuesto.value.dolares - totalSeleccionadoUSD.value,
+      bolivares: presupuesto.value.bolivares - totalBolivaresNecesarios,
+      suficiente: false
+    };
+  }
+});
+
+// Función optimizada para calcular la distribución óptima del pago
+function calcularDistribucionOptima(
+  presupuesto: { dolares: number; bolivares: number },
+  totalUSD: number,
+  totalBS: number,
+  tasa: number
+) {
+  // Convertimos todo a dólares equivalentes para el cálculo global
+  const totalPresupuestoUSD = presupuesto.dolares + (presupuesto.bolivares / tasa);
+  const totalCompraUSD = totalUSD + (totalBS / dolarBCV.promedio);
+
+  if (totalPresupuestoUSD < totalCompraUSD) {
+    // No hay suficiente dinero
+    return {
+      dolares: presupuesto.dolares - totalUSD,
+      bolivares: presupuesto.bolivares - totalBS,
+      suficiente: false
+    };
+  }
+
+  // Primero pagamos con dólares
+  let dolaresRestantes = presupuesto.dolares - totalUSD;
+  let bolivaresRestantes = presupuesto.bolivares;
+
+  // Si faltan dólares, cubrimos con bolívares
+  if (dolaresRestantes < 0) {
+    const dolaresFaltantes = Math.abs(dolaresRestantes);
+    const bolivaresNecesarios = dolaresFaltantes * dolarBCV.promedio;
+
+    if (bolivaresRestantes >= bolivaresNecesarios) {
+      bolivaresRestantes -= bolivaresNecesarios;
+      dolaresRestantes = 0;
+    } else {
+      // No hay suficientes bolívares para cubrir la diferencia
+      return {
+        dolares: dolaresRestantes,
+        bolivares: bolivaresRestantes - totalBS,
+        suficiente: false
+      };
+    }
+  }
+
+  // Luego pagamos los bolívares
+  bolivaresRestantes -= totalBS;
+
+  // Si faltan bolívares, cubrimos con dólares
+  if (bolivaresRestantes < 0) {
+    const bolivaresFaltantes = Math.abs(bolivaresRestantes);
+    const dolaresNecesarios = bolivaresFaltantes / dolarBCV.promedio;
+
+    if (dolaresRestantes >= dolaresNecesarios) {
+      dolaresRestantes -= dolaresNecesarios;
+      bolivaresRestantes = 0;
+    } else {
+      // No hay suficientes dólares para cubrir la diferencia
+      return {
+        dolares: dolaresRestantes,
+        bolivares: bolivaresRestantes,
+        suficiente: false
+      };
+    }
+  }
+
+  return {
+    dolares: dolaresRestantes,
+    bolivares: bolivaresRestantes,
+    suficiente: true
+  };
+}
 
 // Computed properties
 const totalBs = computed(() => {
@@ -220,9 +399,8 @@ const totalSeleccionadoBS = computed(() => {
   return productosSeleccionados.value.reduce((sum, producto) => {
 
     const precio = producto.precio || 0
-    const tasa = dolarBCV.value.promedio
     const cantidad = producto.cantidad || 1
-    const subtotalBs = precio * tasa * cantidad
+    const subtotalBs = precio * dolarBCV.value.promedio * cantidad
     return sum + subtotalBs
   }, 0)
 })
@@ -319,16 +497,15 @@ const nuevoProducto = ref({
   fecha: new Date().toISOString().split('T')[0],
   cantidad: 1,
 })
-const tasaCambio = ref(36.5) // Puedes hacer esto dinámico si lo necesitas
 
 // Computed para el precio convertido
 const precioConvertido = computed(() => {
   if (!nuevoProducto.value.precio) return '0.00'
 
   if (nuevoProducto.value.moneda === 'USD') {
-    return (nuevoProducto.value.precio * tasaCambio.value).toFixed(2) + ' Bs'
+    return (nuevoProducto.value.precio * dolarBCV.promedio).toFixed(2) + ' Bs'
   } else {
-    return (nuevoProducto.value.precio / tasaCambio.value).toFixed(2) + ' USD'
+    return (nuevoProducto.value.precio / dolarBCV.promedio).toFixed(2) + ' USD'
   }
 })
 
@@ -356,10 +533,10 @@ function agregarProducto() {
   // Asignar precios según la moneda seleccionada
   if (nuevoProducto.value.moneda === 'USD') {
     producto.precio = nuevoProducto.value.precio
-    producto.precioBs = (nuevoProducto.value.precio * tasaCambio.value).toFixed(2)
+    producto.precioBs = (nuevoProducto.value.precio * dolarBCV.promedio).toFixed(2)
   } else {
     producto.precioBs = nuevoProducto.value.precio.toFixed(2)
-    producto.precio = nuevoProducto.value.precio / tasaCambio.value
+    producto.precio = nuevoProducto.value.precio / dolarBCV.promedio
   }
 
   productos.value.push(producto)
@@ -384,7 +561,7 @@ function guardarEnLocalStorage() {
     STORAGE_KEY,
     JSON.stringify({
       productos: productos.value,
-      tasaCambio: tasaCambio.value,
+      tasaCambio: dolarBCV.promedio,
     }),
   )
 }
@@ -784,6 +961,131 @@ onMounted(cargarProductos)
 
   .modal-actions {
     justify-content: space-between;
+  }
+}
+
+.budget-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.budget-title {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  color: #2c3e50;
+  font-size: 1.2rem;
+}
+
+.budget-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.budget-input-group {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.budget-input-group label {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #34495e;
+}
+
+.budget-input {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 1rem;
+  width: 100%;
+}
+
+.budget-converted {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  font-size: 0.8rem;
+  color: #7f8c8d;
+}
+
+.budget-summary {
+  background-color: white;
+  padding: 1rem;
+  border-radius: 5px;
+  border: 1px solid #e0e0e0;
+}
+
+.budget-total,
+.budget-total-available,
+.budget-remaining {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.budget-total span:last-child,
+.budget-total-available span:last-child,
+.budget-remaining span:last-child {
+  font-weight: 500;
+  text-align: right;
+}
+
+.budget-remaining.sufficient {
+  background-color: #e8f5e9;
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+.budget-remaining.insufficient {
+  background-color: #ffebee;
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+.budget-warning {
+  color: #e74c3c;
+  font-weight: 500;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background-color: #fdecea;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.budget-success {
+  color: #2ecc71;
+  font-weight: 500;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background-color: #e8f5e9;
+  border-radius: 4px;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .budget-inputs {
+    grid-template-columns: 1fr;
+  }
+
+  .budget-total,
+  .budget-total-available,
+  .budget-remaining {
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .budget-total span:last-child,
+  .budget-total-available span:last-child,
+  .budget-remaining span:last-child {
+    text-align: left;
   }
 }
 </style>
