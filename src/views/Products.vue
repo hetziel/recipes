@@ -49,7 +49,7 @@ const fechaActualizacion = ref<string | null>(null)
 // Configurar listener en tiempo real
 onMounted(() => {
   // 1. Cargar datos locales primero para una respuesta rápida
-  cargarDesdeLocalStorage();
+  cargarProductosDesdeLocal();
 
   // 2. Cargar datos de Firebase y sincronizar
   cargarDatosIniciales().then(() => {
@@ -92,14 +92,15 @@ onMounted(() => {
 })
 
 // Cargar datos del LocalStorage al iniciar
-function cargarDesdeLocalStorage() {
+function cargarProductosDesdeLocal() {
   const localData = localStorage.getItem(STORAGE_KEY)
   if (localData) {
     try {
-      const datos: Producto[] = JSON.parse(localData)
+      const datos = JSON.parse(localData)
+      const productosLocal: Producto[] = datos || []
 
       // Cargar productos
-      productos.value = datos || []
+      productos.value = productosLocal
     } catch (err) {
       console.error('Error al cargar datos del LocalStorage:', err)
     }
@@ -205,7 +206,7 @@ function cargarArchivo(event: Event) {
             actualizarDolarBCV(nuevoDolarBCV);
           }
 
-          guardarEnLocalStorage()
+          guardarProductosEnLocal()
         }
 
       } else {
@@ -241,8 +242,9 @@ async function agregarProducto() {
 
   try {
     // 1. Agregar localmente
+
     productos.value.unshift(producto);
-    guardarEnLocalStorage();
+    guardarProductosEnLocal();
 
     // 2. Intentar sincronización inmediata si hay conexión
     if (onFireStore && navigator.onLine) {
@@ -299,19 +301,14 @@ async function guardarProductos() {
   } catch (err) {
     console.error('Error al guardar productos:', err)
     // Fallback a localStorage
-    guardarEnLocalStorage()
+    guardarProductosEnLocal()
   }
 }
 
 // Guardar datos en LocalStorage
-function guardarEnLocalStorage() {
-  const datosAGuardar: Producto[] = productos.value.map(p => ({
-    ...p,
-    // No necesitamos guardar el estado de sincronización en localStorage
-    sincronizado: undefined
-  }));
-
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(datosAGuardar));
+function guardarProductosEnLocal() {
+  const productosLocal: Producto[] = productos.value;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(productosLocal));
 }
 
 // Determinar la mejor tasa disponible
@@ -321,7 +318,7 @@ function determinarMejorTasa(apiData: DolarData | null) {
     tasaDolar.value = apiData.promedio
     origenTasa.value = 'api'
     fechaActualizacion.value = apiData.fechaActualizacion
-    guardarEnLocalStorage(apiData)
+    guardarProductosEnLocal(apiData)
   } else if (tasaLocal.value) {
     // Usar tasa local si no hay datos de API
     tasaDolar.value = tasaLocal.value
@@ -353,7 +350,7 @@ async function sincronizarProductoConFirebase(producto: Producto) {
         id: docRef.id,
         sincronizado: true
       };
-      guardarEnLocalStorage();
+      guardarProductosEnLocal();
     }
 
     console.log('Producto sincronizado con Firebase:', docRef.id);
@@ -399,7 +396,7 @@ async function eliminarProducto(id: string) {
       productos.value.splice(index, 1);
     }
 
-    guardarEnLocalStorage();
+    guardarProductosEnLocal();
 
     // Intentar sincronización inmediata si hay conexión
     if (onFireStore && navigator.onLine) {
@@ -486,7 +483,7 @@ async function sincronizarProductosPendientes() {
     }
 
     // Actualizar localStorage después de la sincronización
-    guardarEnLocalStorage();
+    guardarProductosEnLocal();
     console.log('Sincronización completa');
   } catch (error) {
     console.error('Error en la sincronización global:', error);
