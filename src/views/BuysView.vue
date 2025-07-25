@@ -221,9 +221,9 @@
             <span v-if="saldoRestante.dolares < 0">
               ${{ Math.abs(saldoRestante.dolares).toFixed(2) }}
             </span>
-            <span v-if="saldoRestante.dolares < 0 && saldoRestante.bolivares < 0"> o </span>
-            <span v-if="saldoRestante.bolivares < 0">
-              Bs {{ Math.abs(saldoRestante.bolivares).toFixed(2) }}
+            <span v-if="saldoRestante.dolares < 0"> o </span>
+            <span v-if="saldoRestante.dolares < 0">
+              Bs {{ Math.abs(saldoRestante.dolares * dolarBCV.promedio).toFixed(2) }}
             </span>
           </div>
 
@@ -269,11 +269,9 @@ const presupuesto = ref({
 // Computed para saldos restantes
 const saldoRestante = computed(() => {
   const totalDolaresNecesarios = totalSeleccionadoUSD.value;
-  const totalBolivaresNecesarios = totalSeleccionadoBS.value;
 
   // Convertimos todo a dólares equivalentes para calcular
   const dolaresEquivalentes = presupuesto.value.dolares + (presupuesto.value.bolivares / dolarBCV.value.promedio);
-  const totalDolaresEquivalentes = totalDolaresNecesarios + (totalBolivaresNecesarios / dolarBCV.value.promedio);
 
 
   console.log(dolaresEquivalentes, totalDolaresEquivalentes);
@@ -309,6 +307,8 @@ function calcularDistribucionOptima(
   const totalPresupuestoUSD = presupuesto.dolares + (presupuesto.bolivares / tasa);
   const totalCompraUSD = totalUSD + (totalBS / dolarBCV.promedio);
 
+
+  console.log(totalPresupuestoUSD,totalCompraUSD )
   if (totalPresupuestoUSD < totalCompraUSD) {
     // No hay suficiente dinero
     return {
