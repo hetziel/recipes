@@ -217,14 +217,7 @@
           </div>
 
           <div v-if="!saldoRestante.suficiente" class="budget-warning">
-            ⚠️ Fondos insuficientes. Te faltan:
-            <span v-if="saldoRestante.dolares < 0">
-              ${{ Math.abs(saldoRestante.dolares).toFixed(2) }}
-            </span>
-            <span v-if="saldoRestante.dolares < 0"> o </span>
-            <span v-if="saldoRestante.dolares < 0">
-              Bs {{ Math.abs(saldoRestante.dolares * dolarBCV.promedio).toFixed(2) }}
-            </span>
+            ⚠️ Fondos insuficientes.
           </div>
 
           <div v-else class="budget-success">
@@ -268,105 +261,45 @@ const presupuesto = ref({
 
 // Computed para saldos restantes
 const saldoRestante = computed(() => {
-  const totalDolaresNecesarios = totalSeleccionadoUSD.value;
+  const totalNecesarioUSD = Number(totalSeleccionadoUSD.value);
+  const tasaDolar = Number(dolarBCV.value.promedio);
+  const presupuestoUSD = Number(presupuesto.value.dolares);
+  const presupuestoBS = Number(presupuesto.value.bolivares);
 
-  // Convertimos todo a dólares equivalentes para calcular
-  const dolaresEquivalentes = presupuesto.value.dolares + (presupuesto.value.bolivares / dolarBCV.value.promedio);
+  // Convertimos todo a dólares
+  const bsEnUSD = presupuestoBS / tasaDolar;
+  const totalDisponibleUSD = presupuestoUSD + bsEnUSD;
 
+  // Calculamos la diferencia con un umbral de tolerancia para errores de punto flotante
+  const diferenciaUSD = totalDisponibleUSD - totalNecesarioUSD;
+  const TOLERANCIA = 0.0001; // 1 milésimo de dólar como margen
+  const suficiente = diferenciaUSD >= -TOLERANCIA; // Consideramos positivo si está dentro del margen
 
-  console.log(dolaresEquivalentes, totalDolaresEquivalentes);
-  const diferencia = dolaresEquivalentes - totalDolaresEquivalentes;
+  // Redondeamos la diferencia real para evitar microvalores
+  const diferenciaRedondeada = parseFloat(diferenciaUSD.toFixed(4));
 
+  // Calculamos los resultados
+  if (suficiente) {
+    // Cuando hay suficiente dinero (incluyendo el margen de tolerancia)
+    const dolaresRestantes = Math.max(0, presupuestoUSD - totalNecesarioUSD);
+    const bolivaresRestantes = Math.max(0, (diferenciaRedondeada - dolaresRestantes) * tasaDolar);
 
-  if (diferencia >= 0) {
-    // Hay suficiente dinero - calculamos cómo distribuirlo
-    return calcularDistribucionOptima(
-      presupuesto.value,
-      totalSeleccionadoUSD.value,
-      totalSeleccionadoBS.value,
-      dolarBCV.promedio
-    );
-  } else {
-    // No hay suficiente dinero
     return {
-      dolares: presupuesto.value.dolares - totalSeleccionadoUSD.value,
-      bolivares: presupuesto.value.bolivares - totalBolivaresNecesarios,
+      dolares: parseFloat(dolaresRestantes.toFixed(2)),
+      bolivares: parseFloat(bolivaresRestantes.toFixed(2)),
+      suficiente: true
+    };
+  } else {
+    // Cuando no hay suficiente dinero
+    const faltanteUSD = Math.abs(diferenciaRedondeada);
+
+    return {
+      dolares: parseFloat((-faltanteUSD).toFixed(2)),
+      bolivares: parseFloat((faltanteUSD * tasaDolar).toFixed(2)),
       suficiente: false
     };
   }
 });
-
-// Función optimizada para calcular la distribución óptima del pago
-function calcularDistribucionOptima(
-  presupuesto: { dolares: number; bolivares: number },
-  totalUSD: number,
-  totalBS: number,
-  tasa: number
-) {
-  // Convertimos todo a dólares equivalentes para el cálculo global
-  const totalPresupuestoUSD = presupuesto.dolares + (presupuesto.bolivares / tasa);
-  const totalCompraUSD = totalUSD + (totalBS / dolarBCV.promedio);
-
-
-  console.log(totalPresupuestoUSD,totalCompraUSD )
-  if (totalPresupuestoUSD < totalCompraUSD) {
-    // No hay suficiente dinero
-    return {
-      dolares: presupuesto.dolares - totalUSD,
-      bolivares: presupuesto.bolivares - totalBS,
-      suficiente: false
-    };
-  }
-
-  // Primero pagamos con dólares
-  let dolaresRestantes = presupuesto.dolares - totalUSD;
-  let bolivaresRestantes = presupuesto.bolivares;
-
-  // Si faltan dólares, cubrimos con bolívares
-  if (dolaresRestantes < 0) {
-    const dolaresFaltantes = Math.abs(dolaresRestantes);
-    const bolivaresNecesarios = dolaresFaltantes * dolarBCV.promedio;
-
-    if (bolivaresRestantes >= bolivaresNecesarios) {
-      bolivaresRestantes -= bolivaresNecesarios;
-      dolaresRestantes = 0;
-    } else {
-      // No hay suficientes bolívares para cubrir la diferencia
-      return {
-        dolares: dolaresRestantes,
-        bolivares: bolivaresRestantes - totalBS,
-        suficiente: false
-      };
-    }
-  }
-
-  // Luego pagamos los bolívares
-  bolivaresRestantes -= totalBS;
-
-  // Si faltan bolívares, cubrimos con dólares
-  if (bolivaresRestantes < 0) {
-    const bolivaresFaltantes = Math.abs(bolivaresRestantes);
-    const dolaresNecesarios = bolivaresFaltantes / dolarBCV.promedio;
-
-    if (dolaresRestantes >= dolaresNecesarios) {
-      dolaresRestantes -= dolaresNecesarios;
-      bolivaresRestantes = 0;
-    } else {
-      // No hay suficientes dólares para cubrir la diferencia
-      return {
-        dolares: dolaresRestantes,
-        bolivares: bolivaresRestantes,
-        suficiente: false
-      };
-    }
-  }
-
-  return {
-    dolares: dolaresRestantes,
-    bolivares: bolivaresRestantes,
-    suficiente: true
-  };
-}
 
 // Computed properties
 const totalBs = computed(() => {
