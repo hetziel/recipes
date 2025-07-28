@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, inject } from 'vue'
+
 import {
   collection,
   doc,
@@ -264,15 +265,29 @@ function generarId() {
   return productos.value.length > 0 ? Math.max(...productos.value.map((p) => Number(p.id) || 0)) + 1 : 1
 }
 
-function resetearFormulario() {
+async function resetearFormulario() {
   nuevoProducto.value = {
     nombre: '',
     precio: undefined,
     peso: '',
     fecha: new Date().toISOString().split('T')[0],
   }
-  mostrarFormulario.value = false
+
+   let close = await window.closePopupScreen("test");
+
+
+  mostrarFormulario.value = close ?? false
   error.value = null
+
+  // let modal = document.querySelector('.b-modal[modal="test"]');
+
+
+  // if (!modal) return;
+  //  modal.classList.add("closed");
+  //   setTimeout(() => {
+  //       modal.classList.remove("opened");
+  //       modal.classList.remove("closed");
+  //   }, 400);
 }
 
 // Guardar productos en FiresStore
@@ -574,7 +589,7 @@ function limpiarLocalStorage() {
       <div class="controls">
         <input type="file" accept=".json" @change="cargarArchivo" class="file-input" :disabled="cargando" />
 
-        <button @click="mostrarFormulario = true" class="add-button">Agregar Producto</button>
+        <button @click="mostrarFormulario = true" class="add-button" open-modal="test">Agregar Producto</button>
 
         <button @click="exportarAJSON" class="export-button">Exportar a JSON</button>
 
@@ -584,36 +599,45 @@ function limpiarLocalStorage() {
       <div v-if="cargando" class="loading">Cargando datos...</div>
 
       <div v-else>
+
         <!-- Formulario para agregar nuevo producto -->
-        <div v-if="mostrarFormulario" class="form-container">
-          <h2>Agregar Nuevo Producto</h2>
-          <form @submit.prevent="agregarProducto">
-            <div class="form-group">
-              <label>Nombre:</label>
-              <input v-model="nuevoProducto.nombre" required />
-            </div>
+        <div class="b-modal" persistent modal="test" skin="fade" fx="in-out" :class="{ opened: mostrarFormulario }">
+          <div bx-content>
+            <button maximize-modal>max</button>
+            <button close-modal>close</button>
+            <button  onclick="closePopupScreen('test')">close new</button>
+            <div class="form-container" v-if="mostrarFormulario">
+              <h2>Agregar Nuevo Producto</h2>
+              <form @submit.prevent="agregarProducto">
+                <div class="form-group">
+                  <label>Nombre:</label>
+                  <input v-model="nuevoProducto.nombre" required />
+                </div>
 
-            <div class="form-group">
-              <label>Precio ($):</label>
-              <input v-model.number="nuevoProducto.precio" type="number" step="0.01" />
-            </div>
+                <div class="form-group">
+                  <label>Precio ($):</label>
+                  <input v-model.number="nuevoProducto.precio" type="number" step="0.01" />
+                </div>
 
-            <div class="form-group">
-              <label>Peso:</label>
-              <input v-model="nuevoProducto.peso" />
-            </div>
+                <div class="form-group">
+                  <label>Peso:</label>
+                  <input v-model="nuevoProducto.peso" />
+                </div>
 
-            <div class="form-group">
-              <label>Fecha:</label>
-              <input v-model="nuevoProducto.fecha" type="date" />
-            </div>
+                <div class="form-group">
+                  <label>Fecha:</label>
+                  <input v-model="nuevoProducto.fecha" type="date" />
+                </div>
 
-            <div class="form-actions">
-              <button type="submit">Guardar</button>
-              <button type="button" @click="resetearFormulario">Cancelar</button>
+                <div class="form-actions">
+                  <button type="submit">Guardar</button>
+                  <button type="button" @click="resetearFormulario" close-modal>Cancelar</button>
+                </div>
+              </form>
             </div>
-          </form>
+          </div>
         </div>
+
 
         <table v-if="productos.length" class="product-table">
           <thead>
