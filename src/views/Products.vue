@@ -449,16 +449,19 @@ async function sincronizarProductosPendientes() {
 
     // Sincronizar productos nuevos o modificados
     const productosPendientes = productos.value.filter(
-      p => !p.sincronizado && !(String(p.id).startsWith('temp_'))
+      p => !p.sincronizado && (String(p.id).startsWith('temp_'))
     );
+console.log('Productos pendientes para sincronizar:', productosPendientes);
 
     for (const producto of productosPendientes) {
+       console.log("producto",producto)
       try {
         // Verificar si el producto ya existe en Firebase
         if (producto.id) {
           const docRef = doc(db, PRODUCTOS_COLLECTION, producto.id);
           const docSnap = await getDoc(docRef);
 
+          // console.log(docRef);
           if (docSnap.exists()) {
             console.log(`Producto ${producto.id} ya existe en Firebase.`);
             // await actualizarProductoEnFirebase(producto);
@@ -606,7 +609,7 @@ function limpiarLocalStorage() {
       <div v-else>
 
         <!-- Formulario para agregar nuevo producto -->
-        <div class="b-modal" persistent modal="test" skin="fade" fx="in-out" :class="{ opened: mostrarFormulario }">
+        <div class="b-modal" persistent modal="test" fx="in-out" :class="{ opened: mostrarFormulario }">
           <div bx-content>
             <button maximize-modal>max</button>
             <button close-modal>close</button>
