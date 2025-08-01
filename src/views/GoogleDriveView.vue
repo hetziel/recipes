@@ -1,12 +1,12 @@
 <template>
   <div class="drive-container">
     <h1>Integración con Google Drive</h1>
-    <GoogleDriveUploader />
+    <!-- <GoogleDriveUploader /> -->
   </div>
 </template>
 
 <script setup lang="ts">
-import GoogleDriveUploader from '@/components/GoogleDriveUploader.vue';
+// import GoogleDriveUploader from '@/components/GoogleDriveUploader.vue';
 </script>
 
 <style scoped>

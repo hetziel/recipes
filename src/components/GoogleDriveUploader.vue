@@ -108,8 +108,8 @@ const authenticate = async () => {
       tokenClient.value.requestAccessToken({ prompt: 'consent' });
     }
   } catch (error) {
-    console.error("Error de autenticación:", error);
-    uploadStatus.value = 'Error al autenticar: ' + error.message;
+    console.error("Error de autenticación:", error); // Log the error object for debugging
+    uploadStatus.value = 'Error al autenticar: ' + (error instanceof Error ? error.message : String(error));
   }
 };
 
@@ -154,7 +154,7 @@ const uploadFile = async () => {
     await listFiles();
   } catch (error) {
     console.error("Error al subir:", error);
-    uploadStatus.value = 'Error al subir: ' + error.message;
+    uploadStatus.value = 'Error al subir: ' + (error instanceof Error ? error.message : String(error));
   }
 };
 
@@ -169,7 +169,7 @@ const listFiles = async () => {
     files.value = response.result.files;
   } catch (error) {
     console.error("Error al listar:", error);
-    uploadStatus.value = 'Error al listar: ' + error.message;
+    uploadStatus.value = 'Error al listar: ' + (error instanceof Error ? error.message : String(error));
   }
 };
 

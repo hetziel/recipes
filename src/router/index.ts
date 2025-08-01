@@ -3,7 +3,7 @@ import Products from '../views/Products.vue'
 import GoogleDriveView from '../views/GoogleDriveView.vue'
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory('/'),
   routes: [
     {
       path: '/',
@@ -15,14 +15,14 @@ const router = createRouter({
       name: 'buys',
       component: () => import('../views/BuysView.vue'),
     },
-    {
-      path: '/drive',
-      name: 'drive',
-      component: GoogleDriveView,
-      meta: {
-        requiresAuth: true
-      }
-    },
+    // {
+    //   path: '/drive',
+    //   name: 'drive',
+    //   component: GoogleDriveView,
+    //   meta: {
+    //     requiresAuth: true
+    //   }
+    // },
     {
       path: '/calculator',
       name: 'calculator',

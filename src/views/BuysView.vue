@@ -96,7 +96,12 @@
               <td class="numeric">
                 {{ producto.precio ? '$' + producto.precio.toFixed(2) : '-' }}
               </td>
-              <td class="numeric">{{ producto.precio ? 'Bs ' + producto.precio * dolarBCV.promedio.toFixed(2) : '-' }}
+              <td class="numeric">
+                {{
+                  producto?.precio && dolarBCV?.promedio
+                    ? 'Bs ' + (producto.precio * dolarBCV.promedio).toFixed(2)
+                    : '-'
+                }}
               </td>
               <td class="numeric">
                 <input type="number" v-model.number="producto.cantidad" min="1" class="quantity-input"
@@ -145,9 +150,17 @@
               <td>{{ producto.nombre }}</td>
               <td class="numeric">{{ producto.cantidad }}</td>
               <td class="numeric">${{ producto.precio?.toFixed(2) || '0.00' }}</td>
-              <td class="numeric">${{ (producto.precio * producto.cantidad).toFixed(2) }}</td>
               <td class="numeric">
-                Bs {{ (parseFloat(producto.precio * dolarBCV.promedio.toFixed(2) || '0') * producto.cantidad).toFixed(2)
+                ${{
+                  ((producto.precio ?? 0) * (producto.cantidad ?? 0)).toFixed(2)
+                }}
+              </td>
+              <td class="numeric">
+                Bs {{
+                  (producto?.precio && dolarBCV?.promedio && producto?.cantidad
+                    ? (producto.precio * dolarBCV.promedio * producto.cantidad).toFixed(2)
+                    : '0.00'
+                  )
                 }}
               </td>
             </tr>
@@ -230,7 +243,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, inject } from 'vue'
+import { ref, onMounted, computed, watch, inject, type Ref } from 'vue'
+import type { DolarBCV } from '../types/producto'
 
 interface Producto {
   id?: number
@@ -240,7 +254,6 @@ interface Producto {
   fecha?: string
   seleccionado?: boolean
   cantidad?: number
-  [key: string]: any
 }
 
 const STORAGE_KEY = 'productos-app-data'
@@ -303,8 +316,12 @@ const saldoRestante = computed(() => {
 
 // Computed properties
 const totalBs = computed(() => {
+  if (!productos.value || !dolarBCV.value?.promedio) return 0
+
   return productos.value.reduce((sum, producto) => {
-    return sum + (parseFloat(producto.precioBs || '0') || 0)
+    const precio = Number(producto?.precio) || 0
+    const tasa = Number(dolarBCV.value?.promedio) || 0
+    return sum + (precio * tasa)
   }, 0)
 })
 
@@ -362,6 +379,7 @@ function cargarProductos() {
 
       cargarSeleccionesGuardadas()
     } catch (err) {
+      console.error('Error al cargar productos:', err)
       productos.value = []
     }
   }
@@ -436,9 +454,9 @@ const precioConvertido = computed(() => {
   if (!nuevoProducto.value.precio) return '0.00'
 
   if (nuevoProducto.value.moneda === 'USD') {
-    return (nuevoProducto.value.precio * dolarBCV.promedio).toFixed(2) + ' Bs'
+    return (nuevoProducto.value.precio * dolarBCV.value.promedio).toFixed(2) + ' Bs'
   } else {
-    return (nuevoProducto.value.precio / dolarBCV.promedio).toFixed(2) + ' USD'
+    return (nuevoProducto.value.precio / dolarBCV.value.promedio).toFixed(2) + ' USD'
   }
 })
 
@@ -466,10 +484,8 @@ function agregarProducto() {
   // Asignar precios según la moneda seleccionada
   if (nuevoProducto.value.moneda === 'USD') {
     producto.precio = nuevoProducto.value.precio
-    producto.precioBs = (nuevoProducto.value.precio * dolarBCV.promedio).toFixed(2)
   } else {
-    producto.precioBs = nuevoProducto.value.precio.toFixed(2)
-    producto.precio = nuevoProducto.value.precio / dolarBCV.promedio
+    producto.precio = nuevoProducto.value.precio / dolarBCV.value.promedio
   }
 
   productos.value.push(producto)
@@ -494,7 +510,7 @@ function guardarEnLocalStorage() {
     STORAGE_KEY,
     JSON.stringify({
       productos: productos.value,
-      tasaCambio: dolarBCV.promedio,
+      tasaCambio: dolarBCV.value.promedio,
     }),
   )
 }

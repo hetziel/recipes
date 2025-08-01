@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
 import { ref, provide } from 'vue'
-import { getDoc } from 'firebase/firestore'
-import { db } from './firebase.config'
+// import { getDoc } from 'firebase/firestore'
+// import { db } from './firebase.config'
+import boxyModal from '@js/boxy-modal.esm';
+
+boxyModal.init();
 // Interfaces y tipos
 import type { DolarBCV } from './types/producto'
 
 //Datos de configuracion
-const onGetApiDolar = true;
+const onGetApiDolar = false;
 const apiGetDolar = 'https://ve.dolarapi.com/v1/dolares';
 
 // Variables
@@ -42,7 +45,7 @@ async function cargarTasaDolar() {
         promedio: datos.promedio,
         fechaAnterior: datos.fechaAnterior || null,
         fechaActualizacion: datos.fechaActualizacion,
-        origen: datos.origen,
+        origen: datos.origen == 'api' ? 'local' : datos.origen || 'local',
       };
 
       tasaStatus = ref(`Tasa de dólar cargada desde local: ${dolarBCV.value?.promedio ?? 'N/A'} Bs`);
@@ -116,10 +119,10 @@ cargarTasaDolar()
           <span class="link-icon">🛒</span>
           <span class="link-text">Compras</span>
         </RouterLink>
-        <RouterLink to="/drive" class="nav-link">
+        <!-- <RouterLink to="/drive" class="nav-link">
           <span class="link-icon">☁️</span>
           <span class="link-text">Google Drive</span>
-        </RouterLink>
+        </RouterLink> -->
         <RouterLink to="/calculator" class="nav-link">
           <span class="link-icon">💰</span>
           <span class="link-text">Calculadora</span>
