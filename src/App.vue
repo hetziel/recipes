@@ -10,7 +10,7 @@ boxyModal.init();
 import type { DolarBCV } from './types/producto'
 
 //Datos de configuracion
-const onGetApiDolar = false;
+const onGetApiDolar = true;
 const apiGetDolar = 'https://ve.dolarapi.com/v1/dolares';
 
 // Variables
