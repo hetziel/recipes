@@ -6,6 +6,9 @@ export interface Producto {
   fecha?: string
   [key: string]: any
   sincronizado?: boolean
+  marcadoParaEliminar?: boolean
+  marcadoParaActualizar?: boolean
+  marcadoParaCrear?: boolean
 }
 
 export interface DolarData {

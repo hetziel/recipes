@@ -102,6 +102,8 @@ function cargarProductosDesdeLocal() {
 
       // Cargar productos
       productos.value = productosLocal
+
+      console.log('Productos cargados desde LocalStorage:', productos.value.length)
     } catch (err) {
       console.error('Error al cargar datos del LocalStorage:', err)
     }
@@ -145,7 +147,8 @@ async function cargarProductosDesdeFirestore(): Promise<void> {
         nombre: data.nombre?.trim() ?? 'Sin nombre',
         precio: data.precio ?? 0,
         peso: data.peso ?? '',
-        fecha: data.fecha || new Date().toISOString().split('T')[0]
+        fecha: data.fecha || new Date().toISOString().split('T')[0],
+        sincronizado: true
       } as Producto;
     });
 
@@ -245,6 +248,8 @@ async function agregarProducto() {
     sincronizado: false,
   };
 
+  console.log('Producto para agregar:', producto);
+
   try {
     // 1. Agregar localmente
 
@@ -329,6 +334,7 @@ async function resetearFormulario() {
 function guardarProductosEnLocal() {
   const productosLocal: Producto[] = productos.value;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(productosLocal));
+  console.log('Productos guardados en LocalStorage:', productosLocal.length);
 }
 
 // Determinar la mejor tasa disponible
@@ -394,6 +400,8 @@ async function eliminarProducto(id: string) {
         console.log('Producto actual:', p.id);
         console.log('ID a buscar:', id);
       }
+
+      console.log(String(p.id) === id, 'Comparando:', String(p.id), 'con', id);
       return String(p.id) === id;
     });
 
@@ -405,11 +413,12 @@ async function eliminarProducto(id: string) {
       console.log('Productos actuales:', productos.value);
       return;
     }
-    if (onTesting) {
-      console.log('Si ya está sincronizado, marcar para eliminación:', productos.value[index].sincronizado);
-    }
+
     // Si ya está sincronizado, marcar para eliminación
     if (productos.value[index].sincronizado) {
+      if (onTesting) {
+        console.log('Si ya está sincronizado, marcar para eliminación:', productos.value[index].sincronizado);
+      }
       productos.value[index].marcadoParaEliminar = true;
     } else {
       // Si no está sincronizado, eliminar directamente
@@ -464,7 +473,7 @@ console.log('Productos pendientes para sincronizar:', productosPendientes);
           // console.log(docRef);
           if (docSnap.exists()) {
             console.log(`Producto ${producto.id} ya existe en Firebase.`);
-            // await actualizarProductoEnFirebase(producto);
+
           } else {
             console.log(`Producto ${producto.id} no existe en Firebase, creando nuevo...`);
             await crearProductoEnFirebase(producto);
@@ -479,7 +488,7 @@ console.log('Productos pendientes para sincronizar:', productosPendientes);
 
     // Sincronizar eliminaciones
     const productosParaEliminar = productos.value
-      .filter(p => p.marcadoParaEliminar && p.sincronizado && p.id)
+      .filter(p => p.marcadoParaEliminar && p.id)
       .map(p => p.id);
 
     for (const id of productosParaEliminar) {
@@ -514,12 +523,7 @@ console.log('Productos pendientes para sincronizar:', productosPendientes);
 }
 
 async function crearProductoEnFirebase(producto: Producto) {
-  const { ...productoSinId } = producto;
-  const docRef = await addDoc(collection(db, PRODUCTOS_COLLECTION), {
-    ...productoSinId,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  });
+  const docRef = await addDoc(collection(db, PRODUCTOS_COLLECTION), producto);
 
   // Actualizar el estado local con el ID real de Firebase
   const index = productos.value.findIndex(p => p.id === producto.id);
@@ -583,6 +587,16 @@ function limpiarLocalStorage() {
   }
 }
 
+function recargarDatosIniciales() {
+  if (confirm('¿Estás seguro de que quieres recargar los datos iniciales?')) {
+    cargarDatosIniciales().then(() => {
+      console.log('Datos recargados correctamente');
+    }).catch(err => {
+      console.error('Error al recargar datos:', err);
+    });
+  }
+}
+
 </script>
 
 <template>
@@ -602,6 +616,8 @@ function limpiarLocalStorage() {
         <button @click="exportarAJSON" class="export-button">Exportar a JSON</button>
 
         <button @click="limpiarLocalStorage" class="clear-button">Limpiar Datos</button>
+
+        <button @click="recargarDatosIniciales" class="reload-button">Recargar Datos</button>
       </div>
 
       <div v-if="cargando" class="loading">Cargando datos...</div>
@@ -650,6 +666,7 @@ function limpiarLocalStorage() {
         <table v-if="productos.length" class="product-table">
           <thead>
             <tr>
+              <th>Sincronizado</th>
               <th>Nombre</th>
               <th>Precio ($)</th>
               <th>Precio (Bs)</th>
@@ -660,6 +677,7 @@ function limpiarLocalStorage() {
           </thead>
           <tbody>
             <tr v-for="producto in productos" :key="producto.id">
+              <td>{{ producto.sincronizado ? 'Sí' : 'No' }}</td>
               <td>{{ producto.nombre }}</td>
               <td>{{ producto.precio?.toFixed(2) || '-' }}</td>
               <td>{{ (producto.precio && dolarBCV?.promedio) ? (producto.precio * dolarBCV.promedio).toFixed(2) : '-' }}
