@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, inject, type Ref } from 'vue'
+import { ref, onMounted, computed, onUnmounted, inject, type Ref } from 'vue'
 import boxyModal from '@js/boxy-modal.esm';
 
 import {
@@ -12,13 +12,14 @@ import {
   // onSnapshot,
   query,
   orderBy,
+  where,
   serverTimestamp,
   getDoc
 } from 'firebase/firestore'
 import { db } from '../firebase.config'
 
 // Interfaces y tipos
-import type { Producto, DolarBCV } from '../types/producto'
+import type { Product, DolarBCV } from '../types/producto'
 
 // Datos de configuración
 const onTesting = true;
@@ -32,16 +33,18 @@ const { dolarBCV: dolarBCV, actualizarDolarBCV } = inject<{
   actualizarDolarBCV: (nuevoValor: DolarBCV) => void;
 }>('dolarBCV')!; // El ! asume que siempre estará disponible
 
-const productos = ref<Producto[]>([])
+const products = ref<Product[]>([])
 const tasaDolar = ref<number>(0)
 const origenTasa = ref<'api' | 'local' | null>(null)
 const error = ref<string | null>(null)
 const cargando = ref<boolean>(false)
-const nuevoProducto = ref<Producto>({
-  nombre: '',
-  precio: undefined,
-  peso: '',
-  fecha: new Date().toISOString().split('T')[0],
+const newProduct = ref<Product>({
+  name: '',
+  price: 0,
+  weight: '',
+  created_at: new Date().toISOString().split('T')[0],
+  updated_at: new Date().toISOString().split('T')[0],
+  marked_to_create: true,
 })
 const mostrarFormulario = ref<boolean>(false)
 const tasaLocal = ref<number | null>(null)
@@ -50,13 +53,13 @@ const tasaApi = ref<number | null>(null)
 // Configurar listener en tiempo real
 onMounted(() => {
   // 1. Cargar datos locales primero para una respuesta rápida
-  cargarProductosDesdeLocal();
+  loadProductsFromLocal();
 
   // 2. Cargar datos de Firebase y sincronizar
   cargarDatosIniciales().then(() => {
     if (onFireStore) {
       // Sincronizar cualquier cambio pendiente
-      sincronizarProductosPendientes();
+      // syncPendingProducts();
     }
 
   });
@@ -64,7 +67,7 @@ onMounted(() => {
   // 3. Configurar sincronización periódica
   const intervalo = setInterval(() => {
     if (navigator.onLine) {
-      // sincronizarProductosPendientes();
+      // syncPendingProducts();
     }
   }, 30000); // Cada 30 segundos
 
@@ -75,8 +78,8 @@ onMounted(() => {
   // cargarDatosIniciales()
 
   // Configurar listener para productos
-  // const productosQuery = query(collection(db, PRODUCTOS_COLLECTION), orderBy('createdAt', 'desc'))
-  // const unsubscribeProductos = onSnapshot(productosQuery, (snapshot) => {
+  // const productsQuery = query(collection(db, PRODUCTOS_COLLECTION), orderBy('createdAt', 'desc'))
+  // const unsubscribeProductos = onSnapshot(productsQuery, (snapshot) => {
   //   productos.value = snapshot.docs.map(doc => ({
   //     id: doc.id,
   //     ...doc.data()
@@ -93,17 +96,16 @@ onMounted(() => {
 })
 
 // Cargar datos del LocalStorage al iniciar
-function cargarProductosDesdeLocal() {
+function loadProductsFromLocal() {
   const localData = localStorage.getItem(STORAGE_KEY)
   if (localData) {
     try {
-      const datos = JSON.parse(localData)
-      const productosLocal: Producto[] = datos || []
+      const data = JSON.parse(localData)
+      const localProducts: Product[] = data || []
 
-      // Cargar productos
-      productos.value = productosLocal
+      products.value = localProducts
 
-      console.log('Productos cargados desde LocalStorage:', productos.value.length)
+      console.log('Productos cargados desde LocalStorage:', localProducts.length)
     } catch (err) {
       console.error('Error al cargar datos del LocalStorage:', err)
     }
@@ -117,7 +119,7 @@ async function cargarDatosIniciales() {
   try {
     // Cargar productos
     if (onFireStore) {
-      await cargarProductosDesdeFirestore()
+      await loadProductsFromFireStore()
     }
 
   } catch (err) {
@@ -129,46 +131,36 @@ async function cargarDatosIniciales() {
 }
 
 // Función específica para cargar productos
-async function cargarProductosDesdeFirestore(): Promise<void> {
+async function loadProductsFromFireStore(): Promise<void> {
 
   try {
-    // 1. Obtener productos de Firestore
-    const productosQuery = query(
+    // 1. Obtener productos de FireStore
+    const productsQuery = query(
       collection(db, PRODUCTOS_COLLECTION),
       orderBy('fecha', 'desc')
     );
-    const productosSnapshot = await getDocs(productosQuery);
+    const productosSnapshot = await getDocs(productsQuery);
 
     // 2. Mapear y validar los datos
-    const productosFirestore = productosSnapshot.docs.map(doc => {
-      const data = doc.data();
+    const loadedProducts = productosSnapshot.docs.map(doc => {
       return {
         id: doc.id,
-        nombre: data.nombre?.trim() ?? 'Sin nombre',
-        precio: data.precio ?? 0,
-        peso: data.peso ?? '',
-        fecha: data.fecha || new Date().toISOString().split('T')[0],
-        sincronizado: true
-      } as Producto;
+        ...(doc.data() as Omit<Product, 'id'>),
+      } as Product;
     });
 
+    // Validar que los productos sean iguales
+    if (JSON.stringify(loadedProducts) == JSON.stringify(products.value)) {
+      console.log('No hay cambios en los productos de Firestore');
+      return;
+    }
+
     // 3. Actualizar el estado reactivo
-    productos.value = productosFirestore;
+    products.value = loadedProducts;
 
     // 4. Guardar en LocalStorage
-    const datosAGuardar: Producto[] = productosFirestore;
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(datosAGuardar));
-    console.log('Productos guardados en LocalStorage');
-
-    // 5. Opcional: Verificar si hay cambios desde la última carga
-    // const datosAnteriores = localStorage.getItem(STORAGE_KEY);
-    // if (datosAnteriores) {
-    //   const parsedData: LocalStorageData = JSON.parse(datosAnteriores);
-    //   if (parsedData.productos.length !== productosFirestore.length) {
-    //     console.log(`Se actualizaron ${productosFirestore.length - parsedData.productos.length} productos`);
-    //   }
-    // }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(loadedProducts));
+    console.log('Productos guardados en LocalStorage', loadedProducts.length);
 
   } catch (err) {
     // Update:
@@ -214,7 +206,7 @@ function cargarArchivo(event: Event) {
             actualizarDolarBCV(nuevoDolarBCV);
           }
 
-          guardarProductosEnLocal()
+          saveProductsInLocal()
         }
 
       } else {
@@ -233,32 +225,31 @@ function cargarArchivo(event: Event) {
 }
 
 // Modificar las funciones existentes para usar Firestore
-async function agregarProducto() {
-  if (!nuevoProducto.value.nombre) {
+async function addProduct() {
+  if (!newProduct.value.name) {
     error.value = 'El nombre del producto es requerido';
     return;
   }
 
-  const producto: Producto = {
+  const product: Product = {
     id: 'temp_' + Date.now(), // ID temporal
-    nombre: nuevoProducto.value.nombre.trim(),
-    precio: nuevoProducto.value.precio || 0,
-    peso: nuevoProducto.value.peso || '',
-    fecha: nuevoProducto.value.fecha || new Date().toISOString().split('T')[0],
-    sincronizado: false,
+    name: newProduct.value.name.trim(),
+    price: newProduct.value.price || 0,
+    weight: newProduct.value.weight || '',
+    created_at: newProduct.value.created_at || new Date().toISOString().split('T')[0],
+    marked_to_create: true,
   };
 
-  console.log('Producto para agregar:', producto);
+  console.log('Producto para agregar:', product);
 
   try {
     // 1. Agregar localmente
-
-    productos.value.unshift(producto);
-    guardarProductosEnLocal();
+    products.value.unshift(product);
+    saveProductsInLocal();
 
     // 2. Intentar sincronización inmediata si hay conexión
     if (onFireStore && navigator.onLine) {
-      await sincronizarProductosPendientes();
+      await syncPendingProducts();
     }
 
     // 3. Limpiar formulario
@@ -275,11 +266,11 @@ function generarId() {
 }
 
 async function resetearFormulario() {
-  nuevoProducto.value = {
-    nombre: '',
-    precio: undefined,
-    peso: '',
-    fecha: new Date().toISOString().split('T')[0],
+  newProduct.value = {
+    name: '',
+    price: 0,
+    weight: '',
+    updated_at: new Date().toISOString().split('T')[0],
   }
 
 
@@ -326,15 +317,15 @@ async function resetearFormulario() {
 //   } catch (err) {
 //     console.error('Error al guardar productos:', err)
 //     // Fallback a localStorage
-//     guardarProductosEnLocal()
+//     saveProductsInLocal()
 //   }
 // }
 
 // Guardar datos en LocalStorage
-function guardarProductosEnLocal() {
-  const productosLocal: Producto[] = productos.value;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(productosLocal));
-  console.log('Productos guardados en LocalStorage:', productosLocal.length);
+function saveProductsInLocal() {
+  const productsToLocal: Product[] = products.value;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(productsToLocal));
+  console.log('Productos guardados en LocalStorage:', productsToLocal.length);
 }
 
 // Determinar la mejor tasa disponible
@@ -344,7 +335,7 @@ function guardarProductosEnLocal() {
 //     tasaDolar.value = apiData.promedio
 //     origenTasa.value = 'api'
 //     fechaActualizacion.value = apiData.fechaActualizacion
-//     guardarProductosEnLocal()
+//     saveProductsInLocal()
 //   } else if (tasaLocal.value) {
 //     // Usar tasa local si no hay datos de API
 //     tasaDolar.value = tasaLocal.value
@@ -376,7 +367,7 @@ function guardarProductosEnLocal() {
 //         id: docRef.id,
 //         sincronizado: true
 //       };
-//       guardarProductosEnLocal();
+//       saveProductsInLocal();
 //     }
 
 //     console.log('Producto sincronizado con Firebase:', docRef.id);
@@ -386,7 +377,7 @@ function guardarProductosEnLocal() {
 //   }
 // }
 
-async function eliminarProducto(id: string) {
+async function deleteProduct(id: string) {
 
   if (onTesting) {
     console.log('Eliminando producto con ID:', id);
@@ -395,42 +386,30 @@ async function eliminarProducto(id: string) {
   if (!id) return;
 
   try {
-    const index = productos.value.findIndex(p => {
-      if (onTesting) {
-        console.log('Producto actual:', p.id);
-        console.log('ID a buscar:', id);
-      }
-
-      console.log(String(p.id) === id, 'Comparando:', String(p.id), 'con', id);
+    const index = products.value.findIndex(p => {
       return String(p.id) === id;
     });
 
-    if (onTesting) {
-      console.log('Índice del producto encontrado:', index);
-    }
     if (index === -1) {
       console.log('Producto no encontrado:', id);
-      console.log('Productos actuales:', productos.value);
       return;
     }
 
-    // Si ya está sincronizado, marcar para eliminación
-    if (productos.value[index].sincronizado) {
-      if (onTesting) {
-        console.log('Si ya está sincronizado, marcar para eliminación:', productos.value[index].sincronizado);
-      }
-      productos.value[index].marcadoParaEliminar = true;
+    // Si existe el producto, se le agrega la marca de eliminación
+    products.value[index].marked_to_delete = true;
+
+    // Si está sincronizado, eliminar de Firestore
+    if (onFireStore && navigator.onLine) {
+      await syncPendingProducts();
+
     } else {
-      // Si no está sincronizado, eliminar directamente
-      productos.value.splice(index, 1);
+      saveProductsInLocal();
     }
 
-    guardarProductosEnLocal();
+
 
     // Intentar sincronización inmediata si hay conexión
-    if (onFireStore && navigator.onLine) {
-      await sincronizarProductosPendientes();
-    }
+
   } catch (err) {
     error.value = 'Error al eliminar el producto';
     console.error(err);
@@ -447,7 +426,8 @@ async function eliminarProducto(id: string) {
 //   }
 // }
 
-async function sincronizarProductosPendientes() {
+async function syncPendingProducts() {
+  let pendingCount = 0;
   try {
     if (!navigator.onLine) {
       console.log('Sin conexión, omitiendo sincronización');
@@ -457,56 +437,65 @@ async function sincronizarProductosPendientes() {
     console.log('Iniciando sincronización de productos pendientes...');
 
     // Sincronizar productos nuevos o modificados
-    const productosPendientes = productos.value.filter(
-      p => !p.sincronizado && (String(p.id).startsWith('temp_'))
+    const newProducts = products.value.filter(
+      p => p.marked_to_create
     );
-console.log('Productos pendientes para sincronizar:', productosPendientes);
+    console.log('Productos pendientes para sincronizar:', newProducts.length);
 
-    for (const producto of productosPendientes) {
-       console.log("producto",producto)
+    for (const newProduct of newProducts) {
+      console.log("Creando producto", newProduct, " en FireStore")
       try {
         // Verificar si el producto ya existe en Firebase
-        if (producto.id) {
-          const docRef = doc(db, PRODUCTOS_COLLECTION, producto.id);
+        if (newProduct.id) {
+          const docRef = doc(db, PRODUCTOS_COLLECTION, newProduct.id);
           const docSnap = await getDoc(docRef);
 
           // console.log(docRef);
           if (docSnap.exists()) {
-            console.log(`Producto ${producto.id} ya existe en Firebase.`);
+            console.log(`Producto ${newProduct.id} ya existe en Firebase.`);
 
           } else {
-            console.log(`Producto ${producto.id} no existe en Firebase, creando nuevo...`);
-            await crearProductoEnFirebase(producto);
+            console.log(`Producto ${newProduct.id} no existe en Firebase, creando nuevo...`);
+            await createProductInFireStore(newProduct);
+            pendingCount += 1;
           }
         } else {
-          await crearProductoEnFirebase(producto);
+          await createProductInFireStore(newProduct);
         }
       } catch (error) {
-        console.error(`Error al sincronizar producto ${producto.id}:`, error);
+        console.error(`Error al sincronizar producto ${newProduct.id}:`, error);
       }
     }
 
     // Sincronizar eliminaciones
-    const productosParaEliminar = productos.value
-      .filter(p => p.marcadoParaEliminar && p.id)
+    const productsToDelete = products.value
+      .filter(p => p.marked_to_delete && p.id)
       .map(p => p.id);
+    //  -------------------------
+  
 
-    for (const id of productosParaEliminar) {
+    // console.log('Productos en firebase', loadedProducts)
+    
+    // -----------------
+    for (const id of productsToDelete) {
       if (id) {
         try {
           const docRef = doc(db, PRODUCTOS_COLLECTION, id);
           const docSnap = await getDoc(docRef);
+
+          console.log("Test", await getProductByName(id));
 
           if (docSnap.exists()) {
             console.log(`Eliminando producto ${id} de Firebase...`);
             await deleteDoc(docRef);
 
             // Eliminar completamente del estado local
-            productos.value = productos.value.filter(p => p.id !== id);
+            products.value = products.value.filter(p => p.id !== id);
+            pendingCount += 1;
           } else {
             console.log(`Producto ${id} no existe en Firebase, eliminando localmente...`);
             // Solo eliminar localmente si no existe en Firebase
-            productos.value = productos.value.filter(p => p.id !== id);
+            products.value = products.value.filter(p => p.id !== id);
           }
         } catch (error) {
           console.error(`Error al eliminar producto ${id}:`, error);
@@ -515,25 +504,30 @@ console.log('Productos pendientes para sincronizar:', productosPendientes);
     }
 
     // Actualizar localStorage después de la sincronización
-    guardarProductosEnLocal();
-    console.log('Sincronización completa');
+    saveProductsInLocal();
+    console.log(`Sincronización completa. Productos pendientes sincronizados: ${pendingCount}`);
   } catch (error) {
     console.error('Error en la sincronización global:', error);
   }
 }
 
-async function crearProductoEnFirebase(producto: Producto) {
-  const docRef = await addDoc(collection(db, PRODUCTOS_COLLECTION), producto);
+async function createProductInFireStore(product: Product) {
+
+  const productToCreate: Product = {
+    id: product.id,
+    name: product.name.trim(),
+    price: product.price || 0,
+    weight: product.weight || '',
+    created_at: product.created_at || new Date().toISOString().split('T')[0],
+    updated_at: product.updated_at || new Date().toISOString().split('T')[0]
+  }
+  const docRef = await addDoc(collection(db, PRODUCTOS_COLLECTION), productToCreate);
 
   // Actualizar el estado local con el ID real de Firebase
-  const index = productos.value.findIndex(p => p.id === producto.id);
+  const index = products.value.findIndex(p => p.id === product.id);
   if (index !== -1) {
-    productos.value[index] = {
-      ...productos.value[index],
-      id: docRef.id,
-      sincronizado: true,
-      marcadoParaEliminar: false
-    };
+    products.value[index].id = docRef.id;
+    products.value[index].marked_to_create = false; // Marcar como no pendiente de creación
   }
 
   return docRef.id;
@@ -596,7 +590,61 @@ function recargarDatosIniciales() {
     });
   }
 }
+// Definir filteredProducts como un computed que filtra el array reactivo
+const filteredProducts = computed(() => {
+  return products.value.filter(p => !p.marked_to_delete)
+})
 
+
+// function getAllProducts (){
+//     const productsQuery = query(
+//       collection(db, PRODUCTOS_COLLECTION),
+//       orderBy('fecha', 'desc')
+//     );
+//     const productosSnapshot = await getDocs(productsQuery);
+
+
+//     // console.log('Productos en firebase', productosSnapshot.docs)
+//     // 2. Mapear y validar los datos
+//     const loadedProducts = productosSnapshot.docs.map(doc => {
+//       return {
+//         id: doc.id,
+//         ...(doc.data() as Omit<Product, 'id'>),
+//       } as Product;
+//     });
+
+//     return loadedProducts;
+// }
+
+export async function getProductByName(id: string): Promise<Product | null> {
+  try {
+    // 1. Crear una consulta que filtre por el campo 'name' en Firestore
+    const productsQuery = query(
+      collection(db, PRODUCTOS_COLLECTION),
+      where('name', '==', id)
+    );
+
+    const productSnapshot = await getDocs(productsQuery);
+
+    // 2. Verificar si se encontraron documentos
+    if (productSnapshot.empty) {
+      console.log(`No se encontró ningún producto con el nombre: ${name}`);
+      return null;
+    }
+
+    // 3. Asumimos que el nombre es único, por lo que tomamos el primer resultado
+    const docSnapshot = productSnapshot.docs[0];
+    const product = {
+      id: docSnapshot.id,
+      ...docSnapshot.data(),
+    } as Product;
+
+    return product;
+  } catch (error) {
+    console.error(`Error al obtener el producto con nombre ${name}:`, error);
+    return null;
+  }
+}
 </script>
 
 <template>
@@ -632,25 +680,25 @@ function recargarDatosIniciales() {
             <button onclick="closePopupScreen('test')">close new</button>
             <div class="form-container" v-if="mostrarFormulario">
               <h2>Agregar Nuevo Producto</h2>
-              <form @submit.prevent="agregarProducto">
+              <form @submit.prevent="addProduct">
                 <div class="form-group">
                   <label>Nombre:</label>
-                  <input v-model="nuevoProducto.nombre" required />
+                  <input v-model="newProduct.name" required />
                 </div>
 
                 <div class="form-group">
                   <label>Precio ($):</label>
-                  <input v-model.number="nuevoProducto.precio" type="number" step="0.01" />
+                  <input v-model.number="newProduct.price" type="number" step="0.01" />
                 </div>
 
                 <div class="form-group">
                   <label>Peso:</label>
-                  <input v-model="nuevoProducto.peso" />
+                  <input v-model="newProduct.weight" />
                 </div>
 
                 <div class="form-group">
                   <label>Fecha:</label>
-                  <input v-model="nuevoProducto.fecha" type="date" />
+                  <input v-model="newProduct.updated_at" type="date" />
                 </div>
 
                 <div class="form-actions">
@@ -663,10 +711,10 @@ function recargarDatosIniciales() {
         </div>
 
 
-        <table v-if="productos.length" class="product-table">
+        <table v-if="products.length" class="product-table">
           <thead>
             <tr>
-              <th>Sincronizado</th>
+              <th>ID</th>
               <th>Nombre</th>
               <th>Precio ($)</th>
               <th>Precio (Bs)</th>
@@ -676,16 +724,16 @@ function recargarDatosIniciales() {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="producto in productos" :key="producto.id">
-              <td>{{ producto.sincronizado ? 'Sí' : 'No' }}</td>
-              <td>{{ producto.nombre }}</td>
-              <td>{{ producto.precio?.toFixed(2) || '-' }}</td>
-              <td>{{ (producto.precio && dolarBCV?.promedio) ? (producto.precio * dolarBCV.promedio).toFixed(2) : '-' }}
+            <tr v-for="product in filteredProducts" :key="product.id">
+              <td>{{ product.id }}</td>
+              <td>{{ product.name }}</td>
+              <td>{{ product.price?.toFixed(2) || '-' }}</td>
+              <td>{{ (product.price && dolarBCV?.promedio) ? (product.price * dolarBCV.promedio).toFixed(2) : '-' }}
               </td>
-              <td>{{ producto.peso || '-' }}</td>
-              <td>{{ producto.fecha || '-' }}</td>
+              <td>{{ product.weight || '-' }}</td>
+              <td>{{ product.created_at || '-' }}</td>
               <td>
-                <button @click="eliminarProducto(String(producto.id))" class="delete-button" title="Eliminar">
+                <button @click="deleteProduct(String(product.id))" class="delete-button" title="Eliminar">
                   &times;
                 </button>
               </td>

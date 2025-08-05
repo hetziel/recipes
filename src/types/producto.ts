@@ -1,14 +1,13 @@
-export interface Producto {
+export interface Product {
   id?: string
-  nombre: string
-  precio?: number
-  peso?: number | string
-  fecha?: string
-  [key: string]: any
-  sincronizado?: boolean
-  marcadoParaEliminar?: boolean
-  marcadoParaActualizar?: boolean
-  marcadoParaCrear?: boolean
+  name: string
+  price?: number
+  weight?: number | string
+  created_at?: string
+  updated_at?: string | null
+  marked_to_create?: boolean
+  marked_to_edit?: boolean
+  marked_to_delete?: boolean
 }
 
 export interface DolarData {
