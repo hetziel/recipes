@@ -3,6 +3,7 @@ export interface Product {
   name: string
   price?: number
   weight?: number | string
+  quantity?: number | null
   created_at?: string
   updated_at?: string | null
   marked_to_create?: boolean

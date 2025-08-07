@@ -351,51 +351,91 @@ async function loadProductsFromFireStore(): Promise<void> {
   }
 }
 // Cargar productos desde Archivo JSON externo
-function loadFiles(event: Event) {
+async function loadFiles(event: Event) {
   const input = event.target as HTMLInputElement
   const archivo = input.files?.[0]
 
   if (!archivo) return
 
   const lector = new FileReader()
-  lector.onload = (e) => {
-    try {
-      const resultado = e.target?.result as string
-      const datos = JSON.parse(resultado)
+  lector.onload = async (e) => {
+    // try {
+    cargando.value = true;
+    const resultado = e.target?.result as string
+    const datos = JSON.parse(resultado)
 
-      if (datos.productos && Array.isArray(datos.productos)) {
-        products.value = datos.productos.map((p: Product) => ({
-          ...p,
-          id: p.id || generarId(),
-        }))
+    if (datos.productos && Array.isArray(datos.productos)) {
+      const invalidProducts: any[] = [];
 
-        const fechaImportada = new Date(datos.dolarBCV.fechaActualizacion);
-        const fechaActual = new Date(dolarBCV.value?.fechaActualizacion || 0);
-
-        if (datos.dolarBCV) {
-          if (fechaImportada >= fechaActual && dolarBCV.value?.origen == 'local') {
-            const fechaAnterior = dolarBCV.value?.fechaActualizacion || null
-
-            // Actualizar tasa de dólar
-            const nuevoDolarBCV: DolarBCV = {
-              promedio: datos.dolarBCV.promedio,
-              fechaAnterior: fechaAnterior,
-              fechaActualizacion: datos.dolarBCV.fechaActualizacion,
-              origen: 'importado',
-            };
-
-            actualizarDolarBCV(nuevoDolarBCV);
-          }
-
-          saveProductsInLocal()
+      products.value = datos.productos.map(async (p: Product) => {
+        // Verificar campos obligatorios
+        if (!p.name || !p.price) {
+          invalidProducts.push(p); // Almacenar producto inválido
+          return null; // Puedes devolver null o un objeto vacío según tu necesidad
         }
 
-      } else {
-        throw new Error('El archivo JSON no tiene el formato correcto.')
+        if (p.id) {
+          console.log(p.id)
+          const docRef = doc(db, PRODUCTOS_COLLECTION, String(p.id));
+          const docSnap = await getDoc(docRef);
+
+          // console.log(docRef);
+          if (docSnap.exists()) {
+            console.log(`Producto ${p.id} ya existe en Firebase.`);
+
+          } else {
+            console.log(`Producto ${p.id} no existe en Firebase, creando nuevo...`);
+            // await createProductInFireStore(newProduct);
+            // pendingCount += 1;
+          }
+        }
+
+        // Si pasa la validación, devolver el producto con ID generado si falta
+        return {
+          id: p.id || generateUUID(),
+          name: p.name.trim(),
+          price: Number(p.price),
+          weight: p.weight || '',
+          quantity: p.quantity || null,
+          created_at: p.created_at || new Date().toISOString().split('T')[0],
+          updated_at: p.updated_at || null,
+        };
+      }).filter(Boolean); // Filtrar los productos inválidos (null)
+
+      // Opcional: Mostrar advertencia si hay productos inválidos
+      if (invalidProducts.length > 0) {
+        console.warn('Productos inválidos encontrados:', invalidProducts);
+        // También puedes emitir un evento o mostrar una notificación al usuario
       }
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Error al leer el archivo'
+
+      console.log(products.value)
+      const fechaImportada = new Date(datos.dolarBCV.fechaActualizacion);
+      const fechaActual = new Date(dolarBCV.value?.fechaActualizacion || 0);
+
+      if (datos.dolarBCV) {
+        if (fechaImportada >= fechaActual && dolarBCV.value?.origen == 'local') {
+          const fechaAnterior = dolarBCV.value?.fechaActualizacion || null
+
+          // Actualizar tasa de dólar
+          const nuevoDolarBCV: DolarBCV = {
+            promedio: datos.dolarBCV.promedio,
+            fechaAnterior: fechaAnterior,
+            fechaActualizacion: datos.dolarBCV.fechaActualizacion,
+            origen: 'importado',
+          };
+
+          actualizarDolarBCV(nuevoDolarBCV);
+        }
+
+        saveProductsInLocal()
+      }
+      cargando.value = false;
+    } else {
+      throw new Error('El archivo JSON no tiene el formato correcto.')
     }
+    // } catch (err) {
+    //   error.value = err instanceof Error ? err.message : 'Error al leer el archivo'
+    // }
   }
 
   lector.onerror = () => {
@@ -441,10 +481,13 @@ async function addProduct() {
   }
 }
 
-// Helpers
-function generarId() {
-  return productos.value.length > 0 ? Math.max(...productos.value.map((p) => Number(p.id) || 0)) + 1 : 1
-}
+const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 async function resetearFormulario() {
   newProduct.value = {
