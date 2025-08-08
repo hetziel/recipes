@@ -117,6 +117,7 @@ import {
   orderBy,
   where,
   serverTimestamp,
+  updateDoc,
   getDoc
 } from 'firebase/firestore'
 import { db } from '../firebase.config'
@@ -367,22 +368,48 @@ async function loadFiles(event: Event) {
     if (datos.productos && Array.isArray(datos.productos)) {
       const invalidProducts: any[] = [];
 
-      products.value = datos.productos.map(async (p: Product) => {
+      datos.productos.forEach(async (p: Product) => {
+        console.log(p)
         // Verificar campos obligatorios
         if (!p.name || !p.price) {
           invalidProducts.push(p); // Almacenar producto inválido
-          return null; // Puedes devolver null o un objeto vacío según tu necesidad
         }
 
         if (p.id) {
-          console.log(p.id)
           const docRef = doc(db, PRODUCTOS_COLLECTION, String(p.id));
           const docSnap = await getDoc(docRef);
 
-          // console.log(docRef);
           if (docSnap.exists()) {
             console.log(`Producto ${p.id} ya existe en Firebase.`);
 
+            const firebaseProduct = docSnap.data();
+
+            // Convertimos las fechas a objetos Date para comparación
+            const localCreatedAt = new Date(p.created_at || '');
+            const firebaseCreatedAt = new Date(firebaseProduct.created_at || '');
+
+            const localUpdatedAt = new Date(p.updated_at || '');
+            const firebaseUpdatedAt = new Date(firebaseProduct.updated_at || '');
+
+            // Primero comparamos created_at
+            if (localCreatedAt.getTime() !== firebaseCreatedAt.getTime()) {
+              // Si las fechas de creación son diferentes
+              if (localCreatedAt > firebaseCreatedAt) {
+                console.log(`Producto ${p.id} tiene fecha de creación más reciente. Actualizando...`);
+                await updateDoc(docRef, { ...p });
+              } else {
+                console.log(`Producto ${p.id} en Firebase tiene fecha de creación más reciente. No se actualiza.`);
+              }
+            } else {
+              // Si las fechas de creación son iguales, comparamos updated_at
+              console.log('Fechas de creación iguales, comparando updated_at...');
+              if (localUpdatedAt > firebaseUpdatedAt) {
+                console.log(`Producto ${p.id} tiene actualización más reciente. Actualizando...`);
+                await updateDoc(docRef, { ...p });
+              } else {
+                console.log(`Producto ${p.id} en Firebase ya está actualizado.`);
+              }
+            }
           } else {
             console.log(`Producto ${p.id} no existe en Firebase, creando nuevo...`);
             // await createProductInFireStore(newProduct);
@@ -400,7 +427,7 @@ async function loadFiles(event: Event) {
           created_at: p.created_at || new Date().toISOString().split('T')[0],
           updated_at: p.updated_at || null,
         };
-      }).filter(Boolean); // Filtrar los productos inválidos (null)
+      }); // Filtrar los productos inválidos (null)
 
       // Opcional: Mostrar advertencia si hay productos inválidos
       if (invalidProducts.length > 0) {
