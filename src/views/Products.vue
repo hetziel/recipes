@@ -412,22 +412,43 @@ async function loadFiles(event: Event) {
             }
           } else {
             console.log(`Producto ${p.id} no existe en Firebase, creando nuevo...`);
-            // await createProductInFireStore(newProduct);
-            // pendingCount += 1;
+
+            const product = {
+              id: p.id,
+              name: p.name.trim(),
+              price: Number(p.price),
+              weight: p.weight || '',
+              quantity: p.quantity || null,
+              created_at: p.created_at || new Date().toISOString().split('T')[0],
+              updated_at: p.updated_at || null,
+            };
+
+            products.value.unshift(await createProductInFireStore(product));
+
+            // //Guardar en local
+            // saveProductsInLocal();
+
+            // // 2. Intentar sincronización inmediata si hay conexión
+            // if (onFireStore && navigator.onLine && isOnline.value) {
+            //   await syncPendingProducts();
+            // }
           }
         }
+        else {
+          console.log("Producto sin ID")
 
-        // Si pasa la validación, devolver el producto con ID generado si falta
-        return {
-          id: p.id || generateUUID(),
-          name: p.name.trim(),
-          price: Number(p.price),
-          weight: p.weight || '',
-          quantity: p.quantity || null,
-          created_at: p.created_at || new Date().toISOString().split('T')[0],
-          updated_at: p.updated_at || null,
-        };
-      }); // Filtrar los productos inválidos (null)
+          const product = {
+            name: p.name.trim(),
+            price: Number(p.price),
+            weight: p.weight || '',
+            quantity: p.quantity || null,
+            created_at: p.created_at || new Date().toISOString().split('T')[0],
+            updated_at: p.updated_at || null,
+          };
+
+          products.value.unshift(await createProductInFireStore(product));
+        }
+      });
 
       // Opcional: Mostrar advertencia si hay productos inválidos
       if (invalidProducts.length > 0) {
@@ -767,7 +788,7 @@ async function createProductInFireStore(product: Product) {
   const customId = 'product-' + Date.now();
 
   const productToCreate = {
-    id: customId,
+    id: product.id || customId,
     name: product.name.trim(),
     price: product.price || 0,
     weight: product.weight || '',
@@ -776,7 +797,7 @@ async function createProductInFireStore(product: Product) {
   };
 
   // 2. CREA LA REFERENCIA AL DOCUMENTO CON TU ID
-  const docRef = doc(db, PRODUCTOS_COLLECTION, customId);
+  const docRef = doc(db, PRODUCTOS_COLLECTION, productToCreate.id);
 
   // 3. USA setDoc PARA GUARDAR EL DOCUMENTO
   // setDoc no devuelve una referencia como addDoc, es una promesa que se resuelve cuando la escritura finaliza.
@@ -791,7 +812,7 @@ async function createProductInFireStore(product: Product) {
   }
 
   // Devuelves el ID que tú mismo creaste.
-  return customId;
+  return productToCreate;
 }
 
 // async function actualizarProductoEnFirebase(producto: Producto) {
