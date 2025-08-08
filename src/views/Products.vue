@@ -355,6 +355,7 @@ async function loadProductsFromFireStore(): Promise<void> {
 async function loadFiles(event: Event) {
   const input = event.target as HTMLInputElement
   const archivo = input.files?.[0]
+  input.value = '';
 
   if (!archivo) return
 
