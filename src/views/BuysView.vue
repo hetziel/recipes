@@ -16,8 +16,8 @@
         <h2 class="modal-title">Agregar Nuevo Producto</h2>
 
         <div class="form-group">
-          <label for="nombre">Nombre del Producto</label>
-          <input id="nombre" v-model="nuevoProducto.nombre" type="text" class="form-input" />
+          <label for="name">Nombre del Producto</label>
+          <input id="name" v-model="nuevoProducto.name" type="text" class="form-input" />
         </div>
 
         <div class="form-group">
@@ -29,8 +29,8 @@
         </div>
 
         <div class="form-group">
-          <label for="precio">Precio</label>
-          <input id="precio" v-model.number="nuevoProducto.precio" type="number" min="0" step="0.01"
+          <label for="price">Precio</label>
+          <input id="price" v-model.number="nuevoProducto.price" type="number" min="0" step="0.01"
             @input="convertirMoneda" class="form-input" />
         </div>
 
@@ -42,13 +42,9 @@
         </div>
 
         <div class="form-group">
-          <label for="peso">Peso (kg)</label>
-          <input id="peso" v-model.number="nuevoProducto.peso" type="number" min="0" step="0.1" class="form-input" />
-        </div>
-
-        <div class="form-group">
-          <label for="fecha">Fecha</label>
-          <input id="fecha" v-model="nuevoProducto.fecha" type="date" class="form-input" />
+          <label for="weight">Peso (kg)</label>
+          <input id="weight" v-model.number="nuevoProducto.weight" type="number" min="0" step="0.1"
+            class="form-input" />
         </div>
 
         <div class="form-group">
@@ -84,7 +80,6 @@
               <th class="table-header numeric">Precio (Bs)</th>
               <th class="table-header numeric">Cantidad</th>
               <th class="table-header numeric">Peso</th>
-              <th class="table-header">Fecha</th>
             </tr>
           </thead>
           <tbody>
@@ -92,14 +87,14 @@
               <td class="checkbox-cell">
                 <input type="checkbox" v-model="producto.seleccionado" @change="guardarSelecciones" />
               </td>
-              <td class="product-name">{{ producto.nombre }}</td>
+              <td class="product-name">{{ producto.name }}</td>
               <td class="numeric">
-                {{ producto.precio ? '$' + producto.precio.toFixed(2) : '-' }}
+                {{ producto.price ? '$' + producto.price.toFixed(2) : '-' }}
               </td>
               <td class="numeric">
                 {{
-                  producto?.precio && dolarBCV?.promedio
-                    ? 'Bs ' + (producto.precio * dolarBCV.promedio).toFixed(2)
+                  producto?.price && dolarBCV?.promedio
+                    ? 'Bs ' + (producto.price * dolarBCV.promedio).toFixed(2)
                     : '-'
                 }}
               </td>
@@ -107,8 +102,7 @@
                 <input type="number" v-model.number="producto.cantidad" min="1" class="quantity-input"
                   @change="guardarSelecciones" />
               </td>
-              <td class="numeric">{{ producto.peso ? producto.peso + ' kg' : '-' }}</td>
-              <td class="product-date">{{ producto.fecha ? formatDate(producto.fecha) : '-' }}</td>
+              <td class="numeric">{{ producto.weight ? producto.weight + ' kg' : '-' }}</td>
             </tr>
           </tbody>
           <tfoot v-if="productos.length">
@@ -147,18 +141,18 @@
           </thead>
           <tbody>
             <tr v-for="producto in productosSeleccionados" :key="'selected-' + producto.id">
-              <td>{{ producto.nombre }}</td>
+              <td>{{ producto.name }}</td>
               <td class="numeric">{{ producto.cantidad }}</td>
-              <td class="numeric">${{ producto.precio?.toFixed(2) || '0.00' }}</td>
+              <td class="numeric">${{ producto.price?.toFixed(2) || '0.00' }}</td>
               <td class="numeric">
                 ${{
-                  ((producto.precio ?? 0) * (producto.cantidad ?? 0)).toFixed(2)
+                  ((producto.price ?? 0) * (producto.cantidad ?? 0)).toFixed(2)
                 }}
               </td>
               <td class="numeric">
                 Bs {{
-                  (producto?.precio && dolarBCV?.promedio && producto?.cantidad
-                    ? (producto.precio * dolarBCV.promedio * producto.cantidad).toFixed(2)
+                  (producto?.price && dolarBCV?.promedio && producto?.cantidad
+                    ? (producto.price * dolarBCV.promedio * producto.cantidad).toFixed(2)
                     : '0.00'
                   )
                 }}
@@ -246,20 +240,20 @@
 import { ref, onMounted, computed, watch, inject, type Ref } from 'vue'
 import type { DolarBCV } from '../types/producto'
 
-interface Producto {
+interface Product {
   id?: number
-  nombre: string
-  precio?: number
-  peso?: number | string
-  fecha?: string
+  name: string
+  price?: number
+  weight?: number | string
+  updated_at?: string
   seleccionado?: boolean
   cantidad?: number
 }
 
 const STORAGE_KEY = 'productos-app-data'
 const SELECTION_KEY = 'productos-seleccionados'
-const productos = ref<Producto[]>([])
-const productosSeleccionados = ref<Producto[]>([])
+const productos = ref<Product[]>([])
+const productosSeleccionados = ref<Product[]>([])
 
 const { dolarBCV: dolarBCV } = inject<{
   dolarBCV: Ref<DolarBCV>;
@@ -319,16 +313,16 @@ const totalBs = computed(() => {
   if (!productos.value || !dolarBCV.value?.promedio) return 0
 
   return productos.value.reduce((sum, producto) => {
-    const precio = Number(producto?.precio) || 0
+    const price = Number(producto?.price) || 0
     const tasa = Number(dolarBCV.value?.promedio) || 0
-    return sum + (precio * tasa)
+    return sum + (price * tasa)
   }, 0)
 })
 
 const totalPeso = computed(() => {
   return productos.value
     .reduce((sum, producto) => {
-      return sum + (parseFloat(producto.peso?.toString() || '0') || 0)
+      return sum + (parseFloat(producto.weight?.toString() || '0') || 0)
     }, 0)
     .toFixed(2)
 })
@@ -341,16 +335,16 @@ const totalCantidad = computed(() => {
 
 const totalSeleccionadoUSD = computed(() => {
   return productosSeleccionados.value.reduce((sum, producto) => {
-    return sum + (producto.precio || 0) * (producto.cantidad || 1)
+    return sum + (producto.price || 0) * (producto.cantidad || 1)
   }, 0)
 })
 
 const totalSeleccionadoBS = computed(() => {
   return productosSeleccionados.value.reduce((sum, producto) => {
 
-    const precio = producto.precio || 0
+    const price = producto.price || 0
     const cantidad = producto.cantidad || 1
-    const subtotalBs = precio * dolarBCV.value.promedio * cantidad
+    const subtotalBs = price * dolarBCV.value.promedio * cantidad
     return sum + subtotalBs
   }, 0)
 })
@@ -372,7 +366,7 @@ function cargarProductos() {
     try {
       const datos = JSON.parse(datosGuardados)
 
-      productos.value = (datos || []).map((p: Producto) => ({
+      productos.value = (datos || []).map((p: Product) => ({
         ...p,
         cantidad: p.cantidad || 1,
       }))
@@ -392,7 +386,7 @@ function cargarSeleccionesGuardadas() {
       const selecciones = JSON.parse(seleccionesGuardadas)
 
       productos.value.forEach((producto) => {
-        const productoGuardado = selecciones.find((p: Producto) => p.id === producto.id)
+        const productoGuardado = selecciones.find((p: Product) => p.id === producto.id)
         if (productoGuardado) {
           producto.seleccionado = productoGuardado.seleccionado
           producto.cantidad = productoGuardado.cantidad || 1
@@ -440,23 +434,22 @@ function resetSelecciones() {
 // Nuevas variables para el modal
 const showModal = ref(false)
 const nuevoProducto = ref({
-  nombre: '',
-  precio: 0,
+  name: '',
+  price: 0,
   precioBs: '',
   moneda: 'USD',
-  peso: 0,
-  fecha: new Date().toISOString().split('T')[0],
+  weight: 0,
   cantidad: 1,
 })
 
-// Computed para el precio convertido
+// Computed para el price convertido
 const precioConvertido = computed(() => {
-  if (!nuevoProducto.value.precio) return '0.00'
+  if (!nuevoProducto.value.price) return '0.00'
 
   if (nuevoProducto.value.moneda === 'USD') {
-    return (nuevoProducto.value.precio * dolarBCV.value.promedio).toFixed(2) + ' Bs'
+    return (nuevoProducto.value.price * dolarBCV.value.promedio).toFixed(2) + ' Bs'
   } else {
-    return (nuevoProducto.value.precio / dolarBCV.value.promedio).toFixed(2) + ' USD'
+    return (nuevoProducto.value.price / dolarBCV.value.promedio).toFixed(2) + ' USD'
   }
 })
 
@@ -467,25 +460,24 @@ function convertirMoneda() {
 
 // Método para agregar producto
 function agregarProducto() {
-  if (!nuevoProducto.value.nombre) {
-    alert('Por favor ingresa un nombre para el producto')
+  if (!nuevoProducto.value.name) {
+    alert('Por favor ingresa un name para el producto')
     return
   }
 
-  const producto: Producto = {
+  const producto: Product = {
     id: Date.now(), // Usamos timestamp como ID simple
-    nombre: nuevoProducto.value.nombre,
+    name: nuevoProducto.value.name,
     cantidad: nuevoProducto.value.cantidad || 1,
-    peso: nuevoProducto.value.peso || 0,
-    fecha: nuevoProducto.value.fecha,
+    weight: nuevoProducto.value.weight || 0,
     seleccionado: false,
   }
 
   // Asignar precios según la moneda seleccionada
   if (nuevoProducto.value.moneda === 'USD') {
-    producto.precio = nuevoProducto.value.precio
+    producto.price = nuevoProducto.value.price
   } else {
-    producto.precio = nuevoProducto.value.precio / dolarBCV.value.promedio
+    producto.price = nuevoProducto.value.price / dolarBCV.value.promedio
   }
 
   productos.value.push(producto)
@@ -493,12 +485,11 @@ function agregarProducto() {
 
   // Resetear el formulario
   nuevoProducto.value = {
-    nombre: '',
-    precio: 0,
+    name: '',
+    price: 0,
     precioBs: '',
     moneda: 'USD',
-    peso: 0,
-    fecha: new Date().toISOString().split('T')[0],
+    weight: 0,
     cantidad: 1,
   }
 
