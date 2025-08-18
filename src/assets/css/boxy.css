@@ -1,3 +1,23 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.b-main {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.b-body {
+  flex-basis: 100%;
+  overflow: auto;
+}
+
 .b-btn {
   --bx-default: rgba(0, 0, 0, .3);
   --bx-hover: rgba(0, 0, 0, .5);
@@ -1870,6 +1890,106 @@ b-icon:hover::after {
     transform: scale(0.9);
     opacity: 0;
   }
+}
+.b-navbar {
+  --clr: #222327;
+  height: 70px;
+  background: #fff;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-top: 6px solid var(--clr);
+}
+
+.b-navbar ul {
+  display: flex;
+  margin: 0;
+  padding: 0;
+}
+
+.b-navbar ul li {
+  position: relative;
+  list-style: none;
+  width: 70px;
+  height: 70px;
+  z-index: 1;
+}
+
+.b-navbar ul li a {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  width: 100%;
+  text-align: center;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.b-navbar ul li a .icon {
+  position: relative;
+  display: flex;
+  height: 60px;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5rem;
+  transition: 0.5s;
+  color: var(--clr);
+}
+
+.b-navbar ul li.active a .icon {
+  transform: translateY(-32px);
+}
+
+.b-navbar ul li a .text {
+  position: absolute;
+  color: var(--clr);
+  font-weight: 400;
+  font-size: 0.75em;
+  letter-spacing: 0.05em;
+  transition: 0.5s;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.b-navbar ul li.active a .text {
+  transform: translateY(15px);
+  opacity: 1;
+}
+
+.indicator {
+  position: absolute;
+  top: -50%;
+  width: 70px;
+  height: 70px;
+  background: #29fd53;
+  border-radius: 50%;
+  border: 6px solid var(--clr);
+  opacity: 0;
+}
+
+.indicator::before,
+.indicator::after {
+  content: "";
+  position: absolute;
+  top: calc(50% - 3px);
+  width: 20px;
+  height: 20px;
+  background: transparent;
+}
+
+.indicator::before {
+  left: -22px;
+  border-top-right-radius: 20px;
+  box-shadow: 1px -6px 0 0 var(--clr);
+}
+
+.indicator::after {
+  right: -22px;
+  border-top-left-radius: 20px;
+  box-shadow: -1px -6px 0 0 var(--clr);
 }
 
 /*# sourceMappingURL=boxy.css.map */
