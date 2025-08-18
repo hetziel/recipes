@@ -517,13 +517,13 @@ async function addProduct() {
     products.value.unshift(product);
     saveProductsInLocal();
 
-    // 2. Intentar sincronización inmediata si hay conexión
-    if (onFireStore && navigator.onLine && isOnline.value) {
-      await syncPendingProducts();
-    }
-
     // 3. Limpiar formulario
     resetearFormulario();
+
+    // 2. Intentar sincronización inmediata si hay conexión
+    if (onFireStore && navigator.onLine) {
+      await syncPendingProducts();
+    }
   } catch (err) {
     error.value = 'Error al agregar el producto';
     console.error(err);
@@ -683,6 +683,7 @@ async function syncPendingProducts() {
       .map(p => p.id);
     console.log('Productos pendientes para sincronizar:', newProducts.length);
 
+    // Recorrido para crear nuevos productos
     for (const newProduct of newProducts) {
       console.log("Creando producto", newProduct, " en FireStore")
       try {
@@ -789,7 +790,7 @@ async function createProductInFireStore(product: Product) {
   const customId = 'product-' + Date.now();
 
   const productToCreate = {
-    id: product.id || customId,
+    id: (product.id && !product.id?.startsWith("temp_")) || customId,
     name: product.name.trim(),
     price: product.price || 0,
     weight: product.weight || '',
