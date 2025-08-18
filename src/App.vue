@@ -1,11 +1,42 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
-import { ref, provide } from 'vue'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { ref, provide, onMounted, computed, watch, nextTick } from 'vue'
 // import { getDoc } from 'firebase/firestore'
 // import { db } from './firebase.config'
 import boxyModal from '@js/boxy-modal.esm';
+import boxyNavbar from '@js/boxy-navbar.esm'
 
 boxyModal.init();
+
+const route = useRoute();
+
+const initializeNavbar = async () => {
+  await nextTick(); // Espera a que Vue actualice el DOM
+
+  // Verifica si estamos en la ruta raíz o en una subruta
+  const isRootRoute = route.path === '/';
+  const activeClass = "router-link-active";
+
+  // Inicia boxyNavbar para cualquier ruta (incluyendo la raíz)
+  boxyNavbar.start({ activeClass });
+
+  // Opcional: Si necesitas lógica especial para la ruta raíz
+  if (isRootRoute) {
+    console.log("hey", document.querySelector(".router-link-active"));
+    // Puedes añadir aquí lógica adicional específica para la raíz
+  }
+};
+
+// Configura el watcher
+watch(() => route.path, initializeNavbar, { immediate: true });
+
+// También ejecuta al montar el componente por si acaso
+// onMounted(initializeNavbar);
+
+onMounted(() => {
+  boxyNavbar.init();
+});
+
 // Interfaces y tipos
 import type { DolarBCV } from './types/producto'
 
@@ -104,52 +135,92 @@ cargarTasaDolar()
 </script>
 
 <template>
-  <div class="app-container">
-    <div class="console-container">
-      <span class="console-title">Información de estado:</span>
-      <pre class="console-output">{{ tasaStatus }}</pre>
-    </div>
-    <nav class="elegant-nav">
-      <div class="nav-container">
-        <RouterLink to="/" class="nav-link">
-          <span class="link-icon">🏠</span>
-          <span class="link-text">Inicio</span>
-        </RouterLink>
-        <RouterLink to="/buys" class="nav-link">
-          <span class="link-icon">🛒</span>
-          <span class="link-text">Compras</span>
-        </RouterLink>
-        <!-- <RouterLink to="/drive" class="nav-link">
+
+  <div class="b-main">
+    <div class="b-body">
+      <div class="app-container">
+        <div class="console-container">
+          <span class="console-title">Información de estado:</span>
+          <pre class="console-output">{{ tasaStatus }}</pre>
+        </div>
+        <!-- <nav class="elegant-nav">
+          <div class="nav-container">
+            <RouterLink to="/" class="nav-link">
+              <span class="link-icon">🏠</span>
+              <span class="link-text">Inicio</span>
+            </RouterLink>
+            <RouterLink to="/buys" class="nav-link">
+              <span class="link-icon">🛒</span>
+              <span class="link-text">Compras</span>
+            </RouterLink>
+            <RouterLink to="/drive" class="nav-link">
           <span class="link-icon">☁️</span>
           <span class="link-text">Google Drive</span>
-        </RouterLink> -->
-        <RouterLink to="/calculator" class="nav-link">
-          <span class="link-icon">💰</span>
-          <span class="link-text">Calculadora</span>
         </RouterLink>
-      </div>
-    </nav>
+            <RouterLink to="/calculator" class="nav-link">
+              <span class="link-icon">💰</span>
+              <span class="link-text">Calculadora</span>
+            </RouterLink>
+          </div>
+        </nav> -->
 
-    <main class="content-wrapper">
-      <div class="tasa-info-container">
-        <div class="tasa-info"
-          :class="{ 'tasa-actual': dolarBCV?.origen === 'api', 'tasa-local': dolarBCV?.origen === 'local', 'tasa-importado': dolarBCV?.origen === 'importado' }">
-          <strong>Tasa actual:</strong> {{ dolarBCV?.promedio.toFixed(2) }} Bs
-          <span v-if="dolarBCV?.origen === 'api'" class="origen-tasa api">(API - Actualizada)</span>
-          <span v-else-if="dolarBCV?.origen === 'local'" class="origen-tasa local">(Local)</span>
-          <span v-else-if="dolarBCV?.origen === 'importado'" class="origen-tasa importado">(Importado)</span>
-          <span v-if="dolarBCV?.fechaActualizacion" class="fecha-tasa">
-            {{ formatearFecha(dolarBCV?.fechaActualizacion) }}
-          </span>
-        </div>
-      </div>
 
-      <RouterView />
-    </main>
+
+        <main class="content-wrapper">
+          <div class="tasa-info-container">
+            <div class="tasa-info"
+              :class="{ 'tasa-actual': dolarBCV?.origen === 'api', 'tasa-local': dolarBCV?.origen === 'local', 'tasa-importado': dolarBCV?.origen === 'importado' }">
+              <strong>Tasa actual:</strong> {{ dolarBCV?.promedio.toFixed(2) }} Bs
+              <span v-if="dolarBCV?.origen === 'api'" class="origen-tasa api">(API - Actualizada)</span>
+              <span v-else-if="dolarBCV?.origen === 'local'" class="origen-tasa local">(Local)</span>
+              <span v-else-if="dolarBCV?.origen === 'importado'" class="origen-tasa importado">(Importado)</span>
+              <span v-if="dolarBCV?.fechaActualizacion" class="fecha-tasa">
+                {{ formatearFecha(dolarBCV?.fechaActualizacion) }}
+              </span>
+            </div>
+          </div>
+
+          <RouterView />
+        </main>
+      </div>
+    </div>
+    <div class="b-footer">
+      <div class="b-navbar">
+        <ul>
+          <li class="active">
+            <RouterLink to="/" class="nav-link">
+              <span class="icon">🏠</span>
+              <span class="text">Inicio</span>
+            </RouterLink>
+          </li>
+          <li>
+            <RouterLink to="/buys" class="nav-link">
+              <span class="icon">🛒</span>
+              <span class="text">Compras</span>
+            </RouterLink>
+          </li>
+          <li>
+            <RouterLink to="/calculator" class="nav-link">
+              <span class="icon">💰</span>
+              <span class="text">Calculadora</span>
+            </RouterLink>
+          </li>
+        </ul>
+      </div>
+    </div>
   </div>
+
+
 </template>
 
 <style scoped>
+/* @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap"); */
+
+
+.b-navbar {
+  font-family: "Poppins", sans-serif;
+}
+
 .app-container {
   min-height: 100vh;
   display: flex;
@@ -162,7 +233,7 @@ cargarTasaDolar()
   padding: 0;
 }
 
-.nav-container {
+.elegant-nav .nav-container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 1rem 2rem;
@@ -170,7 +241,7 @@ cargarTasaDolar()
   gap: 1.5rem;
 }
 
-.nav-link {
+.elegant-nav .nav-link {
   color: rgba(255, 255, 255, 0.9);
   text-decoration: none;
   font-size: 1rem;
@@ -184,18 +255,18 @@ cargarTasaDolar()
   position: relative;
 }
 
-.nav-link:hover {
+.elegant-nav .nav-link:hover {
   background-color: rgba(255, 255, 255, 0.1);
   color: white;
   transform: translateY(-2px);
 }
 
-.nav-link.router-link-exact-active {
+.elegant-nav .nav-link.router-link-exact-active {
   color: white;
   background-color: rgba(255, 255, 255, 0.15);
 }
 
-.nav-link.router-link-exact-active::after {
+.elegant-nav .nav-link.router-link-exact-active::after {
   content: '';
   position: absolute;
   bottom: -8px;
@@ -207,11 +278,11 @@ cargarTasaDolar()
   border-radius: 2px;
 }
 
-.link-icon {
+.elegant-nav .link-icon {
   font-size: 1.1em;
 }
 
-.link-text {
+.elegant-nav .link-text {
   position: relative;
   top: 1px;
 }
