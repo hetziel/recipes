@@ -155,61 +155,61 @@ const mostrarFormulario = ref<boolean>(false)
 const tasaLocal = ref<number | null>(null)
 const tasaApi = ref<number | null>(null)
 
-const checkInternetConnection = async () => {
-  const isOnline = ref(false);
+// const checkInternetConnection = async () => {
+//   const isOnline = ref(false);
 
-  // Lista de endpoints para verificar (puedes agregar más)
-  const testUrls = [
-    'https://www.google.com/favicon.ico', // Pequeño y rápido de cargar
-    'https://www.cloudflare.com/favicon.ico',
-    'https://www.gstatic.com/favicon.ico'
-  ];
+//   // Lista de endpoints para verificar (puedes agregar más)
+//   const testUrls = [
+//     'https://www.google.com/favicon.ico', // Pequeño y rápido de cargar
+//     'https://www.cloudflare.com/favicon.ico',
+//     'https://www.gstatic.com/favicon.ico'
+//   ];
 
-  // Opciones para fetch (no-cache y timeout)
-  const fetchOptions = {
-    cache: 'no-store',
-    mode: 'no-cors', // Solo necesitamos saber si la petición se completa
-    method: 'HEAD' // Solo solicitamos las cabeceras (más rápido)
-  };
+//   // Opciones para fetch (no-cache y timeout)
+//   const fetchOptions = {
+//     cache: 'no-store',
+//     mode: 'no-cors', // Solo necesitamos saber si la petición se completa
+//     method: 'HEAD' // Solo solicitamos las cabeceras (más rápido)
+//   };
 
-  // Primero verificamos navigator.onLine (aunque no es confiable por sí solo)
-  if (!navigator.onLine) {
-    isOnline.value = false;
-    return false;
-  }
+//   // Primero verificamos navigator.onLine (aunque no es confiable por sí solo)
+//   if (!navigator.onLine) {
+//     isOnline.value = false;
+//     return false;
+//   }
 
-  // Intentamos con varios endpoints en paralelo
-  try {
-    // Creamos un timeout para evitar esperas prolongadas
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout')), 3000)
-    );
+//   // Intentamos con varios endpoints en paralelo
+//   try {
+//     // Creamos un timeout para evitar esperas prolongadas
+//     const timeoutPromise = new Promise((_, reject) =>
+//       setTimeout(() => reject(new Error('Timeout')), 3000)
+//     );
 
-    // Probamos con todas las URLs en paralelo
-    const fetchPromises = testUrls.map(url =>
-      fetch(url, fetchOptions)
-    );
+//     // Probamos con todas las URLs en paralelo
+//     const fetchPromises = testUrls.map(url =>
+//       fetch(url, fetchOptions)
+//     );
 
-    // Esperamos a que al menos una petición tenga éxito o que todas fallen
-    await Promise.any([...fetchPromises, timeoutPromise]);
-    isOnline.value = true;
-    return true;
-  } catch (error) {
-    console.log('Sin conexión a internet:', error);
-    isOnline.value = false;
-    return false;
-  }
-};
+//     // Esperamos a que al menos una petición tenga éxito o que todas fallen
+//     await Promise.any([...fetchPromises, timeoutPromise]);
+//     isOnline.value = true;
+//     return true;
+//   } catch (error) {
+//     console.log('Sin conexión a internet:', error);
+//     isOnline.value = false;
+//     return false;
+//   }
+// };
 // Configurar listener en tiempo real
 onMounted(() => {
+  isOnline.value = true
+  // const updateConnectionStatus = async () => {
+  //   const online = await checkInternetConnection();
+  //   isOnline.value = online
+  //   return online;
+  // };
 
-  const updateConnectionStatus = async () => {
-    const online = await checkInternetConnection();
-    isOnline.value = online
-    return online;
-  };
-
-  updateConnectionStatus()
+  // updateConnectionStatus()
 
   // Verificar periódicamente (opcional)
   // setInterval(updateConnectionStatus, 30000); // Cada 30 segundos
