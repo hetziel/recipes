@@ -71,9 +71,6 @@
             <tr>
               <!-- <th>ID</th> -->
               <th>Nombre</th>
-              <th>Precio ($)</th>
-              <th>Precio (Bs)</th>
-              <th>Peso</th>
               <th>Fecha</th>
               <th>Acciones</th>
             </tr>
@@ -81,12 +78,15 @@
           <tbody>
             <tr v-for="product in filteredProducts" :key="product.id">
               <!-- <td>{{ product.id }}</td> -->
-              <td>{{ product.name }}</td>
-              <td>{{ product.price?.toFixed(2) || '-' }}</td>
-              <td>{{ (product.price && dolarBCV?.promedio) ? (product.price * dolarBCV.promedio).toLocaleString('es-VE',
-                { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-' }}
+              <td>
+                <div><span>{{ product.name }}</span><span v-if="product.weight"> - {{ product.weight }}</span>
+                </div>
+                <div><span>$ {{ product.price?.toFixed(2) || '-' }}</span> / <span>Bs. {{ (product.price &&
+                  dolarBCV?.promedio) ? (product.price *
+                    dolarBCV.promedio).toLocaleString('es-VE',
+                      { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-' }}</span></div>
+
               </td>
-              <td>{{ product.weight || '-' }}</td>
               <td>{{ product.created_at || '-' }}</td>
               <td>
                 <button @click="loadEditProduct(String(product.id))" class="edit-button" open-modal="test"
@@ -111,21 +111,23 @@
 
 
 <script setup lang="ts">
+defineOptions({ name: 'ProductsView' });
+
 import { ref, onMounted, computed, onUnmounted, inject, type Ref } from 'vue'
 import boxyModal from '@js/boxy-modal.esm';
 
 import {
   collection,
   doc,
-  addDoc,
+  // addDoc,
   getDocs,
   setDoc,
   deleteDoc,
-  onSnapshot,
+  // onSnapshot,
   query,
-  orderBy,
+  // orderBy,
   where,
-  serverTimestamp,
+  // serverTimestamp,
   updateDoc,
   getDoc
 } from 'firebase/firestore'
@@ -179,7 +181,7 @@ onMounted(() => {
   // 3. Configurar sincronización periódica
   const intervalo = setInterval(() => {
     if (navigator.onLine && onFireStore) {
-      // syncPendingProducts();
+      loadProductsFromFireStore();
     }
   }, 30000); // Cada 30 segundos
 
@@ -242,7 +244,7 @@ async function cargarDatosIniciales() {
 
 // Función específica para cargar productos
 async function loadProductsFromFireStore(): Promise<void> {
-
+  console.log("loadProductsFromFireStore")
   try {
     // 1. Obtener productos de FireStore
     const productsQuery = query(
@@ -288,7 +290,7 @@ async function loadFiles(event: Event) {
     const datos = JSON.parse(resultado)
 
     if (datos.productos && Array.isArray(datos.productos)) {
-      const invalidProducts: any[] = [];
+      const invalidProducts: Product[] = [];
 
       datos.productos.forEach(async (p: Product) => {
         console.log(p)
@@ -738,7 +740,11 @@ async function syncPendingProducts() {
 
         console.log(editProduct)
         try {
-          const docRef = doc(db, PRODUCTOS_COLLECTION, editProduct.id);
+          if (!editProduct.id) {
+            console.error('editProduct.id is undefined');
+            continue;
+          }
+          const docRef = doc(db, PRODUCTOS_COLLECTION, String(editProduct.id));
           const docSnap = await getDoc(docRef);
 
           if (docSnap.exists()) {
