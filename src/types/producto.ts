@@ -7,7 +7,7 @@ export interface Product {
   created_at?: string
   updated_at?: string | null
   marked_to_create?: boolean
-  marked_to_edit?: boolean
+  marked_to_update?: boolean
   marked_to_delete?: boolean
 }
 

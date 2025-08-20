@@ -30,30 +30,34 @@
             <button close-modal>close</button>
             <button onclick="closePopupScreen('test')">close new</button>
             <div class="form-container" v-if="mostrarFormulario">
-              <h2>Agregar Nuevo Producto</h2>
-              <form @submit.prevent="addProduct">
+              <h2>{{ typeAction === 'edit' ? 'Editar Producto' : 'Agregar Nuevo Producto' }}</h2>
+              <form @submit.prevent="handleAction">
                 <div class="form-group">
                   <label>Nombre:</label>
-                  <input v-model="newProduct.name" required />
+                  <input v-model="handleProduct.name" required />
                 </div>
 
                 <div class="form-group">
                   <label>Precio ($):</label>
-                  <input v-model.number="newProduct.price" type="number" step="0.01" />
+                  <input v-model.number="handleProduct.price" type="number" step="0.01" />
                 </div>
 
                 <div class="form-group">
                   <label>Peso:</label>
-                  <input v-model="newProduct.weight" />
+                  <input v-model="handleProduct.weight" />
                 </div>
 
+                <div class="form-group" v-if="typeAction === 'edit'">
+                  <label>Fecha creación:</label>
+                  <input disabled v-model="handleProduct.created_at" type="date" />
+                </div>
                 <div class="form-group">
-                  <label>Fecha:</label>
-                  <input v-model="newProduct.updated_at" type="date" />
+                  <label>{{ typeAction === 'edit' ? 'Ultima actualización:' : 'Fecha:' }}</label>
+                  <input :disabled="typeAction === 'edit'" v-model="handleProduct.updated_at" type="date" />
                 </div>
 
                 <div class="form-actions">
-                  <button type="submit">Guardar</button>
+                  <button type="submit">{{ typeAction === 'edit' ? 'Actualizar' : 'Guardar' }}</button>
                   <button type="button" @click="resetearFormulario" close-modal>Cancelar</button>
                 </div>
               </form>
@@ -79,11 +83,16 @@
               <!-- <td>{{ product.id }}</td> -->
               <td>{{ product.name }}</td>
               <td>{{ product.price?.toFixed(2) || '-' }}</td>
-              <td>{{ (product.price && dolarBCV?.promedio) ? (product.price * dolarBCV.promedio).toFixed(2) : '-' }}
+              <td>{{ (product.price && dolarBCV?.promedio) ? (product.price * dolarBCV.promedio).toLocaleString('es-VE',
+                { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-' }}
               </td>
               <td>{{ product.weight || '-' }}</td>
               <td>{{ product.created_at || '-' }}</td>
               <td>
+                <button @click="loadEditProduct(String(product.id))" class="edit-button" open-modal="test"
+                  title="Editar">
+                  ⚙
+                </button>
                 <button @click="deleteProduct(String(product.id))" class="delete-button" title="Eliminar">
                   &times;
                 </button>
@@ -128,6 +137,7 @@ import type { Product, DolarBCV } from '../types/producto'
 // Datos de configuración
 const onTesting = true;
 const onFireStore = true;
+const typeAction = ref<'create' | 'edit'>('create');
 
 const STORAGE_KEY = 'productos-app-data'
 const PRODUCTOS_COLLECTION = 'productos' // Nombre de la colección en Firestore
@@ -141,7 +151,7 @@ const products = ref<Product[]>([])
 const error = ref<string | null>(null)
 const cargando = ref<boolean>(false)
 const isOnline = ref<boolean>(true)
-const newProduct = ref<Product>({
+const handleProduct = ref<Product>({
   name: '',
   price: 0,
   weight: '',
@@ -407,17 +417,17 @@ async function loadFiles(event: Event) {
 
 // Modificar las funciones existentes para usar Firestore
 async function addProduct() {
-  if (!newProduct.value.name) {
+  if (!handleProduct.value.name) {
     error.value = 'El nombre del producto es requerido';
     return;
   }
 
   const product: Product = {
     id: 'temp_' + Date.now(), // ID temporal
-    name: newProduct.value.name.trim(),
-    price: newProduct.value.price || 0,
-    weight: newProduct.value.weight || '',
-    created_at: newProduct.value.created_at || new Date().toISOString().split('T')[0],
+    name: handleProduct.value.name.trim(),
+    price: handleProduct.value.price || 0,
+    weight: handleProduct.value.weight || '',
+    created_at: handleProduct.value.created_at || new Date().toISOString().split('T')[0],
     marked_to_create: true,
   };
 
@@ -441,8 +451,19 @@ async function addProduct() {
   }
 }
 
+async function handleAction() {
+  if (typeAction.value === 'create') {
+    await addProduct();
+  } else if (typeAction.value === 'edit') {
+    if (typeof handleProduct.value.id === 'string') {
+      await editProduct(handleProduct.value.id);
+    } else {
+      error.value = 'ID de producto inválido para editar.';
+    }
+  }
+}
 async function resetearFormulario() {
-  newProduct.value = {
+  handleProduct.value = {
     name: '',
     price: 0,
     weight: '',
@@ -451,6 +472,9 @@ async function resetearFormulario() {
 
   const close = await boxyModal.closePopupScreen("test");
   mostrarFormulario.value = close ?? false
+
+  typeAction.value = 'create';
+
 }
 
 // Guardar productos en FiresStore
@@ -519,6 +543,53 @@ function saveProductsInLocal() {
 //   }
 // }
 
+async function loadEditProduct(id: string) {
+  typeAction.value = 'edit';
+  if (onTesting) {
+    console.log('Editando producto con ID:', id);
+  }
+
+  if (!id) return;
+
+
+  const product = products.value.find(p => String(p.id) === id);
+  if (!product) {
+    error.value = 'Producto no encontrado';
+    return;
+  }
+
+  // Mostrar el formulario con los datos del producto
+  handleProduct.value = { ...product };
+  mostrarFormulario.value = true;
+  console.log(mostrarFormulario.value);
+  // Aquí podrías agregar lógica para abrir un modal o formulario de edición
+}
+
+async function editProduct(id: string) {
+  console.log('Editado producto con ID:', id);
+  if (!id) return;
+
+  products.value = products.value.map(p => {
+    if (String(p.id) === id) {
+      return {
+        ...p,
+        name: handleProduct.value.name.trim(),
+        price: handleProduct.value.price || 0,
+        weight: handleProduct.value.weight || '',
+        updated_at: new Date().toISOString().split('T')[0],
+        marked_to_update: true, // Marcar como pendiente de actualización
+      };
+    }
+    return p;
+  });
+
+  resetearFormulario();
+
+  if (onFireStore && navigator.onLine && isOnline.value) {
+    await syncPendingProducts();
+  }
+}
+
 async function deleteProduct(id: string) {
 
   if (onTesting) {
@@ -576,11 +647,16 @@ async function syncPendingProducts() {
 
     console.log('Iniciando sincronización de productos pendientes...');
 
-    // Sincronizar productos nuevos o modificados
+    // Sincronizar productos nuevos
     const newProducts = products.value.filter(
       p => p.marked_to_create
     );
+    // Sincronizar productos editados
+    const editProducts = products.value.filter(
+      p => p.marked_to_update
+    );
 
+    // Sincronizar productos eliminados
     const productsToDelete = products.value
       .filter(p => p.marked_to_delete && p.id)
       .map(p => p.id);
@@ -652,6 +728,30 @@ async function syncPendingProducts() {
           }
         } catch (error) {
           console.error(`Error al eliminar producto ${id}:`, error);
+        }
+      }
+    }
+
+    //Sincronizar Actualizaciones
+    for (const editProduct of editProducts) {
+      if (editProduct) {
+
+        console.log(editProduct)
+        try {
+          const docRef = doc(db, PRODUCTOS_COLLECTION, editProduct.id);
+          const docSnap = await getDoc(docRef);
+
+          if (docSnap.exists()) {
+            console.log(`Actualizando producto ${editProduct.id} en Firebase...`);
+            await updateDoc(docRef, {
+              updated_at: new Date().toISOString().split('T')[0],
+              name: editProduct.name,
+              weight: editProduct.weight,
+            });
+            pendingCount += 1;
+          }
+        } catch (error) {
+          console.error(`Error al actualizar producto ${editProduct.id}:`, error);
         }
       }
     }
