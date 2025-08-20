@@ -65,7 +65,7 @@
         <table v-if="products.length" class="product-table">
           <thead>
             <tr>
-              <th>ID</th>
+              <!-- <th>ID</th> -->
               <th>Nombre</th>
               <th>Precio ($)</th>
               <th>Precio (Bs)</th>
@@ -76,7 +76,7 @@
           </thead>
           <tbody>
             <tr v-for="product in filteredProducts" :key="product.id">
-              <td>{{ product.id }}</td>
+              <!-- <td>{{ product.id }}</td> -->
               <td>{{ product.name }}</td>
               <td>{{ product.price?.toFixed(2) || '-' }}</td>
               <td>{{ (product.price && dolarBCV?.promedio) ? (product.price * dolarBCV.promedio).toFixed(2) : '-' }}
@@ -138,11 +138,9 @@ const { dolarBCV: dolarBCV, actualizarDolarBCV } = inject<{
 }>('dolarBCV')!; // El ! asume que siempre estará disponible
 
 const products = ref<Product[]>([])
-const tasaDolar = ref<number>(0)
-const origenTasa = ref<'api' | 'local' | null>(null)
 const error = ref<string | null>(null)
 const cargando = ref<boolean>(false)
-const isOnline = ref<boolean>(false)
+const isOnline = ref<boolean>(true)
 const newProduct = ref<Product>({
   name: '',
   price: 0,
@@ -152,80 +150,16 @@ const newProduct = ref<Product>({
   marked_to_create: true,
 })
 const mostrarFormulario = ref<boolean>(false)
-const tasaLocal = ref<number | null>(null)
-const tasaApi = ref<number | null>(null)
 
-// const checkInternetConnection = async () => {
-//   const isOnline = ref(false);
 
-//   // Lista de endpoints para verificar (puedes agregar más)
-//   const testUrls = [
-//     'https://www.google.com/favicon.ico', // Pequeño y rápido de cargar
-//     'https://www.cloudflare.com/favicon.ico',
-//     'https://www.gstatic.com/favicon.ico'
-//   ];
-
-//   // Opciones para fetch (no-cache y timeout)
-//   const fetchOptions = {
-//     cache: 'no-store',
-//     mode: 'no-cors', // Solo necesitamos saber si la petición se completa
-//     method: 'HEAD' // Solo solicitamos las cabeceras (más rápido)
-//   };
-
-//   // Primero verificamos navigator.onLine (aunque no es confiable por sí solo)
-//   if (!navigator.onLine) {
-//     isOnline.value = false;
-//     return false;
-//   }
-
-//   // Intentamos con varios endpoints en paralelo
-//   try {
-//     // Creamos un timeout para evitar esperas prolongadas
-//     const timeoutPromise = new Promise((_, reject) =>
-//       setTimeout(() => reject(new Error('Timeout')), 3000)
-//     );
-
-//     // Probamos con todas las URLs en paralelo
-//     const fetchPromises = testUrls.map(url =>
-//       fetch(url, fetchOptions)
-//     );
-
-//     // Esperamos a que al menos una petición tenga éxito o que todas fallen
-//     await Promise.any([...fetchPromises, timeoutPromise]);
-//     isOnline.value = true;
-//     return true;
-//   } catch (error) {
-//     console.log('Sin conexión a internet:', error);
-//     isOnline.value = false;
-//     return false;
-//   }
-// };
 // Configurar listener en tiempo real
 onMounted(() => {
-  isOnline.value = true
-  // const updateConnectionStatus = async () => {
-  //   const online = await checkInternetConnection();
-  //   isOnline.value = online
-  //   return online;
-  // };
-
-  // updateConnectionStatus()
-
-  // Verificar periódicamente (opcional)
-  // setInterval(updateConnectionStatus, 30000); // Cada 30 segundos
-
-  // Verificacion si esta online
-  // fetch("https://google.com", { cache: 'no-store' }).then(() => {
-  isOnline.value = true;
-  // }).catch(() => {
-  //   isOnline.value = false;
-  // })
   // 1. Cargar datos locales primero para una respuesta rápida
   loadProductsFromLocal();
 
   // 2. Cargar datos de Firebase y sincronizar
   cargarDatosIniciales().then(() => {
-    if (onFireStore && isOnline.value) {
+    if (onFireStore && navigator.onLine) {
       // Sincronizar cualquier cambio pendiente
       syncPendingProducts();
     }
@@ -234,7 +168,7 @@ onMounted(() => {
 
   // 3. Configurar sincronización periódica
   const intervalo = setInterval(() => {
-    if (navigator.onLine && onFireStore && isOnline.value) {
+    if (navigator.onLine && onFireStore) {
       // syncPendingProducts();
     }
   }, 30000); // Cada 30 segundos
@@ -315,29 +249,6 @@ async function loadProductsFromFireStore(): Promise<void> {
       } as Product;
     });
 
-
-
-    // function arraysAreEqual(a: Product[], b: Product[]): boolean {
-    //   if (a.length !== b.length) return false;
-
-    //   const normalize = (obj: Product) =>
-    //     JSON.stringify(obj, Object.keys(obj).sort());
-
-    //   const setA = new Set(a.map(normalize));
-    //   const setB = new Set(b.map(normalize));
-
-    //   return a.every(item => setB.has(normalize(item))) &&
-    //     b.every(item => setA.has(normalize(item)));
-    // }
-
-    // console.log(products.value)
-    // console.log('¿Son iguales?', arraysAreEqual(loadedProducts, products.value));
-    // // Validar que los productos sean iguales
-    // if (arraysAreEqual(loadedProducts, products.value) || !isOnline.value) {
-    //   console.log('No hay cambios en los productos de Firestore');
-    //   return;
-    // }
-
     // 3. Actualizar el estado reactivo
     products.value = loadedProducts;
 
@@ -414,8 +325,8 @@ async function loadFiles(event: Event) {
           } else {
             console.log(`Producto ${p.id} no existe en Firebase, creando nuevo...`);
 
-            const product = {
-              id: p.id,
+            const product: Product = {
+              id: String(p.id),
               name: p.name.trim(),
               price: Number(p.price),
               weight: p.weight || '',
@@ -529,14 +440,6 @@ async function addProduct() {
     console.error(err);
   }
 }
-
-const generateUUID = () => {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-};
 
 async function resetearFormulario() {
   newProduct.value = {
@@ -790,7 +693,7 @@ async function createProductInFireStore(product: Product) {
   const customId = 'product-' + Date.now();
 
   const productToCreate = {
-    id: (product.id && !product.id?.startsWith("temp_")) || customId,
+    id: (product.id && !product.id.startsWith("temp_")) ? product.id : customId,
     name: product.name.trim(),
     price: product.price || 0,
     weight: product.weight || '',
