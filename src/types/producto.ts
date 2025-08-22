@@ -11,6 +11,11 @@ export interface Product {
   marked_to_delete?: boolean
 }
 
+export interface ExtendedProduct extends Product {
+  moneda?: string;
+  tempPrice?: number
+}
+
 export interface DolarData {
   fuente: string
   nombre: string
