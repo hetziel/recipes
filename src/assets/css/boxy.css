@@ -1818,16 +1818,22 @@ b-icon:hover::after {
 .b-modal [bx-content] [bx-head] {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   padding: 0.5rem;
 }
 .b-modal [bx-content] [bx-head] [bx-title] {
-  flex-basis: 100%;
+  flex-basis: auto;
+  flex-grow: 1;
   display: flex;
   align-items: center;
+  margin: 0;
 }
 .b-modal [bx-content] [bx-body] {
   overflow: auto;
   border-radius: 4px;
+  padding: 0.5rem;
+}
+.b-modal [bx-content] [bx-footer] {
   padding: 0.5rem;
 }
 .b-modal [bx-content][fx=transparent] {

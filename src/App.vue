@@ -14,17 +14,10 @@ const initializeNavbar = async () => {
   await nextTick(); // Espera a que Vue actualice el DOM
 
   // Verifica si estamos en la ruta raíz o en una subruta
-  const isRootRoute = route.path === '/';
   const activeClass = "router-link-active";
-
   // Inicia boxyNavbar para cualquier ruta (incluyendo la raíz)
   boxyNavbar.start({ activeClass });
 
-  // Opcional: Si necesitas lógica especial para la ruta raíz
-  if (isRootRoute) {
-    console.log("hey", document.querySelector(".router-link-active"));
-    // Puedes añadir aquí lógica adicional específica para la raíz
-  }
 };
 
 // Configura el watcher
@@ -34,8 +27,9 @@ watch(() => route.path, initializeNavbar, { immediate: true });
 // onMounted(initializeNavbar);
 
 onMounted(() => {
-  // boxyModal.init();
-  boxyNavbar.init();
+  // boxyModal.init()
+  const activeClass = "router-link-active";
+  boxyNavbar.init({ activeClass });
 });
 
 // Interfaces y tipos
@@ -140,10 +134,10 @@ cargarTasaDolar()
   <div class="b-main">
     <div class="b-body">
       <div class="app-container">
-        <div class="console-container">
+        <!-- <div class="console-container">
           <span class="console-title">Información de estado:</span>
           <pre class="console-output">{{ tasaStatus }}</pre>
-        </div>
+        </div> -->
         <!-- <nav class="elegant-nav">
           <div class="nav-container">
             <RouterLink to="/" class="nav-link">
@@ -188,21 +182,21 @@ cargarTasaDolar()
     <div class="b-footer">
       <div class="b-navbar">
         <ul>
-          <li class="active">
+          <li>
             <RouterLink to="/" class="nav-link">
-              <span class="icon">🏠</span>
+              <span class="icon"><i class="fi fi-rr-home"></i></span>
               <span class="text">Inicio</span>
             </RouterLink>
           </li>
           <li>
             <RouterLink to="/buys" class="nav-link">
-              <span class="icon">🛒</span>
+              <span class="icon"><i class="fi fi-rr-shopping-cart"></i></span>
               <span class="text">Compras</span>
             </RouterLink>
           </li>
           <li>
             <RouterLink to="/calculator" class="nav-link">
-              <span class="icon">💰</span>
+              <span class="icon"><i class="fi fi-rr-calculator"></i></span>
               <span class="text">Calculadora</span>
             </RouterLink>
           </li>

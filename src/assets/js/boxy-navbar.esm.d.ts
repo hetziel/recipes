@@ -3,7 +3,9 @@ declare module '@js/boxy-navbar.esm' {
     start(config: {
       activeClass?: string;
     }): void;
-    init(): void;
+    init(config: {
+      activeClass?: string;
+    }): void;
   }
 
   const BoxyNavbar: NavbarAPI;
