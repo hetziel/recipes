@@ -30,3 +30,6 @@ coverage
 *.tsbuildinfo
 .env
 .env.local
+src/assets/js/boxy-modal.esm.js.map
+src/assets/js/boxy-modal.esm.d.ts
+src/assets/js/boxy-modal.esm.js

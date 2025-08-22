@@ -6,7 +6,7 @@ import { ref, provide, onMounted, computed, watch, nextTick } from 'vue'
 import boxyModal from '@js/boxy-modal.esm';
 import boxyNavbar from '@js/boxy-navbar.esm'
 
-boxyModal.init();
+
 
 const route = useRoute();
 
@@ -34,6 +34,7 @@ watch(() => route.path, initializeNavbar, { immediate: true });
 // onMounted(initializeNavbar);
 
 onMounted(() => {
+  // boxyModal.init();
   boxyNavbar.init();
 });
 

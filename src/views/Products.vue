@@ -1,4 +1,63 @@
 <template>
+  <!-- Formulario para agregar nuevo producto -->
+  <div class="b-modal" persistent modal="formProductModal" fx="in-out">
+    <div bx-content>
+      <!-- <button maximize-modal>max</button>
+            <button close-modal>close</button> -->
+      <button @click="boxyModal.close('formProductModal')">close new</button>
+      <div class="form-container" v-if="mostrarFormulario">
+        <h2>{{ typeAction === 'edit' ? 'Editar Producto' : 'Agregar Nuevo Producto' }}</h2>
+        <form @submit.prevent="handleAction">
+          <div class="form-group">
+            <label>Nombre:</label>
+            <input v-model="handleProduct.name" required />
+          </div>
+
+          <div class="form-group">
+            <label>Precio ($):</label>
+            <input v-model.number="handleProduct.price" type="number" step="0.01" />
+          </div>
+
+          <div class="form-group">
+            <label>Peso:</label>
+            <input v-model="handleProduct.weight" />
+          </div>
+
+          <div class="form-group" v-if="typeAction === 'edit'">
+            <label>Fecha creación:</label>
+            <input disabled v-model="handleProduct.created_at" type="date" />
+          </div>
+          <div class="form-group">
+            <label>{{ typeAction === 'edit' ? 'Ultima actualización:' : 'Fecha:' }}</label>
+            <input :disabled="typeAction === 'edit'" v-model="handleProduct.updated_at" type="date" />
+          </div>
+
+          <div class="form-actions">
+            <button type="submit">{{ typeAction === 'edit' ? 'Actualizar' : 'Guardar' }}</button>
+            <button type="button" @click="resetearFormulario" close-modal>Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formulario para agregar nuevo producto -->
+  <div class="b-modal" modal="actionProductModal" fx="in-out">
+    <div bx-content>
+      <!-- <button maximize-modal>max</button>
+            <button close-modal>close</button> -->
+      <button @click="boxyModal.close('actionProductModal')">close new</button>
+      <div class="form-container">
+        <h2>Desea eliminar el producto?</h2>
+
+        <div style="display: flex; justify-content: space-between;">
+          <button @click="confirmDeleteProduct">Si</button>
+          <button @click="cancelDeleteProduct">No</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
   <main class="container">
     <div>
       <h1>Lista de Productos</h1>
@@ -10,7 +69,7 @@
       <div class="controls">
         <input type="file" accept=".json" @change="loadFiles" class="file-input" :disabled="cargando" />
 
-        <button @click="mostrarFormulario = true" class="add-button" open-modal="test">Agregar Producto</button>
+        <button @click="showModal(true)" class="add-button" open-modal="formProductModal">Agregar Producto</button>
 
         <button @click="exportToJSON" class="export-button">Exportar a JSON</button>
 
@@ -23,47 +82,7 @@
 
       <div v-else>
 
-        <!-- Formulario para agregar nuevo producto -->
-        <div class="b-modal" persistent modal="test" fx="in-out" :class="{ opened: mostrarFormulario }">
-          <div bx-content>
-            <button maximize-modal>max</button>
-            <button close-modal>close</button>
-            <button onclick="closePopupScreen('test')">close new</button>
-            <div class="form-container" v-if="mostrarFormulario">
-              <h2>{{ typeAction === 'edit' ? 'Editar Producto' : 'Agregar Nuevo Producto' }}</h2>
-              <form @submit.prevent="handleAction">
-                <div class="form-group">
-                  <label>Nombre:</label>
-                  <input v-model="handleProduct.name" required />
-                </div>
 
-                <div class="form-group">
-                  <label>Precio ($):</label>
-                  <input v-model.number="handleProduct.price" type="number" step="0.01" />
-                </div>
-
-                <div class="form-group">
-                  <label>Peso:</label>
-                  <input v-model="handleProduct.weight" />
-                </div>
-
-                <div class="form-group" v-if="typeAction === 'edit'">
-                  <label>Fecha creación:</label>
-                  <input disabled v-model="handleProduct.created_at" type="date" />
-                </div>
-                <div class="form-group">
-                  <label>{{ typeAction === 'edit' ? 'Ultima actualización:' : 'Fecha:' }}</label>
-                  <input :disabled="typeAction === 'edit'" v-model="handleProduct.updated_at" type="date" />
-                </div>
-
-                <div class="form-actions">
-                  <button type="submit">{{ typeAction === 'edit' ? 'Actualizar' : 'Guardar' }}</button>
-                  <button type="button" @click="resetearFormulario" close-modal>Cancelar</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
 
 
         <table v-if="products.length" class="product-table">
@@ -89,11 +108,10 @@
               </td>
               <td>{{ product.created_at || '-' }}</td>
               <td>
-                <button @click="loadEditProduct(String(product.id))" class="edit-button" open-modal="test"
-                  title="Editar">
+                <button @click="loadEditProduct(String(product.id))" class="edit-button" title="Editar">
                   ⚙
                 </button>
-                <button @click="deleteProduct(String(product.id))" class="delete-button" title="Eliminar">
+                <button @click="loadDeleteProduct(String(product.id))" class="delete-button" title="Eliminar">
                   &times;
                 </button>
               </td>
@@ -162,6 +180,7 @@ const handleProduct = ref<Product>({
   marked_to_create: true,
 })
 const mostrarFormulario = ref<boolean>(false)
+const productToDelete = ref<string | null>(null);
 
 
 // Configurar listener en tiempo real
@@ -207,8 +226,18 @@ onMounted(() => {
   })
 })
 
+async function showModal(show: boolean) {
+  const response = await boxyModal[show ? 'open' : 'close']('formProductModal');
+
+  if (response) {
+    mostrarFormulario.value = show;
+  }
+
+}
+
 // Cargar datos del LocalStorage al iniciar
 function loadProductsFromLocal() {
+  cargando.value = true
   const localData = localStorage.getItem(STORAGE_KEY)
   if (localData) {
     try {
@@ -220,13 +249,14 @@ function loadProductsFromLocal() {
       console.log('Productos cargados desde LocalStorage:', localProducts.length)
     } catch (err) {
       console.error('Error al cargar datos del LocalStorage:', err)
+    } finally {
+      cargando.value = false
     }
   }
 }
 
 // Función principal para cargar datos iniciales
 async function cargarDatosIniciales() {
-  cargando.value = true
 
   try {
     // Cargar productos
@@ -237,8 +267,6 @@ async function cargarDatosIniciales() {
   } catch (err) {
     console.error('Error al cargar datos iniciales:', err)
     error.value = 'Error al cargar datos. Intente nuevamente.'
-  } finally {
-    cargando.value = false
   }
 }
 
@@ -472,7 +500,7 @@ async function resetearFormulario() {
     updated_at: new Date().toISOString().split('T')[0],
   }
 
-  const close = await boxyModal.closePopupScreen("test");
+  const close = await boxyModal.close("formProductModal");
   mostrarFormulario.value = close ?? false
 
   typeAction.value = 'create';
@@ -565,6 +593,7 @@ async function loadEditProduct(id: string) {
   mostrarFormulario.value = true;
   console.log(mostrarFormulario.value);
   // Aquí podrías agregar lógica para abrir un modal o formulario de edición
+  boxyModal.open("formProductModal");
 }
 
 async function editProduct(id: string) {
@@ -591,8 +620,20 @@ async function editProduct(id: string) {
     await syncPendingProducts();
   }
 }
+async function loadDeleteProduct(id: string) {
 
-async function deleteProduct(id: string) {
+  if (onTesting) {
+    console.log('Eliminando producto con ID:', id);
+  }
+
+  if (!id) return;
+
+  productToDelete.value = id;
+
+  boxyModal.open('actionProductModal')
+}
+
+async function confirmDeleteProduct(id: string) {
 
   if (onTesting) {
     console.log('Eliminando producto con ID:', id);
@@ -627,6 +668,11 @@ async function deleteProduct(id: string) {
     error.value = 'Error al eliminar el producto';
     console.error(err);
   }
+}
+
+function cancelDeleteProduct() {
+  productToDelete.value = null;
+  boxyModal.close('actionProductModal');
 }
 
 // async function eliminarProductoDeFirebase(id: string) {
