@@ -1,22 +1,45 @@
 <template>
   <!-- Formulario para agregar nuevo producto -->
   <div class="b-modal" persistent modal="formProductModal" fx="in-out">
-    <div bx-content>
-      <!-- <button maximize-modal>max</button>
+    <form bx-content @submit.prevent="handleAction">
+      <div bx-head>
+        <h2 bx-title>{{ typeAction === 'edit' ? 'Editar Producto' : 'Agregar Nuevo Producto' }}</h2>
+        <button @click="boxyModal.close('formProductModal')">close new</button>
+      </div>
+
+      <div bx-body>
+        <!-- <button maximize-modal>max</button>
             <button close-modal>close</button> -->
-      <button @click="boxyModal.close('formProductModal')">close new</button>
-      <div class="form-container" v-if="mostrarFormulario">
-        <h2>{{ typeAction === 'edit' ? 'Editar Producto' : 'Agregar Nuevo Producto' }}</h2>
-        <form @submit.prevent="handleAction">
+
+        <div class="form-container" v-if="mostrarFormulario">
+
+
           <div class="form-group">
             <label>Nombre:</label>
             <input v-model="handleProduct.name" required />
           </div>
 
           <div class="form-group">
-            <label>Precio ($):</label>
-            <input v-model.number="handleProduct.price" type="number" step="0.01" />
+            <label for="moneda">Moneda</label>
+            <select id="moneda" v-model="handleProduct.moneda" class="form-select">
+              <option value="USD">Dólares (USD)</option>
+              <option value="BS">Bolívares (BS)</option>
+            </select>
           </div>
+
+          <div class="form-group">
+            <label for="price">Precio</label>
+            <input id="price" v-model.number="handleProduct.tempPrice" type="number" min="0" step="0.01"
+              class="form-input" />
+          </div>
+
+          <div class="form-group">
+            <label for="precioConvertido">{{
+              handleProduct.moneda === 'USD' ? 'Precio en Bs' : 'Precio en $'
+            }}</label>
+            <input id="precioConvertido" :value="precioConvertido" type="text" readonly class="form-input" />
+          </div>
+
 
           <div class="form-group">
             <label>Peso:</label>
@@ -32,29 +55,32 @@
             <input :disabled="typeAction === 'edit'" v-model="handleProduct.updated_at" type="date" />
           </div>
 
-          <div class="form-actions">
-            <button type="submit">{{ typeAction === 'edit' ? 'Actualizar' : 'Guardar' }}</button>
-            <button type="button" @click="resetearFormulario" close-modal>Cancelar</button>
-          </div>
-        </form>
+
+
+        </div>
       </div>
-    </div>
+      <div bx-footer>
+        <div class="form-actions">
+          <button type="submit">{{ typeAction === 'edit' ? 'Actualizar' : 'Guardar' }}</button>
+          <button type="button" @click="resetearFormulario" close-modal>Cancelar</button>
+        </div>
+      </div>
+
+    </form>
   </div>
 
   <!-- Formulario para agregar nuevo producto -->
   <div class="b-modal" modal="actionProductModal" fx="in-out">
     <div bx-content>
-      <!-- <button maximize-modal>max</button>
-            <button close-modal>close</button> -->
-      <button @click="boxyModal.close('actionProductModal')">close new</button>
-      <div class="form-container">
-        <h2>Desea eliminar el producto?</h2>
-
-        <div style="display: flex; justify-content: space-between;">
+      <div bx-head>
+        <h2 bx-title>Desea eliminar el producto?</h2>
+        <button @click="boxyModal.close('actionProductModal')">close new</button>
+      </div>
+      <div bx-footer>
+        <div class="form-actions">
           <button @click="confirmDeleteProduct">Si</button>
           <button @click="cancelDeleteProduct">No</button>
         </div>
-
       </div>
     </div>
   </div>
@@ -131,7 +157,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'ProductsView' });
 
-import { ref, onMounted, computed, onUnmounted, inject, type Ref } from 'vue'
+import { ref, onMounted, computed, watch, onUnmounted, inject, type Ref } from 'vue'
 import boxyModal from '@js/boxy-modal.esm';
 
 import {
@@ -152,7 +178,7 @@ import {
 import { db } from '../firebase.config'
 
 // Interfaces y tipos
-import type { Product, DolarBCV } from '../types/producto'
+import type { Product, DolarBCV, ExtendedProduct } from '../types/producto'
 
 // Datos de configuración
 const onTesting = true;
@@ -171,7 +197,7 @@ const products = ref<Product[]>([])
 const error = ref<string | null>(null)
 const cargando = ref<boolean>(false)
 const isOnline = ref<boolean>(true)
-const handleProduct = ref<Product>({
+const handleProduct = ref<ExtendedProduct>({
   name: '',
   price: 0,
   weight: '',
@@ -633,8 +659,8 @@ async function loadDeleteProduct(id: string) {
   boxyModal.open('actionProductModal')
 }
 
-async function confirmDeleteProduct(id: string) {
-
+async function confirmDeleteProduct() {
+  const id = productToDelete.value
   if (onTesting) {
     console.log('Eliminando producto con ID:', id);
   }
@@ -963,5 +989,51 @@ async function getProductByData(value: string, field: string): Promise<string | 
     return null;
   }
 }
+
+// Computed puro solo para el cálculo de conversión
+const precioConvertido = computed(() => {
+  const { tempPrice, moneda } = handleProduct.value;
+  const tasaDolar = dolarBCV.value?.promedio ?? 1;
+
+  if (!tempPrice || tempPrice <= 0) return '0.00';
+  if (tasaDolar <= 0) return '0.00';
+
+  let newPrice = 0;
+
+  if (moneda === 'USD') {
+    newPrice = tempPrice * tasaDolar;
+  } else {
+    newPrice = tempPrice / tasaDolar;
+  }
+
+  return newPrice.toFixed(2);
+});
+
+// Watch para manejar las asignaciones a handleProduct.value.price
+watch(
+  [() => handleProduct.value.tempPrice, () => handleProduct.value.moneda, () => dolarBCV.value?.promedio],
+  ([tempPrice, moneda, tasaDolar]) => {
+    if (!tempPrice || tempPrice <= 0) {
+      handleProduct.value.price = 0;
+      return;
+    }
+
+    const tasa = tasaDolar ?? 1;
+    if (tasa <= 0) {
+      handleProduct.value.price = 0;
+      return;
+    }
+
+    if (moneda === 'USD') {
+      // Cuando la moneda es USD, guardamos el precio original
+      handleProduct.value.price = tempPrice;
+    } else {
+      // Cuando la moneda es local, convertimos a USD y guardamos
+      const priceInUSD = tempPrice / tasa;
+      handleProduct.value.price = parseFloat(priceInUSD.toFixed(2));
+    }
+  },
+  { immediate: true } // Ejecutar inmediatamente al inicializar
+);
 
 </script>
