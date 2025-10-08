@@ -1,6 +1,7 @@
 import './assets/main.css'
 import './assets/css/boxy.css'
 import '@flaticon/flaticon-uicons/css/all/all.css';
+import './registerServiceWorker'
 
 import { createApp } from 'vue'
 import App from './App.vue'
