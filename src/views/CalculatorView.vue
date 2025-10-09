@@ -65,6 +65,23 @@
     </div>
     <!-- Sección de calculadora -->
     <div class="calculator-section">
+      <!-- Cabecera con tipo de moneda activo -->
+      <div class="calculator-header">
+        <div class="tipo-moneda">
+          <span class="tipo" v-if="ultimoTipo === 'bs'">Bolívares</span>
+          <span class="tipo" v-if="ultimoTipo === 'bcv'">Dólar BCV</span>
+          <span class="tipo" v-if="ultimoTipo === 'usd'">Dólar Internacional</span>
+          <div :class="{
+            'rate-badge': true,
+            'editable': ultimoTipo === 'usd',
+            'active': tasaActiva > 0
+          }" v-if="tasaActiva">
+            Bs {{ tasaActiva.toFixed(2) }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Display principal -->
       <div class="display">
         <div class="display-value">{{ pantalla }}</div>
         <div class="display-operation" v-if="operacion && valorAnterior !== null">
@@ -72,6 +89,41 @@
         </div>
       </div>
 
+
+      <!-- Pantallas de conversión en tiempo real -->
+      <div class="conversion-displays">
+        <div class="conversion-item" v-if="ultimoTipo !== 'bs' && bolivares !== null">
+          <span class="conversion-label">Bolívares:</span>
+          <span class="conversion-value">Bs {{ bolivares.toFixed(2) }}</span>
+        </div>
+        <div class="conversion-item" v-if="ultimoTipo !== 'bcv' && dolaresBCV !== null">
+          <span class="conversion-label">USD BCV:</span>
+          <span class="conversion-value">$ {{ dolaresBCV.toFixed(2) }}</span>
+        </div>
+        <div class="conversion-item" v-if="ultimoTipo !== 'usd' && dolaresInternacional !== null">
+          <span class="conversion-label">USD Int.:</span>
+          <span class="conversion-value">$ {{ dolaresInternacional.toFixed(2) }}</span>
+        </div>
+      </div>
+
+      <!-- Botones de aplicación a tipos -->
+      <div class="apply-buttons">
+        <button class="apply-btn" @click="aplicarPantallaATipo('bs')" :class="{ active: ultimoTipo === 'bs' }">
+          <span class="apply-icon">Bs</span>
+          Bolívares
+        </button>
+        <button class="apply-btn" @click="aplicarPantallaATipo('bcv')" :class="{ active: ultimoTipo === 'bcv' }"
+          :disabled="!tasaDisponible">
+          <span class="apply-icon">$</span>
+          USD BCV
+        </button>
+        <button class="apply-btn" @click="aplicarPantallaATipo('usd')" :class="{ active: ultimoTipo === 'usd' }">
+          <span class="apply-icon">$</span>
+          USD Int.
+        </button>
+      </div>
+
+      <!-- Teclado de la calculadora -->
       <div class="calculator-buttons">
         <!-- Primera fila -->
         <button class="calc-btn function" @click="limpiar()">C</button>
@@ -101,16 +153,6 @@
         <button class="calc-btn number zero" @click="agregarNumero('0')">0</button>
         <button class="calc-btn number" @click="agregarDecimal()">.</button>
         <button class="calc-btn equals" @click="calcularResultado()">=</button>
-      </div>
-
-      <!-- Botones de aplicación a tipos -->
-      <div class="apply-buttons">
-        <button class="apply-btn" @click="aplicarPantallaATipo('bs')" :class="{ active: ultimoTipo === 'bs' }">Aplicar a
-          Bs</button>
-        <button class="apply-btn" @click="aplicarPantallaATipo('bcv')" :class="{ active: ultimoTipo === 'bcv' }"
-          :disabled="!tasaDisponible">Aplicar a USD BCV</button>
-        <button class="apply-btn" @click="aplicarPantallaATipo('usd')" :class="{ active: ultimoTipo === 'usd' }">Aplicar
-          a USD Int.</button>
       </div>
     </div>
   </div>
@@ -277,28 +319,56 @@ function calcularResultado() {
 function actualizarDesdePantalla() {
   const valor = parseFloat(pantalla.value)
   if (!isNaN(valor)) {
-    bolivares.value = valor
-    convertir('bs')
+    if (ultimoTipo.value === 'bs') {
+      bolivares.value = valor
+      convertir('bs')
+    } else if (ultimoTipo.value === 'bcv') {
+      dolaresBCV.value = valor
+      convertir('bcv')
+    } else if (ultimoTipo.value === 'usd') {
+      dolaresInternacional.value = valor
+      convertir('usd')
+    } else {
+      // Si no hay tipo definido, usar bolívares por defecto
+      bolivares.value = valor
+      convertir('bs')
+      ultimoTipo.value = 'bs'
+    }
   }
 }
-
 // Función para aplicar el valor de pantalla a un tipo específico
 function aplicarPantallaATipo(tipo: 'bs' | 'bcv' | 'usd') {
   const valor = parseFloat(pantalla.value)
-  if (!isNaN(valor)) {
+  if (!isNaN(valor) && valor >= 0) {
+    ultimoTipo.value = tipo
+
     if (tipo === 'bs') {
       bolivares.value = valor
       convertir('bs')
-    } else if (tipo === 'bcv') {
+    } else if (tipo === 'bcv' && tasaDisponible.value) {
       dolaresBCV.value = valor
       convertir('bcv')
-    } else if (tipo === 'usd') {
+    } else if (tipo === 'usd' && tasaInternacional.value && tasaInternacional.value > 0) {
       dolaresInternacional.value = valor
       convertir('usd')
     }
-    ultimoTipo.value = tipo
+
+    // Forzar actualización visual
+    pantalla.value = valor.toString()
   }
 }
+
+// Agrega esta función para formatear números
+function formatearNumero(valor: number | null): string {
+  if (valor === null || isNaN(valor)) return '0.00'
+  return valor.toFixed(2)
+}
+
+const tasaActiva = computed(() => {
+  if (ultimoTipo.value === 'bcv') return tasaDolar.value
+  if (ultimoTipo.value === 'usd') return tasaInternacional.value
+  return tasaDolar.value // Para bs muestra tasa BCV como referencia
+})
 
 </script>
 
@@ -682,6 +752,63 @@ input[type="number"] {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
+.calculator-header {
+  margin-bottom: 16px;
+}
+
+.tipo-moneda {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tipo {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  flex-shrink: 0;
+}
+
+.rate-display {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.conversion-displays {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.conversion-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border-left: 3px solid #3b82f6;
+}
+
+.conversion-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.conversion-value {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
 .display {
   background: #1f2937;
   color: white;
@@ -693,6 +820,7 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  /* border: 2px solid #374151; */
 }
 
 .display-value {
@@ -706,6 +834,7 @@ input[type="number"] {
   font-size: 0.875rem;
   color: #9ca3af;
   font-weight: 500;
+  /* font-family: 'Courier New', monospace; */
 }
 
 .calculator-buttons {
@@ -724,6 +853,7 @@ input[type="number"] {
   cursor: pointer;
   transition: all 0.2s;
   min-height: 56px;
+  /* font-family: inherit; */
 }
 
 .calc-btn:active {
@@ -733,6 +863,7 @@ input[type="number"] {
 .calc-btn.number {
   background: #f3f4f6;
   color: #1f2937;
+  /* border: 2px solid #e5e7eb; */
 }
 
 .calc-btn.number:active {
@@ -742,6 +873,7 @@ input[type="number"] {
 .calc-btn.operator {
   background: #3b82f6;
   color: white;
+  border: 2px solid #2563eb;
 }
 
 .calc-btn.operator:active {
@@ -751,6 +883,7 @@ input[type="number"] {
 .calc-btn.function {
   background: #6b7280;
   color: white;
+  border: 2px solid #4b5563;
 }
 
 .calc-btn.function:active {
@@ -760,6 +893,7 @@ input[type="number"] {
 .calc-btn.equals {
   background: #10b981;
   color: white;
+  border: 2px solid #059669;
 }
 
 .calc-btn.equals:active {
@@ -774,9 +908,14 @@ input[type="number"] {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
+  margin-bottom: 16px;
 }
 
 .apply-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   padding: 12px 8px;
   border: 2px solid #e5e7eb;
   background: white;
@@ -786,6 +925,7 @@ input[type="number"] {
   cursor: pointer;
   transition: all 0.2s;
   text-align: center;
+  color: #1f2937;
 }
 
 .apply-btn:not(:disabled):active {
@@ -803,6 +943,11 @@ input[type="number"] {
   cursor: not-allowed;
 }
 
+.apply-icon {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
 @media (min-width: 640px) {
   .calculator-section {
     padding: 24px;
@@ -812,6 +957,7 @@ input[type="number"] {
   .display {
     padding: 24px;
     border-radius: 16px;
+    min-height: 100px;
   }
 
   .display-value {
@@ -827,6 +973,23 @@ input[type="number"] {
   .apply-btn {
     padding: 14px 8px;
     font-size: 0.875rem;
+    flex-direction: row;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .apply-icon {
+    font-size: 1.125rem;
+  }
+
+  .conversion-displays {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .conversion-item {
+    flex: 1;
+    min-width: 120px;
   }
 }
 </style>
