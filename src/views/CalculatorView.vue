@@ -63,6 +63,56 @@
       </svg>
       No hay tasa de cambio disponible
     </div>
+    <!-- Sección de calculadora -->
+    <div class="calculator-section">
+      <div class="display">
+        <div class="display-value">{{ pantalla }}</div>
+        <div class="display-operation" v-if="operacion && valorAnterior !== null">
+          {{ valorAnterior }} {{ operacion }}
+        </div>
+      </div>
+
+      <div class="calculator-buttons">
+        <!-- Primera fila -->
+        <button class="calc-btn function" @click="limpiar()">C</button>
+        <button class="calc-btn function" @click="limpiarEntrada()">CE</button>
+        <button class="calc-btn function" @click="borrarUltimo()">⌫</button>
+        <button class="calc-btn operator" @click="establecerOperacion('÷')">÷</button>
+
+        <!-- Segunda fila -->
+        <button class="calc-btn number" @click="agregarNumero('7')">7</button>
+        <button class="calc-btn number" @click="agregarNumero('8')">8</button>
+        <button class="calc-btn number" @click="agregarNumero('9')">9</button>
+        <button class="calc-btn operator" @click="establecerOperacion('×')">×</button>
+
+        <!-- Tercera fila -->
+        <button class="calc-btn number" @click="agregarNumero('4')">4</button>
+        <button class="calc-btn number" @click="agregarNumero('5')">5</button>
+        <button class="calc-btn number" @click="agregarNumero('6')">6</button>
+        <button class="calc-btn operator" @click="establecerOperacion('-')">-</button>
+
+        <!-- Cuarta fila -->
+        <button class="calc-btn number" @click="agregarNumero('1')">1</button>
+        <button class="calc-btn number" @click="agregarNumero('2')">2</button>
+        <button class="calc-btn number" @click="agregarNumero('3')">3</button>
+        <button class="calc-btn operator" @click="establecerOperacion('+')">+</button>
+
+        <!-- Quinta fila -->
+        <button class="calc-btn number zero" @click="agregarNumero('0')">0</button>
+        <button class="calc-btn number" @click="agregarDecimal()">.</button>
+        <button class="calc-btn equals" @click="calcularResultado()">=</button>
+      </div>
+
+      <!-- Botones de aplicación a tipos -->
+      <div class="apply-buttons">
+        <button class="apply-btn" @click="aplicarPantallaATipo('bs')" :class="{ active: ultimoTipo === 'bs' }">Aplicar a
+          Bs</button>
+        <button class="apply-btn" @click="aplicarPantallaATipo('bcv')" :class="{ active: ultimoTipo === 'bcv' }"
+          :disabled="!tasaDisponible">Aplicar a USD BCV</button>
+        <button class="apply-btn" @click="aplicarPantallaATipo('usd')" :class="{ active: ultimoTipo === 'usd' }">Aplicar
+          a USD Int.</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -80,6 +130,10 @@ const tasaInternacional = ref<number | null>(localStorage.getItem('tasaInternaci
 
 const tasaDolar = computed(() => dolarBCV.value?.promedio ?? 0)
 const tasaDisponible = computed(() => typeof tasaDolar.value === 'number' && tasaDolar.value > 0)
+const operacion = ref<string | null>(null)
+const valorAnterior = ref<number | null>(null)
+const pantalla = ref<string>('0')
+const ultimoTipo = ref<'bs' | 'bcv' | 'usd' | null>(null)
 
 function convertir(origen: 'bs' | 'bcv' | 'usd') {
   if (origen === 'bs' && bolivares.value !== null) {
@@ -89,6 +143,10 @@ function convertir(origen: 'bs' | 'bcv' | 'usd') {
     if (tasaInternacional.value && tasaInternacional.value > 0) {
       dolaresInternacional.value = +(bolivares.value / tasaInternacional.value).toFixed(2)
     }
+    // Actualizar pantalla si es el tipo activo
+    if (ultimoTipo.value === 'bs' || ultimoTipo.value === null) {
+      pantalla.value = bolivares.value.toString()
+    }
   } else if (origen === 'bcv' && dolaresBCV.value !== null) {
     if (tasaDisponible.value) {
       bolivares.value = +(dolaresBCV.value * tasaDolar.value).toFixed(2)
@@ -96,12 +154,18 @@ function convertir(origen: 'bs' | 'bcv' | 'usd') {
     if (tasaInternacional.value && tasaInternacional.value > 0 && bolivares.value !== null) {
       dolaresInternacional.value = +(bolivares.value / tasaInternacional.value).toFixed(2)
     }
+    if (ultimoTipo.value === 'bcv') {
+      pantalla.value = dolaresBCV.value.toString()
+    }
   } else if (origen === 'usd' && dolaresInternacional.value !== null) {
     if (tasaInternacional.value && tasaInternacional.value > 0) {
       bolivares.value = +(dolaresInternacional.value * tasaInternacional.value).toFixed(2)
       if (tasaDisponible.value && bolivares.value !== null) {
         dolaresBCV.value = +(bolivares.value / tasaDolar.value).toFixed(2)
       }
+    }
+    if (ultimoTipo.value === 'usd') {
+      pantalla.value = dolaresInternacional.value.toString()
     }
   }
 }
@@ -126,6 +190,116 @@ function aplicarTasa(tipo: 'bcv' | 'usd') {
     actualizarTasaInternacional()
   }
 }
+// Funciones matemáticas básicas
+function agregarNumero(numero: string) {
+  if (pantalla.value === '0' || pantalla.value === 'Error') {
+    pantalla.value = numero
+  } else {
+    pantalla.value += numero
+  }
+  actualizarDesdePantalla()
+}
+
+function agregarDecimal() {
+  if (!pantalla.value.includes('.')) {
+    pantalla.value += '.'
+  }
+}
+
+function limpiar() {
+  pantalla.value = '0'
+  operacion.value = null
+  valorAnterior.value = null
+  ultimoTipo.value = null
+}
+
+function limpiarEntrada() {
+  pantalla.value = '0'
+  actualizarDesdePantalla()
+}
+
+function borrarUltimo() {
+  if (pantalla.value.length > 1) {
+    pantalla.value = pantalla.value.slice(0, -1)
+  } else {
+    pantalla.value = '0'
+  }
+  actualizarDesdePantalla()
+}
+
+function establecerOperacion(op: string) {
+  if (pantalla.value !== 'Error') {
+    operacion.value = op
+    valorAnterior.value = parseFloat(pantalla.value)
+    pantalla.value = '0'
+  }
+}
+
+function calcularResultado() {
+  if (operacion.value && valorAnterior.value !== null) {
+    const valorActual = parseFloat(pantalla.value)
+
+    try {
+      let resultado: number
+
+      switch (operacion.value) {
+        case '+':
+          resultado = valorAnterior.value + valorActual
+          break
+        case '-':
+          resultado = valorAnterior.value - valorActual
+          break
+        case '×':
+          resultado = valorAnterior.value * valorActual
+          break
+        case '÷':
+          if (valorActual === 0) throw new Error('División por cero')
+          resultado = valorAnterior.value / valorActual
+          break
+        default:
+          return
+      }
+
+      pantalla.value = resultado.toString()
+      operacion.value = null
+      valorAnterior.value = null
+      actualizarDesdePantalla()
+
+    } catch (error) {
+      pantalla.value = 'Error'
+      operacion.value = null
+      valorAnterior.value = null
+    }
+  }
+}
+
+// Función para actualizar los valores desde la pantalla
+function actualizarDesdePantalla() {
+  const valor = parseFloat(pantalla.value)
+  if (!isNaN(valor)) {
+    bolivares.value = valor
+    convertir('bs')
+  }
+}
+
+// Función para aplicar el valor de pantalla a un tipo específico
+function aplicarPantallaATipo(tipo: 'bs' | 'bcv' | 'usd') {
+  const valor = parseFloat(pantalla.value)
+  if (!isNaN(valor)) {
+    if (tipo === 'bs') {
+      bolivares.value = valor
+      convertir('bs')
+    } else if (tipo === 'bcv') {
+      dolaresBCV.value = valor
+      convertir('bcv')
+    } else if (tipo === 'usd') {
+      dolaresInternacional.value = valor
+      convertir('usd')
+    }
+    ultimoTipo.value = tipo
+  }
+}
+
 </script>
 
 <style scoped>
@@ -497,6 +671,162 @@ input[type="number"] {
 
   .conversions-grid {
     gap: 20px;
+  }
+}
+
+.calculator-section {
+  background: white;
+  border-radius: 20px;
+  padding: 20px;
+  margin-top: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.display {
+  background: #1f2937;
+  color: white;
+  padding: 20px;
+  border-radius: 12px;
+  text-align: right;
+  margin-bottom: 16px;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.display-value {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.display-operation {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.calculator-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.calc-btn {
+  padding: 16px 8px;
+  border: none;
+  border-radius: 12px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 56px;
+}
+
+.calc-btn:active {
+  transform: scale(0.95);
+}
+
+.calc-btn.number {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.calc-btn.number:active {
+  background: #e5e7eb;
+}
+
+.calc-btn.operator {
+  background: #3b82f6;
+  color: white;
+}
+
+.calc-btn.operator:active {
+  background: #2563eb;
+}
+
+.calc-btn.function {
+  background: #6b7280;
+  color: white;
+}
+
+.calc-btn.function:active {
+  background: #4b5563;
+}
+
+.calc-btn.equals {
+  background: #10b981;
+  color: white;
+}
+
+.calc-btn.equals:active {
+  background: #059669;
+}
+
+.calc-btn.zero {
+  grid-column: span 2;
+}
+
+.apply-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.apply-btn {
+  padding: 12px 8px;
+  border: 2px solid #e5e7eb;
+  background: white;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.apply-btn:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+.apply-btn.active {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.apply-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (min-width: 640px) {
+  .calculator-section {
+    padding: 24px;
+    border-radius: 24px;
+  }
+
+  .display {
+    padding: 24px;
+    border-radius: 16px;
+  }
+
+  .display-value {
+    font-size: 2.5rem;
+  }
+
+  .calc-btn {
+    padding: 20px 12px;
+    font-size: 1.25rem;
+    min-height: 64px;
+  }
+
+  .apply-btn {
+    padding: 14px 8px;
+    font-size: 0.875rem;
   }
 }
 </style>
