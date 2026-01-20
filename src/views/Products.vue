@@ -125,17 +125,9 @@
       </div>
 
       <div class="controls">
-        <input type="file" accept=".json" @change="loadFiles" class="file-input" :disabled="cargando" />
-
         <button @click="showModal(true)" class="add-button" open-modal="formProductModal">
           Agregar Producto
         </button>
-
-        <button @click="exportToJSON" class="export-button">Exportar a JSON</button>
-
-        <button @click="limpiarLocalStorage" class="clear-button">Limpiar Datos</button>
-
-        <button @click="recargarDatosIniciales" class="reload-button">Recargar Datos</button>
       </div>
 
       <div v-if="cargando" class="loading">Cargando datos...</div>
