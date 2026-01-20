@@ -2,50 +2,6 @@
   <div class="calculator-container">
     <h2>Calculadora de Cambio</h2>
 
-    <!-- Monto principal en Bolívares -->
-    <div class="main-amount">
-      <label>Bolívares</label>
-      <div class="amount-input-wrapper">
-        <span class="currency-symbol">Bs</span>
-        <input type="number" v-model.number="bolivares" @input="convertir('bs')" min="0" :disabled="!tasaDisponible"
-          placeholder="0.00" class="main-input" />
-      </div>
-    </div>
-
-    <!-- Conversiones en dólares -->
-    <div class="conversions-grid">
-      <!-- Dólar BCV -->
-      <div class="conversion-card">
-        <div class="card-header">
-          <span class="card-title">Dólar BCV</span>
-          <button class="rate-badge" @click="aplicarTasa('bcv')" :disabled="!tasaDisponible" v-if="tasaDisponible">
-            Bs {{ tasaDolar.toFixed(2) }}
-          </button>
-        </div>
-        <div class="amount-input-wrapper small">
-          <span class="currency-symbol">$</span>
-          <input type="number" v-model.number="dolaresBCV" @input="convertir('bcv')" min="0" :disabled="!tasaDisponible"
-            placeholder="0.00" />
-        </div>
-      </div>
-
-      <!-- Dólar Internacional -->
-      <div class="conversion-card">
-        <div class="card-header">
-          <span class="card-title">Dólar Internacional</span>
-          <button class="rate-badge editable" @click="aplicarTasa('usd')"
-            v-if="tasaInternacional && tasaInternacional > 0">
-            Bs {{ tasaInternacional.toFixed(2) }}
-          </button>
-        </div>
-        <div class="amount-input-wrapper small">
-          <span class="currency-symbol">$</span>
-          <input type="number" v-model.number="dolaresInternacional" @input="convertir('usd')" min="0"
-            placeholder="0.00" />
-        </div>
-      </div>
-    </div>
-
     <!-- Configuración de tasa internacional -->
     <div class="config-section">
       <label class="config-label">Tasa USD Internacional</label>
@@ -226,12 +182,6 @@ function actualizarTasaInternacional() {
   }
 }
 
-function aplicarTasa(tipo: 'bcv' | 'usd') {
-  if (tipo === 'bcv' && tasaDisponible.value) {
-    tasaInternacional.value = tasaDolar.value
-    actualizarTasaInternacional()
-  }
-}
 // Funciones matemáticas básicas
 function agregarNumero(numero: string) {
   if (pantalla.value === '0' || pantalla.value === 'Error') {
@@ -356,12 +306,6 @@ function aplicarPantallaATipo(tipo: 'bs' | 'bcv' | 'usd') {
     // Forzar actualización visual
     pantalla.value = valor.toString()
   }
-}
-
-// Agrega esta función para formatear números
-function formatearNumero(valor: number | null): string {
-  if (valor === null || isNaN(valor)) return '0.00'
-  return valor.toFixed(2)
 }
 
 const tasaActiva = computed(() => {
