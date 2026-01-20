@@ -3,50 +3,46 @@ import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { ref, provide, onMounted, computed, watch, nextTick } from 'vue'
 // import { getDoc } from 'firebase/firestore'
 // import { db } from './firebase.config'
-import boxyModal from '@js/boxy-modal.esm';
+import boxyModal from '@js/boxy-modal.esm'
 import boxyNavbar from '@js/boxy-navbar.esm'
 
-
-
-const route = useRoute();
+const route = useRoute()
 
 const initializeNavbar = async () => {
-  await nextTick(); // Espera a que Vue actualice el DOM
+  await nextTick() // Espera a que Vue actualice el DOM
 
   // Verifica si estamos en la ruta raíz o en una subruta
-  const activeClass = "router-link-active";
+  const activeClass = 'router-link-active'
   // Inicia boxyNavbar para cualquier ruta (incluyendo la raíz)
-  boxyNavbar.start({ activeClass });
-
-};
+  boxyNavbar.start({ activeClass })
+}
 
 // Configura el watcher
-watch(() => route.path, initializeNavbar, { immediate: true });
+watch(() => route.path, initializeNavbar, { immediate: true })
 
 // También ejecuta al montar el componente por si acaso
 // onMounted(initializeNavbar);
 
 onMounted(() => {
   // boxyModal.init()
-  const activeClass = "router-link-active";
-  boxyNavbar.init({ activeClass });
-});
+  const activeClass = 'router-link-active'
+  boxyNavbar.init({ activeClass })
+})
 
 // Interfaces y tipos
 import type { DolarBCV } from './types/producto'
 
 //Datos de configuracion
-const onGetApiDolar = true;
-const apiGetDolar = 'https://ve.dolarapi.com/v1/dolares';
+const onGetApiDolar = true
+const apiGetDolar = 'https://ve.dolarapi.com/v1/dolares'
 
 // Variables
 const dolarBCV = ref<DolarBCV | null>({
   promedio: 0,
   fechaAnterior: null,
   fechaActualizacion: null,
-  origen: 'local'
-});
-
+  origen: 'local',
+})
 
 // Estados
 const cargandoTasa = ref<boolean>(false)
@@ -63,27 +59,25 @@ async function cargarTasaDolar() {
   errorTasa.value = null
 
   try {
-    const dolarBCVLocal = localStorage.getItem('dolarBCV');
+    const dolarBCVLocal = localStorage.getItem('dolarBCV')
     if (dolarBCVLocal) {
-      const datos = JSON.parse(dolarBCVLocal);
+      const datos = JSON.parse(dolarBCVLocal)
 
       dolarBCV.value = {
         promedio: datos.promedio,
         fechaAnterior: datos.fechaAnterior || null,
         fechaActualizacion: datos.fechaActualizacion,
         origen: datos.origen == 'api' ? 'local' : datos.origen || 'local',
-      };
+      }
 
-      tasaStatus = ref(`Tasa de dólar cargada desde local: ${dolarBCV.value?.promedio ?? 'N/A'} Bs`);
-
+      tasaStatus = ref(`Tasa de dólar cargada desde local: ${dolarBCV.value?.promedio ?? 'N/A'} Bs`)
     } else {
-      tasaStatus = ref('No hay datos guardados');
+      tasaStatus = ref('No hay datos guardados')
     }
   } catch (error) {
-    console.error('Error al leer datos:', error);
+    console.error('Error al leer datos:', error)
   }
   if (onGetApiDolar) {
-
     try {
       const response = await fetch(apiGetDolar, { cache: 'no-store' })
       if (!response.ok) throw new Error('Error al obtener datos del dólar')
@@ -94,10 +88,10 @@ async function cargarTasaDolar() {
         fechaAnterior: dolarBCV.value?.fechaActualizacion || null,
         fechaActualizacion: data[0].fechaActualizacion,
         origen: 'api',
-      };
+      }
 
-      tasaStatus = ref(`Tasa de dólar actualizada desde API: ${dolarBCV.value.promedio} Bs`);
-      localStorage.setItem('dolarBCV', JSON.stringify(dolarBCV.value));
+      tasaStatus = ref(`Tasa de dólar actualizada desde API: ${dolarBCV.value.promedio} Bs`)
+      localStorage.setItem('dolarBCV', JSON.stringify(dolarBCV.value))
     } catch (err) {
       console.error('Error al obtener datos del dólar:', err)
       errorTasa.value = 'Error al obtener datos del dólar'
@@ -105,32 +99,32 @@ async function cargarTasaDolar() {
     } finally {
       cargandoTasa.value = false
     }
-
   } else {
-    tasaStatus = ref('Tasa de dólar cargada desde local');
+    tasaStatus = ref('Tasa de dólar cargada desde local')
   }
 }
 
 // Función para actualizar el valor
 function actualizarDolarBCV(nuevoValor: DolarBCV) {
-  dolarBCV.value = nuevoValor;
+  dolarBCV.value = nuevoValor
 
-  tasaStatus = ref(`Tasa de dólar actualizada desde archivo importado: ${dolarBCV.value.promedio} Bs`);
-  localStorage.setItem('dolarBCV', JSON.stringify(dolarBCV.value));
+  tasaStatus = ref(
+    `Tasa de dólar actualizada desde archivo importado: ${dolarBCV.value.promedio} Bs`,
+  )
+  localStorage.setItem('dolarBCV', JSON.stringify(dolarBCV.value))
 }
 
 // Proveer los datos y función para hijos
 provide('dolarBCV', {
   dolarBCV: dolarBCV,
-  actualizarDolarBCV: actualizarDolarBCV
-});
+  actualizarDolarBCV: actualizarDolarBCV,
+})
 provide('cargarTasaDolar', cargarTasaDolar)
 
 cargarTasaDolar()
 </script>
 
 <template>
-
   <div class="b-main">
     <div class="b-body">
       <div class="app-container">
@@ -159,12 +153,13 @@ cargarTasaDolar()
           </div>
         </nav> -->
 
-
-
         <main class="content-wrapper">
           <div class="tasa-info-container">
-            <div class="tasa-info"
-              :class="{ 'tasa-actual': dolarBCV?.origen === 'api', 'tasa-local': dolarBCV?.origen === 'local', 'tasa-importado': dolarBCV?.origen === 'importado' }">
+            <div class="tasa-info" :class="{
+              'tasa-actual': dolarBCV?.origen === 'api',
+              'tasa-local': dolarBCV?.origen === 'local',
+              'tasa-importado': dolarBCV?.origen === 'importado',
+            }">
               <strong>Tasa actual:</strong> {{ dolarBCV?.promedio.toFixed(2) }} Bs
               <span v-if="dolarBCV?.origen === 'api'" class="origen-tasa api">(API - Actualizada)</span>
               <span v-else-if="dolarBCV?.origen === 'local'" class="origen-tasa local">(Local)</span>
@@ -204,16 +199,13 @@ cargarTasaDolar()
       </div>
     </div>
   </div>
-
-
 </template>
 
 <style scoped>
 /* @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap"); */
 
-
 .b-navbar {
-  font-family: "Poppins", sans-serif;
+  font-family: 'Poppins', sans-serif;
 }
 
 .app-container {
@@ -286,7 +278,6 @@ cargarTasaDolar()
   flex: 1;
   max-width: 1200px;
   width: 100%;
-  margin: 2rem auto;
   padding: 0 2rem;
 }
 
@@ -347,11 +338,6 @@ cargarTasaDolar()
   .link-text {
     font-size: 0.7rem;
     top: 0;
-  }
-
-  .content-wrapper {
-    padding: 0 1rem;
-    margin: 1rem auto;
   }
 
   .tasa-info-container {

@@ -18,25 +18,12 @@
           <div class="form-group">
             <label>Categoría:</label>
             <div class="searchable-select">
-              <input
-                v-model="categorySearch.query"
-                @input="searchCategories"
-                @focus="categorySearch.showDropdown = true"
-                @blur="onCategoryBlur"
-                placeholder="Buscar o crear categoría..."
-                class="search-input"
-              />
-              <div
-                v-if="categorySearch.showDropdown && categorySearch.items.length"
-                class="dropdown"
-              >
-                <div
-                  v-for="item in categorySearch.items"
-                  :key="item.id"
-                  @mousedown="selectCategory(item)"
-                  class="dropdown-item"
-                  :class="{ 'new-item': item.isNew }"
-                >
+              <input v-model="categorySearch.query" @input="searchCategories"
+                @focus="categorySearch.showDropdown = true" @blur="onCategoryBlur"
+                placeholder="Buscar o crear categoría..." class="search-input" />
+              <div v-if="categorySearch.showDropdown && categorySearch.items.length" class="dropdown">
+                <div v-for="item in categorySearch.items" :key="item.id" @mousedown="selectCategory(item)"
+                  class="dropdown-item" :class="{ 'new-item': item.isNew }">
                   {{ item.isNew ? `Crear: "${item.name}"` : item.name }}
                 </div>
               </div>
@@ -52,22 +39,11 @@
           <div class="form-group">
             <label>Marca:</label>
             <div class="searchable-select">
-              <input
-                v-model="brandSearch.query"
-                @input="searchBrands"
-                @focus="brandSearch.showDropdown = true"
-                @blur="onBrandBlur"
-                placeholder="Buscar o crear marca..."
-                class="search-input"
-              />
+              <input v-model="brandSearch.query" @input="searchBrands" @focus="brandSearch.showDropdown = true"
+                @blur="onBrandBlur" placeholder="Buscar o crear marca..." class="search-input" />
               <div v-if="brandSearch.showDropdown && brandSearch.items.length" class="dropdown">
-                <div
-                  v-for="item in brandSearch.items"
-                  :key="item.id"
-                  @mousedown="selectBrand(item)"
-                  class="dropdown-item"
-                  :class="{ 'new-item': item.isNew }"
-                >
+                <div v-for="item in brandSearch.items" :key="item.id" @mousedown="selectBrand(item)"
+                  class="dropdown-item" :class="{ 'new-item': item.isNew }">
                   {{ item.isNew ? `Crear: "${item.name}"` : item.name }}
                 </div>
               </div>
@@ -97,27 +73,15 @@
 
           <div class="form-group">
             <label for="price">Precio</label>
-            <input
-              id="price"
-              v-model.number="handleProduct.tempPrice"
-              type="number"
-              min="0"
-              step="0.01"
-              class="form-input"
-            />
+            <input id="price" v-model.number="handleProduct.tempPrice" type="number" min="0" step="0.01"
+              class="form-input" />
           </div>
 
           <div class="form-group">
             <label for="precioConvertido">{{
               handleProduct.currency_type === 'USD' ? 'Precio en Bs' : 'Precio en $'
-            }}</label>
-            <input
-              id="precioConvertido"
-              :value="precioConvertido"
-              type="text"
-              readonly
-              class="form-input"
-            />
+              }}</label>
+            <input id="precioConvertido" :value="precioConvertido" type="text" readonly class="form-input" />
           </div>
 
           <div class="form-group" v-if="typeAction === 'edit'">
@@ -126,11 +90,7 @@
           </div>
           <div class="form-group">
             <label>{{ typeAction === 'edit' ? 'Ultima actualización:' : 'Fecha:' }}</label>
-            <input
-              :disabled="typeAction === 'edit'"
-              v-model="handleProduct.updated_at"
-              type="date"
-            />
+            <input :disabled="typeAction === 'edit'" v-model="handleProduct.updated_at" type="date" />
           </div>
         </div>
       </div>
@@ -160,20 +120,12 @@
   </div>
   <main class="container">
     <div>
-      <h1>Lista de Productos</h1>
-
       <div v-if="error" class="error-message">
         {{ error }}
       </div>
 
       <div class="controls">
-        <input
-          type="file"
-          accept=".json"
-          @change="loadFiles"
-          class="file-input"
-          :disabled="cargando"
-        />
+        <input type="file" accept=".json" @change="loadFiles" class="file-input" :disabled="cargando" />
 
         <button @click="showModal(true)" class="add-button" open-modal="formProductModal">
           Agregar Producto
@@ -211,34 +163,24 @@
                 </div>
                 <div>
                   <span>$ {{ product.price?.toFixed(2) || '-' }}</span> /
-                  <span
-                    >Bs.
+                  <span>Bs.
                     {{
                       product.price && dolarBCV?.promedio
                         ? (product.price * dolarBCV.promedio).toLocaleString('es-VE', {
-                            style: 'decimal',
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })
+                          style: 'decimal',
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })
                         : '-'
-                    }}</span
-                  >
+                    }}</span>
                 </div>
               </td>
               <td>{{ product.created_at || '-' }}</td>
               <td>
-                <button
-                  @click="loadEditProduct(String(product.id))"
-                  class="edit-button"
-                  title="Editar"
-                >
+                <button @click="loadEditProduct(String(product.id))" class="edit-button" title="Editar">
                   ⚙
                 </button>
-                <button
-                  @click="loadDeleteProduct(String(product.id))"
-                  class="delete-button"
-                  title="Eliminar"
-                >
+                <button @click="loadDeleteProduct(String(product.id))" class="delete-button" title="Eliminar">
                   &times;
                 </button>
               </td>
@@ -339,7 +281,7 @@ const handleProduct = ref<ExtendedProduct>({
   name: '',
   price: 0,
   category_id: '',
-  brand: { id: '', name: '' },
+  brand_id: '',
   measurement_id: '',
   measurement_value: 0,
   currency_type: 'USD',
@@ -580,7 +522,7 @@ async function selectBrand(item: SearchableItem) {
     await createNewBrand(item.name)
   } else {
     brandSearch.selectedItem = item
-    handleProduct.value.brand = { id: item.id, name: item.name }
+    handleProduct.value.brand_id = item.id
   }
 
   brandSearch.query = item.name
@@ -599,7 +541,7 @@ async function createNewBrand(name: string) {
     await setDoc(newBrandRef, newBrand)
 
     brandSearch.selectedItem = { id: newBrandRef.id, name: name }
-    handleProduct.value.brand = { id: newBrandRef.id, name: name }
+    handleProduct.value.brand_id = newBrandRef.id
 
     await loadBrands()
   } catch (err) {
@@ -611,7 +553,7 @@ async function createNewBrand(name: string) {
 function clearBrand() {
   brandSearch.selectedItem = null
   brandSearch.query = ''
-  handleProduct.value.brand = { id: '', name: '' }
+  handleProduct.value.brand_id = ''
 }
 
 function onBrandBlur() {
@@ -812,7 +754,7 @@ async function addProduct() {
     name: handleProduct.value.name.trim(),
     price: handleProduct.value.price || 0,
     category_id: handleProduct.value.category_id,
-    brand: handleProduct.value.brand,
+    brand_id: handleProduct.value.brand_id || null,
     measurement_id: handleProduct.value.measurement_id,
     measurement_value: handleProduct.value.measurement_value,
     currency_type: handleProduct.value.currency_type,
@@ -857,7 +799,7 @@ async function resetearFormulario() {
     name: '',
     price: 0,
     category_id: '',
-    brand: { id: '', name: '' },
+    brand_id: '',
     measurement_id: '',
     measurement_value: 0,
     currency_type: 'USD',
@@ -916,19 +858,16 @@ async function loadEditProduct(id: string) {
     }
   }
 
-  if (product.brand?.id) {
+  if (product.brand_id) {
     try {
-      const brandDoc = await getDoc(doc(db, MARCAS_COLLECTION, product.brand.id))
+      const brandDoc = await getDoc(doc(db, MARCAS_COLLECTION, product.brand_id))
       if (brandDoc.exists()) {
         brandSearch.selectedItem = {
           id: brandDoc.id,
           name: brandDoc.data().name,
         }
         brandSearch.query = brandDoc.data().name
-        handleProduct.value.brand = {
-          id: brandDoc.id,
-          name: brandDoc.data().name,
-        }
+        handleProduct.value.brand_id = brandDoc.id
       }
     } catch (err) {
       console.error('Error cargando marca:', err)
@@ -954,7 +893,7 @@ async function editProduct(id: string) {
         name: handleProduct.value.name.trim(),
         price: handleProduct.value.price || 0,
         category_id: handleProduct.value.category_id,
-        brand: handleProduct.value.brand,
+        brand_id: handleProduct.value.brand_id,
         measurement_id: handleProduct.value.measurement_id,
         measurement_value: handleProduct.value.measurement_value,
         currency_type: handleProduct.value.currency_type,
@@ -1125,7 +1064,7 @@ async function syncPendingProducts() {
 
           if (docSnap.exists()) {
             console.log(`Actualizando producto ${editProduct.id} en Firebase...`)
-            const { id, marked_to_update, ...productToUpdate } = editProduct
+            const { ...productToUpdate } = editProduct
             await updateDoc(docRef, {
               ...productToUpdate,
               updated_at: new Date().toISOString().split('T')[0],
@@ -1155,7 +1094,7 @@ async function createProductInFireStore(product: Product) {
     name: product.name.trim(),
     price: product.price || 0,
     category_id: product.category_id,
-    brand: product.brand,
+    brand_id: product.brand_id || null,
     measurement_id: product.measurement_id,
     measurement_value: product.measurement_value,
     currency_type: product.currency_type,

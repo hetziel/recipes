@@ -2,7 +2,7 @@ export interface Product {
   id?: string
   name: string
   category_id: string
-  brand: Brand
+  brand_id: string | null
   measurement_id: string
   measurement_value: number
   currency_type: string
