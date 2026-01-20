@@ -1,36 +1,15 @@
 <script setup lang="ts">
-import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { ref, provide, onMounted, computed, watch, nextTick } from 'vue'
-// import { getDoc } from 'firebase/firestore'
-// import { db } from './firebase.config'
-import boxyModal from '@js/boxy-modal.esm'
-import boxyNavbar from '@js/boxy-navbar.esm'
-
-const route = useRoute()
-
-const initializeNavbar = async () => {
-  await nextTick() // Espera a que Vue actualice el DOM
-
-  // Verifica si estamos en la ruta raíz o en una subruta
-  const activeClass = 'router-link-active'
-  // Inicia boxyNavbar para cualquier ruta (incluyendo la raíz)
-  boxyNavbar.start({ activeClass })
-}
-
-// Configura el watcher
-watch(() => route.path, initializeNavbar, { immediate: true })
-
-// También ejecuta al montar el componente por si acaso
-// onMounted(initializeNavbar);
-
-onMounted(() => {
-  // boxyModal.init()
-  const activeClass = 'router-link-active'
-  boxyNavbar.init({ activeClass })
-})
+import { RouterLink, RouterView } from 'vue-router'
+import { ref, provide, onMounted } from 'vue'
 
 // Interfaces y tipos
 import type { DolarBCV } from './types/producto'
+
+const isMenuOpen = ref(false)
+
+const toggleMenu = () => {
+  isMenuOpen.value = !isMenuOpen.value
+}
 
 //Datos de configuracion
 const onGetApiDolar = true
@@ -47,7 +26,6 @@ const dolarBCV = ref<DolarBCV | null>({
 // Estados
 const cargandoTasa = ref<boolean>(false)
 const errorTasa = ref<string | null>(null)
-let tasaStatus = ref<string | null>(null)
 
 function formatearFecha(fecha: string | null) {
   if (!fecha) return 'N/A'
@@ -69,10 +47,6 @@ async function cargarTasaDolar() {
         fechaActualizacion: datos.fechaActualizacion,
         origen: datos.origen == 'api' ? 'local' : datos.origen || 'local',
       }
-
-      tasaStatus = ref(`Tasa de dólar cargada desde local: ${dolarBCV.value?.promedio ?? 'N/A'} Bs`)
-    } else {
-      tasaStatus = ref('No hay datos guardados')
     }
   } catch (error) {
     console.error('Error al leer datos:', error)
@@ -89,28 +63,19 @@ async function cargarTasaDolar() {
         fechaActualizacion: data[0].fechaActualizacion,
         origen: 'api',
       }
-
-      tasaStatus = ref(`Tasa de dólar actualizada desde API: ${dolarBCV.value.promedio} Bs`)
       localStorage.setItem('dolarBCV', JSON.stringify(dolarBCV.value))
     } catch (err) {
       console.error('Error al obtener datos del dólar:', err)
       errorTasa.value = 'Error al obtener datos del dólar'
-      tasaStatus = ref(`Error: ${errorTasa.value}`)
     } finally {
       cargandoTasa.value = false
     }
-  } else {
-    tasaStatus = ref('Tasa de dólar cargada desde local')
   }
 }
 
 // Función para actualizar el valor
 function actualizarDolarBCV(nuevoValor: DolarBCV) {
   dolarBCV.value = nuevoValor
-
-  tasaStatus = ref(
-    `Tasa de dólar actualizada desde archivo importado: ${dolarBCV.value.promedio} Bs`,
-  )
   localStorage.setItem('dolarBCV', JSON.stringify(dolarBCV.value))
 }
 
@@ -121,274 +86,251 @@ provide('dolarBCV', {
 })
 provide('cargarTasaDolar', cargarTasaDolar)
 
-cargarTasaDolar()
+onMounted(() => {
+  cargarTasaDolar()
+})
 </script>
 
 <template>
   <div class="b-main">
+    <header class="app-header">
+      <button class="hamburger-menu" @click="toggleMenu" :class="{ 'is-active': isMenuOpen }">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <h1 class="app-title">Recipes</h1>
+      <div class="tasa-info" :class="{
+        'tasa-actual': dolarBCV?.origen === 'api',
+        'tasa-local': dolarBCV?.origen === 'local',
+        'tasa-importado': dolarBCV?.origen === 'importado',
+      }">
+        <strong>BCV:</strong> {{ dolarBCV?.promedio.toFixed(2) }} Bs
+      </div>
+    </header>
+
+    <nav class="sidebar-nav" :class="{ 'is-open': isMenuOpen }">
+      <div class="sidebar-header">
+        <h2 class="sidebar-title">Menu</h2>
+        <button class="close-btn" @click="toggleMenu">&times;</button>
+      </div>
+      <RouterLink to="/" class="nav-link" @click="toggleMenu">
+        <span class="icon"><i class="fi fi-rr-home"></i></span>
+        <span class="text">Inicio</span>
+      </RouterLink>
+      <RouterLink to="/buys" class="nav-link" @click="toggleMenu">
+        <span class="icon"><i class="fi fi-rr-shopping-cart"></i></span>
+        <span class="text">Compras</span>
+      </RouterLink>
+      <RouterLink to="/drive" class="nav-link" @click="toggleMenu">
+        <span class="icon"><i class="fi fi-rr-cloud"></i></span>
+        <span class="text">Google Drive</span>
+      </RouterLink>
+      <RouterLink to="/calculator" class="nav-link" @click="toggleMenu">
+        <span class="icon"><i class="fi fi-rr-calculator"></i></span>
+        <span class="text">Calculadora</span>
+      </RouterLink>
+    </nav>
+    <div class="sidebar-overlay" @click="toggleMenu" v-if="isMenuOpen"></div>
+
     <div class="b-body">
       <div class="app-container">
-        <!-- <div class="console-container">
-          <span class="console-title">Información de estado:</span>
-          <pre class="console-output">{{ tasaStatus }}</pre>
-        </div> -->
-        <!-- <nav class="elegant-nav">
-          <div class="nav-container">
-            <RouterLink to="/" class="nav-link">
-              <span class="link-icon">🏠</span>
-              <span class="link-text">Inicio</span>
-            </RouterLink>
-            <RouterLink to="/buys" class="nav-link">
-              <span class="link-icon">🛒</span>
-              <span class="link-text">Compras</span>
-            </RouterLink>
-            <RouterLink to="/drive" class="nav-link">
-          <span class="link-icon">☁️</span>
-          <span class="link-text">Google Drive</span>
-        </RouterLink>
-            <RouterLink to="/calculator" class="nav-link">
-              <span class="link-icon">💰</span>
-              <span class="link-text">Calculadora</span>
-            </RouterLink>
-          </div>
-        </nav> -->
-
         <main class="content-wrapper">
-          <div class="tasa-info-container">
-            <div class="tasa-info" :class="{
-              'tasa-actual': dolarBCV?.origen === 'api',
-              'tasa-local': dolarBCV?.origen === 'local',
-              'tasa-importado': dolarBCV?.origen === 'importado',
-            }">
-              <strong>Tasa actual:</strong> {{ dolarBCV?.promedio.toFixed(2) }} Bs
-              <span v-if="dolarBCV?.origen === 'api'" class="origen-tasa api">(API - Actualizada)</span>
-              <span v-else-if="dolarBCV?.origen === 'local'" class="origen-tasa local">(Local)</span>
-              <span v-else-if="dolarBCV?.origen === 'importado'" class="origen-tasa importado">(Importado)</span>
-              <span v-if="dolarBCV?.fechaActualizacion" class="fecha-tasa">
-                {{ formatearFecha(dolarBCV?.fechaActualizacion) }}
-              </span>
-            </div>
-          </div>
-
           <RouterView />
         </main>
-      </div>
-    </div>
-    <div class="b-footer">
-      <div class="b-navbar">
-        <ul>
-          <li>
-            <RouterLink to="/" class="nav-link">
-              <span class="icon"><i class="fi fi-rr-home"></i></span>
-              <span class="text">Inicio</span>
-            </RouterLink>
-          </li>
-          <li>
-            <RouterLink to="/buys" class="nav-link">
-              <span class="icon"><i class="fi fi-rr-shopping-cart"></i></span>
-              <span class="text">Compras</span>
-            </RouterLink>
-          </li>
-          <li>
-            <RouterLink to="/calculator" class="nav-link">
-              <span class="icon"><i class="fi fi-rr-calculator"></i></span>
-              <span class="text">Calculadora</span>
-            </RouterLink>
-          </li>
-        </ul>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap"); */
-
-.b-navbar {
-  font-family: 'Poppins', sans-serif;
+:root {
+  --header-height: 60px;
 }
 
-.app-container {
-  min-height: 100vh;
+.app-header {
+  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  color: white;
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+}
+
+.app-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.hamburger-menu {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  width: 40px;
+  height: 40px;
+  z-index: 1002;
+}
+
+.hamburger-menu span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background-color: white;
+  transition: all 0.3s ease;
+}
+
+.hamburger-menu.is-active span:nth-child(1) {
+  transform: translateY(8px) rotate(45deg);
+}
+
+.hamburger-menu.is-active span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger-menu.is-active span:nth-child(3) {
+  transform: translateY(-8px) rotate(-45deg);
+}
+
+.sidebar-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 280px;
+  height: 100%;
+  background-color: #2c3e50;
+  box-shadow: 4px 0 15px rgba(0, 0, 0, 0.2);
+  transform: translateX(-100%);
+  transition: transform 0.3s ease-in-out;
+  z-index: 1001;
+  padding-top: var(--header-height);
   display: flex;
   flex-direction: column;
 }
 
-.elegant-nav {
-  background: linear-gradient(135deg, #2c3e50 0%, #4a6491 100%);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  padding: 0;
+.sidebar-nav.is-open {
+  transform: translateX(0);
 }
 
-.elegant-nav .nav-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1rem 2rem;
-  display: flex;
-  gap: 1.5rem;
-}
-
-.elegant-nav .nav-link {
-  color: rgba(255, 255, 255, 0.9);
-  text-decoration: none;
-  font-size: 1rem;
-  font-weight: 500;
-  padding: 0.75rem 1rem;
-  border-radius: 6px;
+.sidebar-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  transition: all 0.3s ease;
-  position: relative;
+  justify-content: space-between;
+  padding: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.elegant-nav .nav-link:hover {
+.sidebar-title {
+  color: white;
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 2rem;
+  cursor: pointer;
+}
+
+
+.sidebar-nav .nav-link {
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  font-size: 1rem;
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.sidebar-nav .nav-link:hover {
   background-color: rgba(255, 255, 255, 0.1);
   color: white;
-  transform: translateY(-2px);
 }
 
-.elegant-nav .nav-link.router-link-exact-active {
-  color: white;
-  background-color: rgba(255, 255, 255, 0.15);
-}
-
-.elegant-nav .nav-link.router-link-exact-active::after {
-  content: '';
-  position: absolute;
-  bottom: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 50%;
-  height: 2px;
+.sidebar-nav .nav-link.router-link-exact-active {
   background-color: #42b983;
-  border-radius: 2px;
+  color: white;
 }
 
-.elegant-nav .link-icon {
-  font-size: 1.1em;
+.sidebar-nav .nav-link .icon {
+  font-size: 1.2rem;
 }
 
-.elegant-nav .link-text {
-  position: relative;
-  top: 1px;
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+
+
+.b-body {
+  padding-top: var(--header-height);
+}
+
+.app-container {
+  min-height: calc(100vh - var(--header-height));
+  display: flex;
+  flex-direction: column;
 }
 
 .content-wrapper {
   flex: 1;
   max-width: 1200px;
   width: 100%;
-  padding: 0 2rem;
-}
-
-.tasa-info-container {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  padding: 1rem 2rem;
+  margin: 0 auto;
 }
 
 .tasa-info {
-  font-size: 1.2rem;
+  font-size: 1rem;
   font-weight: 500;
+  padding: 0.5rem 0.8rem;
+  border-radius: 6px;
 }
 
-.origen-tasa {
-  font-size: 0.8rem;
-  font-weight: 400;
-  margin-left: 0.5rem;
+.tasa-info.tasa-actual {
+  background-color: #42b983;
 }
 
-.fecha-tasa {
-  font-size: 0.8rem;
-  font-weight: 400;
-  color: #666;
-  margin-left: 0.5rem;
+.tasa-info.tasa-local {
+  background-color: #f0ad4e;
 }
 
-.tasa-secundaria {
-  font-size: 0.9rem;
-  color: #333;
+.tasa-info.tasa-importado {
+  background-color: #5bc0de;
 }
+
 
 @media (max-width: 768px) {
-  .nav-container {
+  .app-title {
+    font-size: 1.2rem;
+  }
+
+  .content-wrapper {
     padding: 1rem;
-    gap: 0.5rem;
-    justify-content: space-around;
-  }
-
-  .nav-link {
-    padding: 0.5rem;
-    font-size: 0.9rem;
-    flex-direction: column;
-    gap: 0.2rem;
-  }
-
-  .nav-link.router-link-exact-active::after {
-    bottom: -4px;
-  }
-
-  .link-icon {
-    font-size: 1.2em;
-  }
-
-  .link-text {
-    font-size: 0.7rem;
-    top: 0;
-  }
-
-  .tasa-info-container {
-    padding: 0.5rem;
   }
 
   .tasa-info {
-    font-size: 1rem;
+    font-size: 0.9rem;
   }
-
-  .origen-tasa,
-  .fecha-tasa {
-    font-size: 0.7rem;
-  }
-
-  .tasa-secundaria {
-    font-size: 0.8rem;
-  }
-}
-
-.console-container {
-  background-color: #121212;
-  border: 1px solid #0a0a0a;
-  padding: 15px;
-  font-family: 'Consolas', 'Monaco', 'Andale Mono', monospace;
-  color: #f8f8f8;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
-}
-
-.console-title {
-  color: #00ff00;
-  /* Verde brillante estilo terminal */
-  font-weight: normal;
-  display: block;
-  margin-bottom: 10px;
-  font-size: 0.8em;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.console-output {
-  background-color: #000000;
-  padding: 12px;
-  border-radius: 0;
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: #e0e0e0;
-  border-left: 2px solid #00ff00;
-  font-size: 0.8em;
-  line-height: 1.5;
-  text-shadow: 0 0 5px rgba(0, 255, 0, 0.2);
 }
 </style>
