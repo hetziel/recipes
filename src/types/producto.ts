@@ -1,19 +1,32 @@
 export interface Product {
   id?: string
-  name: string
-  price?: number
-  weight?: number | string
-  quantity?: number | null
+  category_id: string
+  brand_id: Brand
+  measurement_id: string
+  measurement_value: number
+  currency_type: string
+  price: number
   created_at?: string
   updated_at?: string | null
   marked_to_create?: boolean
-  marked_to_update?: boolean
   marked_to_delete?: boolean
+  marked_to_update?: boolean
 }
 
-export interface ExtendedProduct extends Product {
-  moneda?: string;
-  tempPrice?: number
+export interface Category {
+  id: string
+  name: string
+}
+
+export interface Brand {
+  id: string
+  name: string
+}
+
+// Nueva interfaz para medidas
+export interface Measurement {
+  id: string
+  type: string
 }
 
 export interface DolarData {
