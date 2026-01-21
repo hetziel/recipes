@@ -21,6 +21,7 @@ export interface ExtendedProduct extends Product {
 export interface Category {
   id: string
   name: string
+  icon?: string // Add this line
 }
 
 export interface Brand {

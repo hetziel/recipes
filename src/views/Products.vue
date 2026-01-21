@@ -1,188 +1,376 @@
 <template>
   <!-- Formulario para agregar nuevo producto -->
   <div class="b-modal" persistent modal="formProductModal" fx="in-out">
-    <form bx-content @submit.prevent="handleAction">
-      <div bx-head>
-        <h2 bx-title>{{ typeAction === 'edit' ? 'Editar Producto' : 'Agregar Nuevo Producto' }}</h2>
-        <button @click="boxyModal.close('formProductModal')">close new</button>
+    <form bx-content @submit.prevent="handleAction" class="product-form">
+      <div bx-head class="modal-header">
+        <h2 bx-title class="modal-title">
+          <Icon :name="typeAction === 'edit' ? 'pencil' : 'plus'" />
+          {{ typeAction === 'edit' ? 'Editar Producto' : 'Agregar Nuevo Producto' }}
+        </h2>
+        <button @click="boxyModal.close('formProductModal')" class="close-btn">
+          <Icon name="close" />
+        </button>
       </div>
 
-      <div bx-body>
+      <div bx-body class="modal-body">
         <div class="form-container" v-if="mostrarFormulario">
-          <div class="form-group">
-            <label>Nombre:</label>
-            <input v-model="handleProduct.name" required />
-          </div>
+          <div class="form-grid">
+            <!-- Nombre -->
+            <div class="form-group">
+              <label class="form-label">
+                <Icon name="package-variant" />
+                Nombre del producto
+              </label>
+              <div class="input-with-icon">
+                <input v-model="handleProduct.name" required class="form-input" placeholder="Ej: Arroz Premium" />
+                <Icon name="asterisk" class="input-icon" size="xs" />
+              </div>
+            </div>
 
-          <!-- BÚSQUEDA DINÁMICA PARA CATEGORÍA -->
-          <div class="form-group">
-            <label>Categoría:</label>
-            <div class="searchable-select">
-              <input v-model="categorySearch.query" @input="searchCategories"
-                @focus="categorySearch.showDropdown = true" @blur="onCategoryBlur"
-                placeholder="Buscar o crear categoría..." class="search-input" />
-              <div v-if="categorySearch.showDropdown && categorySearch.items.length" class="dropdown">
-                <div v-for="item in categorySearch.items" :key="item.id" @mousedown="selectCategory(item)"
-                  class="dropdown-item" :class="{ 'new-item': item.isNew }">
-                  {{ item.isNew ? `Crear: "${item.name}"` : item.name }}
+            <!-- Categoría -->
+            <div class="form-group">
+              <label class="form-label">
+                <Icon name="shape-outline" />
+                Categoría
+              </label>
+              <div class="searchable-select">
+                <div class="input-with-icon">
+                  <input v-model="categorySearch.query" @input="searchCategories"
+                    @focus="categorySearch.showDropdown = true" @blur="onCategoryBlur"
+                    placeholder="Buscar o crear categoría..." class="form-input search-input" />
+                  <Icon name="magnify" class="input-icon" />
+                </div>
+                <div v-if="categorySearch.showDropdown && categorySearch.items.length" class="dropdown">
+                  <div v-for="item in categorySearch.items" :key="item.id" @mousedown="selectCategory(item)"
+                    class="dropdown-item" :class="{ 'new-item': item.isNew }">
+                    <Icon v-if="item.icon" :name="item.icon" class="category-icon-display" />
+                    {{ item.isNew ? `Crear: "${item.name}"` : item.name }}
+                  </div>
+                </div>
+                <div v-if="categorySearch.selectedItem" class="selected-item chip">
+                  <Icon v-if="categorySearch.selectedItem.icon" :name="categorySearch.selectedItem.icon"
+                    class="category-icon-display" />
+                  {{ categorySearch.selectedItem.name }}
+                  <button type="button" @click="clearCategory" class="clear-btn">&times;</button>
+                </div>
+                <div v-if="categorySearch.isLoading" class="loading-spinner">
+                  <div class="spinner"></div>
+                  Buscando...
                 </div>
               </div>
-              <div v-if="categorySearch.selectedItem" class="selected-item">
-                {{ categorySearch.selectedItem.name }}
-                <button type="button" @click="clearCategory" class="clear-btn">&times;</button>
-              </div>
-              <div v-if="categorySearch.isLoading" class="loading-spinner">Buscando...</div>
             </div>
-          </div>
+            <div class="form-group" v-if="categorySearch.selectedItem">
+              <label class="form-label">
+                <Icon name="svg" />
+                Icono de Categoría (MDI)
+              </label>
+              <div class="input-with-icon">
+                <input v-model="categorySearch.selectedItem.icon" class="form-input" placeholder="Ej: apple" />
+                <Icon v-if="categorySearch.selectedItem.icon" :name="categorySearch.selectedItem.icon"
+                  class="category-icon-preview" />
+              </div>
+            </div>
 
-          <!-- BÚSQUEDA DINÁMICA PARA MARCA -->
-          <div class="form-group">
-            <label>Marca:</label>
-            <div class="searchable-select">
-              <input v-model="brandSearch.query" @input="searchBrands" @focus="brandSearch.showDropdown = true"
-                @blur="onBrandBlur" placeholder="Buscar o crear marca..." class="search-input" />
-              <div v-if="brandSearch.showDropdown && brandSearch.items.length" class="dropdown">
-                <div v-for="item in brandSearch.items" :key="item.id" @mousedown="selectBrand(item)"
-                  class="dropdown-item" :class="{ 'new-item': item.isNew }">
-                  {{ item.isNew ? `Crear: "${item.name}"` : item.name }}
+            <!-- Marca -->
+            <div class="form-group">
+              <label class="form-label">
+                <Icon name="tag-outline" />
+                Marca
+              </label>
+              <div class="searchable-select">
+                <div class="input-with-icon">
+                  <input v-model="brandSearch.query" @input="searchBrands" @focus="brandSearch.showDropdown = true"
+                    @blur="onBrandBlur" placeholder="Buscar o crear marca..." class="form-input search-input" />
+                  <Icon name="magnify" class="input-icon" />
+                </div>
+                <div v-if="brandSearch.showDropdown && brandSearch.items.length" class="dropdown">
+                  <div v-for="item in brandSearch.items" :key="item.id" @mousedown="selectBrand(item)"
+                    class="dropdown-item" :class="{ 'new-item': item.isNew }">
+                    <Icon :name="item.isNew ? 'plus' : 'tag-outline'" />
+                    {{ item.isNew ? `Crear: "${item.name}"` : item.name }}
+                  </div>
+                </div>
+                <div v-if="brandSearch.selectedItem" class="selected-item chip">
+                  <Icon name="check" />
+                  {{ brandSearch.selectedItem.name }}
+                  <button type="button" @click="clearBrand" class="clear-btn">&times;</button>
+                </div>
+                <div v-if="brandSearch.isLoading" class="loading-spinner">
+                  <div class="spinner"></div>
+                  Buscando...
                 </div>
               </div>
-              <div v-if="brandSearch.selectedItem" class="selected-item">
-                {{ brandSearch.selectedItem.name }}
-                <button type="button" @click="clearBrand" class="clear-btn">&times;</button>
-              </div>
-              <div v-if="brandSearch.isLoading" class="loading-spinner">Buscando...</div>
             </div>
-          </div>
 
-          <div class="form-group">
-            <label>Medida:</label>
-            <select v-model="handleProduct.measurement_id">
-              <option v-for="m in measurements" :key="m.id" :value="m.id">{{ m.type }}</option>
-            </select>
-            <input v-model.number="handleProduct.measurement_value" type="number" />
-          </div>
+            <!-- Medida y Valor -->
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">
+                  <Icon name="ruler" />
+                  Medida
+                </label>
+                <div class="select-wrapper">
+                  <select v-model="handleProduct.measurement_id" class="form-select">
+                    <option v-for="m in measurements" :key="m.id" :value="m.id">
+                      {{ m.type }}
+                    </option>
+                  </select>
+                  <i class="select-arrow"></i>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Valor</label>
+                <input v-model.number="handleProduct.measurement_value" type="number" min="0" step="0.01"
+                  class="form-input" placeholder="0.00" />
+              </div>
+            </div>
 
-          <div class="form-group">
-            <label for="moneda">Moneda</label>
-            <select id="moneda" v-model="handleProduct.currency_type" class="form-select">
-              <option value="USD">Dólares (USD)</option>
-              <option value="BS">Bolívares (BS)</option>
-            </select>
-          </div>
+            <!-- Moneda y Precio -->
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">
+                  <Icon name="currency-usd" />
+                  Moneda
+                </label>
+                <div class="currency-selector">
+                  <button type="button" @click="handleProduct.currency_type = 'USD'"
+                    :class="['currency-btn', { active: handleProduct.currency_type === 'USD' }]">
+                    <span class="currency-symbol">$</span> USD
+                  </button>
+                  <button type="button" @click="handleProduct.currency_type = 'BS'"
+                    :class="['currency-btn', { active: handleProduct.currency_type === 'BS' }]">
+                    <span class="currency-symbol">Bs</span> BS
+                  </button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">
+                  <Icon name="cash" />
+                  Precio
+                </label>
+                <div class="price-input">
+                  <span class="price-prefix">{{
+                    handleProduct.currency_type === 'USD' ? '$' : 'Bs'
+                    }}</span>
+                  <input v-model.number="handleProduct.tempPrice" type="number" min="0" step="0.01" class="form-input"
+                    placeholder="0.00" />
+                </div>
+              </div>
+            </div>
 
-          <div class="form-group">
-            <label for="price">Precio</label>
-            <input id="price" v-model.number="handleProduct.tempPrice" type="number" min="0" step="0.01"
-              class="form-input" />
-          </div>
+            <!-- Precio Convertido -->
+            <div class="form-group">
+              <label class="form-label">
+                <Icon name="swap-horizontal" />
+                {{ handleProduct.currency_type === 'USD' ? 'Precio en Bs' : 'Precio en $' }}
+              </label>
+              <div class="converted-price">
+                <div class="converted-value">
+                  {{ handleProduct.currency_type === 'USD' ? 'Bs' : '$' }}
+                  {{ precioConvertido }}
+                </div>
+                <div class="conversion-info">
+                  <Icon name="information-outline" />
+                  Tipo de cambio: {{ dolarBCV?.promedio?.toFixed(2) || 'Cargando...' }}
+                </div>
+              </div>
+            </div>
 
-          <div class="form-group">
-            <label for="precioConvertido">{{
-              handleProduct.currency_type === 'USD' ? 'Precio en Bs' : 'Precio en $'
-              }}</label>
-            <input id="precioConvertido" :value="precioConvertido" type="text" readonly class="form-input" />
-          </div>
-
-          <div class="form-group" v-if="typeAction === 'edit'">
-            <label>Fecha creación:</label>
-            <input disabled v-model="handleProduct.created_at" type="date" />
-          </div>
-          <div class="form-group">
-            <label>{{ typeAction === 'edit' ? 'Ultima actualización:' : 'Fecha:' }}</label>
-            <input :disabled="typeAction === 'edit'" v-model="handleProduct.updated_at" type="date" />
+            <!-- Fechas -->
+            <div class="form-row">
+              <div class="form-group" v-if="typeAction === 'edit'">
+                <label class="form-label">
+                  <Icon name="calendar" />
+                  Fecha creación
+                </label>
+                <input disabled v-model="handleProduct.created_at" type="date" class="form-input" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">
+                  <Icon name="history" />
+                  {{ typeAction === 'edit' ? 'Última actualización' : 'Fecha' }}
+                </label>
+                <input :disabled="typeAction === 'edit'" v-model="handleProduct.updated_at" type="date"
+                  class="form-input" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      <div bx-footer>
+      <div bx-footer class="modal-footer">
         <div class="form-actions">
-          <button type="submit">{{ typeAction === 'edit' ? 'Actualizar' : 'Guardar' }}</button>
-          <button type="button" @click="resetearFormulario" close-modal>Cancelar</button>
+          <button type="button" @click="resetearFormulario" class="btn btn-secondary" close-modal>
+            <Icon name="cancel" />
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-primary">
+            <Icon :name="typeAction === 'edit' ? 'content-save' : 'check'" />
+            {{ typeAction === 'edit' ? 'Actualizar' : 'Guardar Producto' }}
+          </button>
         </div>
       </div>
     </form>
   </div>
 
-  <!-- Formulario para agregar nuevo producto -->
+  <!-- Modal de confirmación -->
   <div class="b-modal" modal="actionProductModal" fx="in-out">
-    <div bx-content>
-      <div bx-head>
-        <h2 bx-title>Desea eliminar el producto?</h2>
-        <button @click="boxyModal.close('actionProductModal')">close new</button>
+    <div bx-content class="confirm-modal">
+      <div bx-head class="modal-header">
+        <h2 bx-title class="modal-title">
+          <Icon name="alert-outline" />
+          Confirmar Eliminación
+        </h2>
+        <button @click="boxyModal.close('actionProductModal')" class="close-btn">
+          <Icon name="close" />
+        </button>
       </div>
-      <div bx-footer>
+      <div bx-body class="modal-body">
+        <div class="confirm-content">
+          <Icon name="trash-can-outline" class="confirm-icon" size="xl" />
+          <h3>¿Estás seguro de eliminar este producto?</h3>
+          <p>Esta acción no se puede deshacer.</p>
+        </div>
+      </div>
+      <div bx-footer class="modal-footer">
         <div class="form-actions">
-          <button @click="confirmDeleteProduct">Si</button>
-          <button @click="cancelDeleteProduct">No</button>
+          <button @click="cancelDeleteProduct" class="btn btn-secondary">
+            <Icon name="cancel" />
+            Cancelar
+          </button>
+          <button @click="confirmDeleteProduct" class="btn btn-danger">
+            <Icon name="trash-can-outline" />
+            Sí, eliminar
+          </button>
         </div>
       </div>
     </div>
   </div>
-  <main class="container">
-    <div>
-      <div v-if="error" class="error-message">
-        {{ error }}
-      </div>
 
-      <div class="controls">
-        <button @click="showModal(true)" class="add-button" open-modal="formProductModal">
+  <!-- Main Content -->
+  <main class="container">
+    <div class="products-dashboard">
+      <!-- Header -->
+      <div class="dashboard-header">
+        <button @click="showModal(true)" class="btn btn-primary btn-add" open-modal="formProductModal">
+          <Icon name="plus" />
           Agregar Producto
         </button>
       </div>
 
-      <div v-if="cargando" class="loading">Cargando datos...</div>
+      <!-- Error Message -->
+      <div v-if="error" class="alert alert-error">
+        <Icon name="close-circle-outline" />
+        <div class="alert-content"><strong>Error:</strong> {{ error }}</div>
+        <button @click="error = null" class="alert-close">&times;</button>
+      </div>
 
+      <!-- Loading -->
+      <div v-if="cargando" class="loading-container">
+        <div class="loading-spinner large">
+          <div class="spinner"></div>
+          <p>Cargando productos...</p>
+        </div>
+      </div>
+
+      <!-- Products List -->
       <div v-else>
-        <table v-if="products.length" class="product-table">
-          <thead>
-            <tr>
-              <!-- <th>ID</th> -->
-              <th>Nombre</th>
-              <th>Fecha</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="product in filteredProducts" :key="product.id">
-              <!-- <td>{{ product.id }}</td> -->
-              <td>
-                <div>
-                  <span>{{ product.name }}</span>
-                  <span v-if="product.measurement_value">
-                    - {{ product.measurement_value }}
-                    {{ getMeasurementType(product.measurement_id) }}
-                  </span>
-                </div>
-                <div>
-                  <span>$ {{ product.price?.toFixed(2) || '-' }}</span> /
-                  <span>Bs.
-                    {{
-                      product.price && dolarBCV?.promedio
-                        ? (product.price * dolarBCV.promedio).toLocaleString('es-VE', {
-                          style: 'decimal',
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })
-                        : '-'
+        <div v-if="products.length" class="products-container">
+          <!-- List Header -->
+          <div class="products-header">
+            <div class="header-cell product-info">Producto</div>
+            <div class="header-cell product-category">Categoría</div>
+            <div class="header-cell product-price">Precio</div>
+            <div class="header-cell product-actions">Acciones</div>
+          </div>
+
+          <!-- Product Items -->
+          <div v-for="product in filteredProducts" :key="product.id" class="product-card">
+            <div class="product-main">
+              <div class="product-info">
+                <div class="product-badge" :style="{ backgroundColor: getCategoryColor(product.category_id) }">
+                  <Icon v-if="getCategoryInfo(product.category_id)?.icon"
+                    :name="getCategoryInfo(product.category_id)!.icon" class="category-list-icon" />
+                  <span v-else>{{
+                    getMeasurementType(product.measurement_id)?.charAt(0) || 'P'
                     }}</span>
                 </div>
-              </td>
-              <td>{{ product.created_at || '-' }}</td>
-              <td>
-                <button @click="loadEditProduct(String(product.id))" class="edit-button" title="Editar">
-                  ⚙
-                </button>
-                <button @click="loadDeleteProduct(String(product.id))" class="delete-button" title="Eliminar">
-                  &times;
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                <div class="product-details">
+                  <h3 class="product-name">{{ product.name }}</h3>
+                  <div class="product-meta">
+                    <span class="product-measurement" v-if="product.measurement_value">
+                      <Icon name="ruler" size="sm" />
+                      {{ product.measurement_value }}
+                      {{ getMeasurementType(product.measurement_id) }}
+                    </span>
+                    <span class="product-brand" v-if="product.brand_id">
+                      <Icon name="tag-outline" size="sm" />
+                      {{ getBrandName(product.brand_id) }}
+                    </span>
+                  </div>
+                </div>
+                <div class="product-actions">
+                  <div class="action-buttons">
+                    <button @click="loadEditProduct(String(product.id))" class="btn-icon btn-edit" title="Editar">
+                      <Icon name="pencil" />
+                    </button>
+                    <button @click="loadDeleteProduct(String(product.id))" class="btn-icon btn-delete" title="Eliminar">
+                      <Icon name="trash-can-outline" />
+                    </button>
+                    <button class="btn-icon btn-more" title="Más opciones">
+                      <Icon name="dots-vertical" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="product-category">
+                <span class="category-tag">
+                  <Icon v-if="getCategoryInfo(product.category_id)?.icon"
+                    :name="getCategoryInfo(product.category_id)!.icon" class="category-tag-icon" />
+                  {{ getCategoryInfo(product.category_id)?.name }}
+                </span>
+              </div>
+              <div class="product-price">
+                <div class="price-display">
+                  <div class="price-primary">
+                    <span class="currency-symbol">{{
+                      product.currency_type === 'USD' ? '$' : 'Bs'
+                      }}</span>
+                    {{ product.price?.toFixed(2) || '0.00' }}
+                  </div>
+                  <div class="price-secondary">
+                    {{ product.currency_type === 'USD' ? 'Bs' : '$' }}
+                    {{
+                      product.price && dolarBCV?.promedio
+                        ? product.currency_type === 'USD'
+                          ? (product.price * dolarBCV.promedio).toFixed(2)
+                          : (product.price / dolarBCV.promedio).toFixed(2)
+                        : '0.00'
+                    }}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="product-footer">
+              <div class="product-date">
+                <Icon name="calendar" size="sm" />
+                Actualizado: {{ formatDate(product.updated_at) }}
+              </div>
+            </div>
+          </div>
+        </div>
 
-        <p v-else class="empty-message">
-          No hay productos. Agrega manualmente o carga un archivo JSON.
-        </p>
+        <!-- Empty State -->
+        <div v-else class="empty-state">
+          <div class="empty-content">
+            <Icon name="package-variant-closed" size="xl" />
+            <h3>No hay productos</h3>
+            <p>Agrega tu primer producto o importa desde un archivo JSON.</p>
+            <button @click="showModal(true)" class="btn btn-primary" open-modal="formProductModal">
+              <Icon name="plus" />
+              Agregar Primer Producto
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </main>
@@ -193,6 +381,7 @@ defineOptions({ name: 'ProductsView' })
 
 import { ref, onMounted, computed, watch, onUnmounted, inject, reactive, type Ref } from 'vue'
 import boxyModal from '@js/boxy-modal.esm'
+import Icon from '@/components/ui/Icon.vue' // Import Icon component
 
 import {
   collection,
@@ -236,6 +425,7 @@ interface SearchableItem {
   id: string
   name: string
   isNew?: boolean
+  icon?: string
 }
 
 interface SearchState {
@@ -331,6 +521,7 @@ async function loadCategories() {
           ({
             id: doc.id,
             name: doc.data().name,
+            icon: doc.data().icon || null, // Include icon field
           }) as SearchableItem,
       )
 
@@ -396,7 +587,7 @@ async function searchCategories() {
 async function selectCategory(item: SearchableItem) {
   if (item.isNew) {
     // Crear nueva categoría
-    await createNewCategory(item.name)
+    await createNewCategory(item.name, item.icon)
   } else {
     categorySearch.selectedItem = item
     handleProduct.value.category_id = item.id
@@ -406,18 +597,19 @@ async function selectCategory(item: SearchableItem) {
   categorySearch.showDropdown = false
 }
 
-async function createNewCategory(name: string) {
+async function createNewCategory(name: string, icon?: string) {
   try {
     const newCategoryRef = doc(collection(db, CATEGORIAS_COLLECTION))
     const newCategory = {
       id: newCategoryRef.id,
       name: name,
+      icon: icon || null,
       created_at: new Date().toISOString().split('T')[0],
     }
 
     await setDoc(newCategoryRef, newCategory)
 
-    categorySearch.selectedItem = { id: newCategoryRef.id, name: name }
+    categorySearch.selectedItem = { id: newCategoryRef.id, name: name, icon: icon || null }
     handleProduct.value.category_id = newCategoryRef.id
 
     // Recargar la lista de categorías
@@ -617,121 +809,6 @@ async function loadProductsFromFireStore(): Promise<void> {
     // Notificación que se están usando los productos locales
     console.info('Error al cargar productos de la nube, usando datos locales si existen', err)
   }
-}
-
-// Cargar productos desde Archivo JSON externo
-async function loadFiles(event: Event) {
-  const input = event.target as HTMLInputElement
-  const archivo = input.files?.[0]
-  input.value = ''
-
-  if (!archivo) return
-
-  const lector = new FileReader()
-  lector.onload = async (e) => {
-    cargando.value = true
-    const resultado = e.target?.result as string
-    const datos = JSON.parse(resultado)
-
-    if (datos.productos && Array.isArray(datos.productos)) {
-      const invalidProducts: Product[] = []
-
-      datos.productos.forEach(async (p: Product) => {
-        console.log(p)
-        // Verificar campos obligatorios
-        if (!p.name || !p.price) {
-          invalidProducts.push(p) // Almacenar producto inválido
-        }
-
-        if (p.id) {
-          const docRef = doc(db, PRODUCTOS_COLLECTION, String(p.id))
-          const docSnap = await getDoc(docRef)
-
-          if (docSnap.exists()) {
-            console.log(`Producto ${p.id} ya existe en Firebase.`)
-
-            const firebaseProduct = docSnap.data()
-
-            // Convertimos las fechas a objetos Date para comparación
-            const localCreatedAt = new Date(p.created_at || '')
-            const firebaseCreatedAt = new Date(firebaseProduct.created_at || '')
-
-            const localUpdatedAt = new Date(p.updated_at || '')
-            const firebaseUpdatedAt = new Date(firebaseProduct.updated_at || '')
-
-            // Primero comparamos created_at
-            if (localCreatedAt.getTime() !== firebaseCreatedAt.getTime()) {
-              // Si las fechas de creación son diferentes
-              if (localCreatedAt > firebaseCreatedAt) {
-                console.log(
-                  `Producto ${p.id} tiene fecha de creación más reciente. Actualizando...`,
-                )
-                await updateDoc(docRef, { ...p })
-              } else {
-                console.log(
-                  `Producto ${p.id} en Firebase tiene fecha de creación más reciente. No se actualiza.`,
-                )
-              }
-            } else {
-              // Si las fechas de creación son iguales, comparamos updated_at
-              console.log('Fechas de creación iguales, comparando updated_at...')
-              if (localUpdatedAt > firebaseUpdatedAt) {
-                console.log(`Producto ${p.id} tiene actualización más reciente. Actualizando...`)
-                await updateDoc(docRef, { ...p })
-              } else {
-                console.log(`Producto ${p.id} en Firebase ya está actualizado.`)
-              }
-            }
-          } else {
-            console.log(`Producto ${p.id} no existe en Firebase, creando nuevo...`)
-
-            products.value.unshift(await createProductInFireStore(p))
-          }
-        } else {
-          console.log('Producto sin ID')
-
-          products.value.unshift(await createProductInFireStore(p))
-        }
-      })
-
-      // Opcional: Mostrar advertencia si hay productos inválidos
-      if (invalidProducts.length > 0) {
-        console.warn('Productos inválidos encontrados:', invalidProducts)
-        // También puedes emitir un evento o mostrar una notificación al usuario
-      }
-
-      console.log(products.value)
-      const fechaImportada = new Date(datos.dolarBCV.fechaActualizacion)
-      const fechaActual = new Date(dolarBCV.value?.fechaActualizacion || 0)
-
-      if (datos.dolarBCV) {
-        if (fechaImportada >= fechaActual && dolarBCV.value?.origen == 'local') {
-          const fechaAnterior = dolarBCV.value?.fechaActualizacion || null
-
-          // Actualizar tasa de dólar
-          const nuevoDolarBCV: DolarBCV = {
-            promedio: datos.dolarBCV.promedio,
-            fechaAnterior: fechaAnterior,
-            fechaActualizacion: datos.dolarBCV.fechaActualizacion,
-            origen: 'importado',
-          }
-
-          actualizarDolarBCV(nuevoDolarBCV)
-        }
-
-        saveProductsInLocal()
-      }
-      cargando.value = false
-    } else {
-      throw new Error('El archivo JSON no tiene el formato correcto.')
-    }
-  }
-
-  lector.onerror = () => {
-    error.value = 'Error al leer el archivo'
-  }
-
-  lector.readAsText(archivo)
 }
 
 // Modificar las funciones existentes para usar Firestore
@@ -1109,46 +1186,6 @@ async function createProductInFireStore(product: Product) {
   return productToCreate as Product
 }
 
-function exportToJSON() {
-  const datos = {
-    productos: products.value,
-    dolarBCV: {
-      promedio: dolarBCV.value?.promedio,
-      fechaActualizacion: dolarBCV.value?.fechaActualizacion,
-    },
-  }
-
-  const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `productos-${new Date().toISOString().split('T')[0]}.json`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-}
-
-// Update: Limpiar LocalStorage
-function limpiarLocalStorage() {
-  if (confirm('¿Estás seguro de que quieres borrar todos los datos guardados?')) {
-    // localStorage.removeItem(STORAGE_KEY)
-    // productos.value = []
-  }
-}
-
-function recargarDatosIniciales() {
-  if (confirm('¿Estás seguro de que quieres recargar los datos iniciales?')) {
-    cargarDatosIniciales()
-      .then(() => {
-        console.log('Datos recargados correctamente')
-      })
-      .catch((err) => {
-        console.error('Error al recargar datos:', err)
-      })
-  }
-}
-
 // Definir filteredProducts como un computed que filtra el array reactivo
 const filteredProducts = computed(() => {
   return products.value.filter((p) => !p.marked_to_delete)
@@ -1230,27 +1267,384 @@ function getMeasurementType(id: string): string {
   const measurement = measurements.value.find((m) => m.id === id)
   return measurement ? measurement.type : ''
 }
+
+const totalValueBs = computed(() => {
+  if (!dolarBCV.value?.promedio) return 0
+  return filteredProducts.value.reduce((total, product) => {
+    if (product.price) {
+      if (product.currency_type === 'USD') {
+        return total + product.price * dolarBCV.value!.promedio
+      }
+      return total + product.price
+    }
+    return total
+  }, 0)
+})
+
+function getCategoryColor(categoryId: string): string {
+  const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316']
+  const index =
+    Math.abs(categoryId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) %
+    colors.length
+  return colors[index]
+}
+
+function formatDate(dateString: string): string {
+  if (!dateString) return 'N/A'
+  const date = new Date(dateString)
+  return date.toLocaleDateString('es-VE', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+// Necesitarás agregar estas funciones para obtener nombres
+function getCategoryInfo(categoryId: string): SearchableItem | undefined {
+  return categorySearch.items.find((cat) => cat.id === categoryId)
+}
+
+function getBrandName(brandId: string): string {
+  const brand = brandSearch.items.find((b) => b.id === brandId)
+  return brand ? brand.name : brandId
+}
 </script>
 
 <style scoped>
+.icon.small {
+  margin-right: 4px;
+}
+
+.category-icon-display {
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
+  color: var(--primary);
+}
+
+.category-icon-preview {
+  width: 24px;
+  height: 24px;
+  margin-left: 12px;
+  color: var(--primary);
+}
+
+.category-list-icon {
+  width: 24px;
+  height: 24px;
+  color: white;
+}
+
+.category-tag-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  color: var(--text-secondary);
+}
+
+/* Layout principal */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.products-dashboard {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.btn-add {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Productos */
+.products-container {
+  padding: 24px 0;
+}
+
+.products-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 140px;
+  gap: 20px;
+  padding: 16px 20px;
+  background: var(--background);
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.product-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: all 0.3s ease;
+}
+
+.product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+  border-color: var(--primary);
+}
+
+.product-main {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 140px;
+  gap: 20px;
+  align-items: center;
+}
+
+.product-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.product-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.product-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: auto;
+}
+
+.product-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.product-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.product-category {
+  display: flex;
+  align-items: center;
+}
+
+.category-tag {
+  background: var(--background);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.product-price {
+  display: flex;
+  align-items: center;
+}
+
+.price-display {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.price-primary {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+}
+
+.currency-symbol {
+  font-size: 16px;
+  margin-right: 2px;
+}
+
+.price-secondary {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.product-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: var(--background);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background: var(--primary);
+  color: white;
+  transform: scale(1.05);
+}
+
+.btn-edit:hover {
+  background: var(--primary);
+}
+
+.btn-delete:hover {
+  background: var(--danger);
+}
+
+.product-footer {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.product-date {
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Formularios y modales */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+}
+
+.close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: var(--background);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: var(--danger);
+  color: white;
+}
+
+.modal-body {
+  padding: 24px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.form-grid {
+  display: grid;
+  gap: 20px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.form-group {
+  margin-bottom: 0;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  transition: all 0.2s ease;
+  background: var(--surface);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.input-with-icon {
+  position: relative;
+}
+
+.input-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+/* Searchable select mejorado */
 .searchable-select {
   position: relative;
-  width: 100%;
 }
 
 .search-input {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-  box-sizing: border-box;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: #2196f3;
-  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+  padding-right: 40px;
 }
 
 .dropdown {
@@ -1258,22 +1652,24 @@ function getMeasurementType(id: string): string {
   top: 100%;
   left: 0;
   right: 0;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
   max-height: 200px;
   overflow-y: auto;
   z-index: 1000;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow);
   margin-top: 4px;
 }
 
 .dropdown-item {
-  padding: 8px 12px;
+  padding: 12px 16px;
   cursor: pointer;
   transition: background-color 0.2s;
   font-size: 14px;
-  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
 }
 
 .dropdown-item:last-child {
@@ -1281,32 +1677,33 @@ function getMeasurementType(id: string): string {
 }
 
 .dropdown-item:hover {
-  background-color: #f5f5f5;
+  background-color: var(--background);
 }
 
 .dropdown-item.new-item {
-  color: #2196f3;
-  font-style: italic;
+  color: var(--primary);
   font-weight: 500;
 }
 
-.selected-item {
+.selected-item.chip {
   margin-top: 8px;
   padding: 8px 12px;
-  background: #f5f5f5;
-  border-radius: 4px;
-  display: flex;
-  justify-content: space-between;
+  background: var(--primary);
+  color: white;
+  border-radius: 20px;
+  display: inline-flex;
   align-items: center;
+  gap: 8px;
   font-size: 14px;
+  font-weight: 500;
 }
 
 .clear-btn {
   background: none;
   border: none;
-  color: #666;
+  color: inherit;
   cursor: pointer;
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1;
   padding: 0;
   width: 20px;
@@ -1315,90 +1712,331 @@ function getMeasurementType(id: string): string {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+  opacity: 0.8;
 }
 
 .clear-btn:hover {
-  background-color: rgba(0, 0, 0, 0.1);
-  color: #f44336;
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
 }
 
-.loading-spinner {
-  padding: 8px 12px;
-  text-align: center;
-  color: #666;
-  font-size: 12px;
-  font-style: italic;
+/* Currency selector */
+.currency-selector {
+  display: flex;
+  gap: 8px;
 }
 
-/* Ajustes para el formulario */
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 4px;
+.currency-btn {
+  flex: 1;
+  padding: 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
   font-weight: 500;
-  color: #333;
 }
 
-.form-group input:not(.search-input),
-.form-group select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-  box-sizing: border-box;
+.currency-btn.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: white;
+}
+
+.currency-btn:hover:not(.active) {
+  border-color: var(--primary);
+}
+
+/* Price input */
+.price-input {
+  display: flex;
+  align-items: center;
+}
+
+.price-prefix {
+  padding: 12px 0 12px 16px;
+  background: var(--background);
+  border: 2px solid var(--border);
+  border-right: none;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.price-input .form-input {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding-left: 12px;
+}
+
+/* Converted price */
+.converted-price {
+  padding: 16px;
+  background: var(--background);
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border);
+}
+
+.converted-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+
+.conversion-info {
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Modal footer */
+.modal-footer {
+  padding: 24px;
+  border-top: 1px solid var(--border);
+  background: var(--background);
 }
 
 .form-actions {
   display: flex;
-  gap: 8px;
   justify-content: flex-end;
-  padding-top: 16px;
-  border-top: 1px solid #eee;
+  gap: 12px;
 }
 
-.form-actions button {
-  padding: 8px 16px;
+/* Botones */
+.btn {
+  padding: 12px 24px;
+  border-radius: var(--radius-sm);
   border: none;
-  border-radius: 4px;
-  cursor: pointer;
   font-size: 14px;
-  transition: background-color 0.2s;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
-.form-actions button[type='submit'] {
-  background-color: #2196f3;
+.btn-primary {
+  background: var(--primary);
   color: white;
 }
 
-.form-actions button[type='submit']:hover {
-  background-color: #0b7dda;
+.btn-primary:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 
-.form-actions button[type='button'] {
-  background-color: #f5f5f5;
-  color: #333;
+.btn-secondary {
+  background: var(--background);
+  color: var(--text-secondary);
+  border: 2px solid var(--border);
 }
 
-.form-actions button[type='button']:hover {
-  background-color: #e0e0e0;
+.btn-secondary:hover {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+/* Estados */
+.empty-state {
+  padding: 80px 24px;
+  text-align: center;
+}
+
+.empty-content {
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.empty-content h3 {
+  font-size: 24px;
+  color: var(--text-primary);
+  margin: 16px 0 8px;
+}
+
+.empty-content p {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.loading-container {
+  padding: 80px 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.loading-spinner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-secondary);
+}
+
+.loading-spinner.large {
+  flex-direction: column;
+  gap: 20px;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.alert {
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 24px;
+}
+
+.alert-error {
+  background: #fef2f2;
+  border: 2px solid var(--danger);
+  color: var(--danger);
+}
+
+.alert-content {
+  flex: 1;
+}
+
+.alert-close {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.alert-close:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Confirm modal */
+.confirm-modal {
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.confirm-content {
+  text-align: center;
+  padding: 40px 24px;
+}
+
+.confirm-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 20px;
+  background: #fef2f2;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--danger);
+}
+
+.confirm-content h3 {
+  font-size: 20px;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+}
+
+.confirm-content p {
+  color: var(--text-secondary);
+  margin: 0;
 }
 
 /* Responsive */
+@media (max-width: 1024px) {
+  .product-main {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .products-header {
+    display: none;
+  }
+
+  .product-actions {
+    justify-content: flex-start;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
-  .searchable-select {
-    width: 100%;
+  .container {
+    padding: 16px;
   }
 
   .form-actions {
     flex-direction: column;
   }
 
-  .form-actions button {
+  .btn {
     width: 100%;
+  }
+
+  .modal-body {
+    max-height: 50vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .product-info {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .product-badge {
+    align-self: flex-start;
+  }
+
+  .action-buttons {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 </style>
