@@ -2025,11 +2025,6 @@ function getBrandName(brandId: string): string {
 }
 
 @media (max-width: 480px) {
-  .product-info {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
   .product-badge {
     align-self: flex-start;
   }

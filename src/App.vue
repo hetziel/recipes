@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
 import { ref, provide, onMounted } from 'vue'
+import { getExchangeRates } from './composables/getTare'
 
 // Interfaces y tipos
 import type { DolarBCV } from './types/producto'
@@ -13,13 +14,12 @@ const toggleMenu = () => {
 
 //Datos de configuracion
 const onGetApiDolar = true
-const apiGetDolar = 'https://ve.dolarapi.com/v1/dolares'
 
+const getExchangeRate = getExchangeRates()
 // Variables
 const dolarBCV = ref<DolarBCV | null>({
   promedio: 0,
-  fechaAnterior: null,
-  fechaActualizacion: null,
+  fecha: null,
   origen: 'local',
 })
 
@@ -38,14 +38,19 @@ async function cargarTasaDolar() {
 
   try {
     const dolarBCVLocal = localStorage.getItem('dolarBCV')
-    if (dolarBCVLocal) {
-      const datos = JSON.parse(dolarBCVLocal)
+    const rate = await getExchangeRate
+    if (rate && rate.usd) {
+      let datos = null
+      try {
+        datos = dolarBCVLocal ? JSON.parse(dolarBCVLocal) : null
+      } catch (e) {
+        console.error('Error parsing local dolarBCV:', e)
+      }
 
       dolarBCV.value = {
-        promedio: datos.promedio,
-        fechaAnterior: datos.fechaAnterior || null,
-        fechaActualizacion: datos.fechaActualizacion,
-        origen: datos.origen == 'api' ? 'local' : datos.origen || 'local',
+        promedio: rate.usd,
+        fecha: rate.date,
+        origen: datos && datos.origen === 'api' ? 'local' : datos?.origen || 'local',
       }
     }
   } catch (error) {
@@ -53,14 +58,12 @@ async function cargarTasaDolar() {
   }
   if (onGetApiDolar) {
     try {
-      const response = await fetch(apiGetDolar, { cache: 'no-store' })
-      if (!response.ok) throw new Error('Error al obtener datos del dólar')
-      const data = await response.json()
+      const rate = await getExchangeRate
+      if (!rate) throw new Error('Error al obtener datos del dólar')
 
       dolarBCV.value = {
-        promedio: data[0].promedio,
-        fechaAnterior: dolarBCV.value?.fechaActualizacion || null,
-        fechaActualizacion: data[0].fechaActualizacion,
+        promedio: rate.usd,
+        fecha: rate.date,
         origen: 'api',
       }
       localStorage.setItem('dolarBCV', JSON.stringify(dolarBCV.value))
@@ -245,7 +248,6 @@ onMounted(() => {
   cursor: pointer;
 }
 
-
 .sidebar-nav .nav-link {
   color: rgba(255, 255, 255, 0.8);
   text-decoration: none;
@@ -254,7 +256,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 1rem;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 .sidebar-nav .nav-link:hover {
@@ -280,7 +284,6 @@ onMounted(() => {
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 1000;
 }
-
 
 .b-body {
   padding-top: var(--header-height);
@@ -318,7 +321,6 @@ onMounted(() => {
 .tasa-info.tasa-importado {
   background-color: #5bc0de;
 }
-
 
 @media (max-width: 768px) {
   .app-title {

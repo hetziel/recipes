@@ -46,8 +46,7 @@ export interface DolarData {
 
 export interface DolarBCV {
   promedio: number
-  fechaAnterior: string | null
-  fechaActualizacion: string | null
+  fecha: string | null
   origen: 'api' | 'local' | 'importado'
 }
 
