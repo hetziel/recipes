@@ -23,28 +23,28 @@ export default defineConfig({
           {
             src: 'pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/png',
           },
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
-            type: 'image/png'
-          }
-        ]
+            type: 'image/png',
+          },
+        ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
-      }
-    })
+        maximumFileSizeToCacheInBytes: 3000000,
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+      },
+    }),
   ],
   define: {
-    'import.meta.env': process.env
+    'import.meta.env': process.env,
   },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      '@js': path.resolve(__dirname, './src/assets/js')
-
+      '@js': path.resolve(__dirname, './src/assets/js'),
     },
   },
 })
