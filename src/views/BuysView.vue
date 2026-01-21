@@ -109,20 +109,11 @@
       </div>
     </div>
 
-    <!-- Buscador -->
-    <div class="search-container">
-      <div class="search-input-wrapper">
-        <input v-model="searchQuery" type="text" placeholder="Buscar productos..." class="search-input" />
-        <span class="search-icon">🔍</span>
-      </div>
-      <div class="search-stats">
-        <span class="stats-item">{{ productosFiltrados.length }} productos</span>
-        <span class="stats-item">{{ productosSeleccionados.length }} seleccionados</span>
-      </div>
-    </div>
-
     <!-- Menú de navegación -->
     <div class="navigation-menu">
+      <button @click="activeSection = 'selector'" :class="['nav-btn', { active: activeSection === 'selector' }]">
+        <span class="nav-icon">✅</span> Selector
+      </button>
       <button @click="activeSection = 'table'" :class="['nav-btn', { active: activeSection === 'table' }]">
         <span class="nav-icon">📋</span> Lista
       </button>
@@ -135,6 +126,18 @@
       <button @click="activeSection = 'budget'" :class="['nav-btn', { active: activeSection === 'budget' }]">
         <span class="nav-icon">💰</span> Presupuesto
       </button>
+    </div>
+
+    <!-- Buscador -->
+    <div class="search-container" v-if="activeSection = 'selector'">
+      <div class="search-input-wrapper">
+        <input v-model="searchQuery" type="text" placeholder="Buscar productos..." class="search-input" />
+        <span class="search-icon">🔍</span>
+      </div>
+      <div class="search-stats">
+        <span class="stats-item">{{ productosFiltrados.length }} productos</span>
+        <span class="stats-item">{{ productosSeleccionados.length }} seleccionados</span>
+      </div>
     </div>
 
     <div class="content-section">
@@ -431,7 +434,7 @@ const presupuesto = ref({
 const searchQuery = ref('')
 const currentPage = ref(1)
 const itemsPerPage = 10
-const activeSection = ref<'table' | 'selected' | 'budget'>('table')
+const activeSection = ref<'selector', 'table' | 'selected' | 'budget'>('table')
 
 // Productos filtrados por búsqueda
 const productosFiltrados = computed(() => {
