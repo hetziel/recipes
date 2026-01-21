@@ -454,6 +454,7 @@ const presupuesto = ref({
 const searchQuery = ref('')
 const currentPage = ref(1)
 const itemsPerPage = 10
+const maxPagesToShow = 5
 const activeSection = ref<'selector' | 'table' | 'selected' | 'budget'>('selector')
 
 // Nuevos resultados de búsqueda para el selector rápido
@@ -488,7 +489,6 @@ const productosPaginados = computed(() => {
 // Cálculo de páginas para mostrar en la paginación
 const pagesToShow = computed(() => {
   const pages = []
-  const maxPagesToShow = 5
 
   if (totalPages.value <= maxPagesToShow) {
     for (let i = 1; i <= totalPages.value; i++) {
@@ -1712,6 +1712,7 @@ onMounted(cargarProductos)
     flex-direction: column;
     align-items: stretch;
   }
+
   .item-actions {
     justify-content: space-between;
   }

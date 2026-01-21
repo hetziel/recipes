@@ -289,7 +289,7 @@
               <div class="product-info">
                 <div class="product-badge" :style="{ backgroundColor: getCategoryColor(product.category_id) }">
                   <Icon v-if="getCategoryInfo(product.category_id)?.icon"
-                    :name="getCategoryInfo(product.category_id)!.icon" class="category-list-icon" />
+                    :name="getCategoryInfo(product.category_id)?.icon ?? ''" class="category-list-icon" />
                   <span v-else>{{
                     getMeasurementType(product.measurement_id)?.charAt(0) || 'P'
                     }}</span>
@@ -325,7 +325,7 @@
               <div class="product-category">
                 <span class="category-tag">
                   <Icon v-if="getCategoryInfo(product.category_id)?.icon"
-                    :name="getCategoryInfo(product.category_id)!.icon" class="category-tag-icon" />
+                    :name="getCategoryInfo(product.category_id)?.icon ?? ''" class="category-tag-icon" />
                   {{ getCategoryInfo(product.category_id)?.name }}
                 </span>
               </div>
@@ -609,7 +609,11 @@ async function createNewCategory(name: string, icon?: string) {
 
     await setDoc(newCategoryRef, newCategory)
 
-    categorySearch.selectedItem = { id: newCategoryRef.id, name: name, icon: icon || null }
+    categorySearch.selectedItem = {
+      id: newCategoryRef.id,
+      name: name,
+      icon: icon || undefined, // ← Cambiar null por undefined
+    }
     handleProduct.value.category_id = newCategoryRef.id
 
     // Recargar la lista de categorías
@@ -1289,7 +1293,7 @@ function getCategoryColor(categoryId: string): string {
   return colors[index]
 }
 
-function formatDate(dateString: string): string {
+function formatDate(dateString: string | null | undefined): string {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
   return date.toLocaleDateString('es-VE', {
