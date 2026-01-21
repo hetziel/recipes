@@ -129,13 +129,33 @@
     </div>
 
     <!-- Buscador -->
-    <div class="search-container" v-if="activeSection = 'selector'">
+    <div class="search-container" v-if="activeSection === 'selector'">
       <div class="search-input-wrapper">
-        <input v-model="searchQuery" type="text" placeholder="Buscar productos..." class="search-input" />
+        <input v-model="searchQuery" type="text" placeholder="Buscar productos para agregar..." class="search-input" />
         <span class="search-icon">🔍</span>
       </div>
+
+      <!-- Resultados de la búsqueda para selección rápida -->
+      <div v-if="searchResults.length" class="search-results-selector">
+        <div v-for="producto in searchResults" :key="`search-${producto.id}`" class="search-result-item">
+          <div class="item-info">
+            <strong class="item-name">{{ producto.name }}</strong>
+            <div class="item-details">
+              <span>Precio: ${{ producto.price?.toFixed(2) ?? 'N/A' }}</span>
+              <span>Peso: {{ producto.weight ?? 'N/A' }} kg</span>
+            </div>
+          </div>
+          <div class="item-actions">
+            <input v-model.number="producto.cantidad" type="number" min="1" class="quantity-input short" />
+            <button @click="seleccionarProductoDesdeBusqueda(producto)" class="btn btn-primary btn-confirm">
+              <span class="btn-icon">✓</span> Agregar
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div class="search-stats">
-        <span class="stats-item">{{ productosFiltrados.length }} productos</span>
+        <span class="stats-item">{{ productos.length }} productos en total</span>
         <span class="stats-item">{{ productosSeleccionados.length }} seleccionados</span>
       </div>
     </div>
@@ -228,8 +248,8 @@
 
         <div v-else class="empty-state">
           <img src="@/assets/empty-box.png" alt="Caja vacía" class="empty-icon" />
-          <p class="empty-message">No se encontraron productos</p>
-          <button @click="searchQuery = ''" class="btn btn-secondary">Limpiar búsqueda</button>
+          <p class="empty-message">No hay productos en la lista</p>
+          <p class="empty-subtitle">Agregue productos a través del modal "Agregar Producto".</p>
         </div>
       </div>
 
@@ -434,16 +454,24 @@ const presupuesto = ref({
 const searchQuery = ref('')
 const currentPage = ref(1)
 const itemsPerPage = 10
-const activeSection = ref<'selector', 'table' | 'selected' | 'budget'>('table')
+const activeSection = ref<'selector' | 'table' | 'selected' | 'budget'>('selector')
 
-// Productos filtrados por búsqueda
-const productosFiltrados = computed(() => {
+// Nuevos resultados de búsqueda para el selector rápido
+const searchResults = computed(() => {
   if (!searchQuery.value.trim()) {
-    return productos.value
+    return []
   }
-
   const query = searchQuery.value.toLowerCase()
-  return productos.value.filter((producto) => producto.name.toLowerCase().includes(query))
+  // Clona productos para no modificar la lista original con v-model en la UI de búsqueda
+  return productos.value
+    .filter((p) => !p.seleccionado && p.name.toLowerCase().includes(query))
+    .slice(0, 3)
+    .map((p) => ({ ...p, cantidad: p.cantidad || 1 }))
+})
+
+// Productos para la tabla (sin filtrar por búsqueda)
+const productosFiltrados = computed(() => {
+  return productos.value
 })
 
 // Paginación
@@ -659,6 +687,16 @@ function resetSelecciones() {
     })
     productosSeleccionados.value = []
     localStorage.removeItem(SELECTION_KEY)
+  }
+}
+
+function seleccionarProductoDesdeBusqueda(productoASeleccionar: Product) {
+  const productoEnListaPrincipal = productos.value.find((p) => p.id === productoASeleccionar.id)
+  if (productoEnListaPrincipal) {
+    productoEnListaPrincipal.seleccionado = true
+    productoEnListaPrincipal.cantidad = productoASeleccionar.cantidad
+    guardarSelecciones()
+    searchQuery.value = '' // Limpiar búsqueda para ocultar los resultados
   }
 }
 
@@ -1558,6 +1596,57 @@ onMounted(cargarProductos)
   font-size: 18px;
 }
 
+.search-results-selector {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.search-result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background-color: #fff;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  gap: 16px;
+}
+
+.item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.item-name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.item-details {
+  font-size: 13px;
+  color: #6b7280;
+  display: flex;
+  gap: 12px;
+}
+
+.item-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.quantity-input.short {
+  width: 70px;
+}
+
+.btn-confirm {
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .compras-container {
@@ -1617,6 +1706,14 @@ onMounted(cargarProductos)
 
   .form-actions {
     flex-direction: column;
+  }
+
+  .search-result-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .item-actions {
+    justify-content: space-between;
   }
 }
 </style>
