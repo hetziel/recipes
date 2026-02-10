@@ -7,6 +7,7 @@ export interface Product {
   measurement_value: number
   currency_type: string
   price: number
+  is_utility?: boolean
   created_at?: string
   updated_at?: string | null
   marked_to_create?: boolean

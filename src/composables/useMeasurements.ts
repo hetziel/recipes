@@ -6,6 +6,7 @@ const measurements = ref<Measurement[]>([
   { id: 'mea2', type: 'g' },
   { id: 'mea3', type: 'L' },
   { id: 'mea4', type: 'ml' },
+  { id: 'mea5', type: 'Unidad' },
 ])
 
 export function useMeasurements() {

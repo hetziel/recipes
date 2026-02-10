@@ -257,6 +257,25 @@
         <button @click="showProductModal = false" class="btn btn-secondary mt-4">Cancelar</button>
       </div>
     </div>
+
+    <!-- UTILITY SELECTOR MODAL -->
+    <div v-if="showUtilityModal" class="modal-overlay">
+      <div class="modal-content">
+        <h3>Seleccionar Insumo / Utilería</h3>
+        <input v-model="utilitySearch" placeholder="Buscar insumo..." class="form-input mb-4" />
+        <div class="product-list">
+          <div v-for="prod in filteredUtilities" :key="prod.id" class="product-item" @click="selectUtility(prod)">
+            <span>{{ prod.name }}</span>
+            <span class="price-tag">${{ prod.price }} ({{ prod.measurement_value }}
+              {{ getMeasurementLabel(prod.measurement_id) }})</span>
+          </div>
+          <div v-if="filteredUtilities.length === 0" class="text-center p-4 text-muted">
+            No hay insumos marcados como utilería.
+          </div>
+        </div>
+        <button @click="showUtilityModal = false" class="btn btn-secondary mt-4">Cancelar</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -276,7 +295,10 @@ const router = useRouter()
 const isEditing = ref(false)
 const isSaving = ref(false)
 const showProductModal = ref(false)
+const showUtilityModal = ref(false)
 const productSearch = ref('')
+const utilitySearch = ref('')
+const activeScenarioIndex = ref<number | null>(null)
 const availableProducts = ref<Product[]>([])
 
 const recipe = ref<Recipe>({
@@ -313,6 +335,13 @@ const filteredProducts = computed(() => {
   if (!productSearch.value) return availableProducts.value
   const q = productSearch.value.toLowerCase()
   return availableProducts.value.filter((p) => p.name.toLowerCase().includes(q))
+})
+
+const filteredUtilities = computed(() => {
+  const utilities = availableProducts.value.filter(p => p.is_utility)
+  if (!utilitySearch.value) return utilities
+  const q = utilitySearch.value.toLowerCase()
+  return utilities.filter((p) => p.name.toLowerCase().includes(q))
 })
 
 // METHODS
@@ -383,12 +412,21 @@ function removeScenario(index: number) {
 }
 
 function addUtilityToScenario(sIndex: number) {
-  recipe.value.scenarios[sIndex].utilities.push({
-    name: 'Etiqueta/Bolsa',
-    cost: 0,
-    quantity: 1,
-    usage_quantity: 1,
-  })
+  activeScenarioIndex.value = sIndex
+  showUtilityModal.value = true
+}
+
+function selectUtility(prod: Product) {
+  if (activeScenarioIndex.value !== null) {
+    recipe.value.scenarios[activeScenarioIndex.value].utilities.push({
+      name: prod.name,
+      cost: prod.price,
+      quantity: prod.measurement_value,
+      usage_quantity: 1,
+    })
+  }
+  showUtilityModal.value = false
+  activeScenarioIndex.value = null
 }
 
 function removeUtilityFromScenario(sIndex: number, uIndex: number) {

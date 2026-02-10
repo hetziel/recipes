@@ -152,14 +152,14 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     handleProduct.currency_type === 'USD' ? '$' : 'Bs'
-                  }}</span>
+                    }}</span>
                   <input v-model.number="handleProduct.tempPrice" type="number" min="0" step="0.01" class="form-input"
                     placeholder="0.00" />
                 </div>
               </div>
             </div>
 
-            <!-- Precio Convertido -->
+            <!-- Categoría -->
             <div class="form-group">
               <label class="form-label">
                 <Icon name="swap-horizontal" />
@@ -175,6 +175,17 @@
                   Tipo de cambio: {{ dolarBCV?.promedio?.toFixed(2) || 'Cargando...' }}
                 </div>
               </div>
+            </div>
+
+            <!-- Insumo/Utilería -->
+            <div class="form-group checkbox-group">
+              <label class="checkbox-container">
+                <input type="checkbox" v-model="handleProduct.is_utility" />
+                <span class="checkmark"></span>
+                <Icon name="package-variant" />
+                Es Insumo / Utilería
+              </label>
+              <p class="form-help">Marca esto si el producto es un envase, etiqueta o bolsa para recetas.</p>
             </div>
 
             <!-- Fechas -->
@@ -293,7 +304,7 @@
                     :name="getCategoryInfo(product.category_id)?.icon ?? ''" class="category-list-icon" />
                   <span v-else>{{
                     getMeasurementType(product.measurement_id)?.charAt(0) || 'P'
-                  }}</span>
+                    }}</span>
                 </div>
                 <div class="product-details">
                   <h3 class="product-name">{{ product.name }}</h3>
@@ -306,6 +317,10 @@
                     <span class="product-brand" v-if="product.brand_id">
                       <Icon name="tag-outline" size="sm" />
                       {{ getBrandName(product.brand_id) }}
+                    </span>
+                    <span v-if="product.is_utility" class="utility-badge" title="Producto marcado como Insumo/Utilería">
+                      <Icon name="package-variant" size="sm" />
+                      Insumo
                     </span>
                   </div>
                 </div>
@@ -335,7 +350,7 @@
                   <div class="price-primary">
                     <span class="currency-symbol">{{
                       product.currency_type === 'USD' ? '$' : 'Bs'
-                    }}</span>
+                      }}</span>
                     {{ product.price?.toFixed(2) || '0.00' }}
                   </div>
                   <div class="price-secondary">
@@ -447,6 +462,7 @@ const handleProduct = ref<ExtendedProduct>({
   measurement_value: 0,
   currency_type: 'USD',
   tempPrice: 0,
+  is_utility: false,
   created_at: new Date().toISOString().split('T')[0],
   updated_at: new Date().toISOString().split('T')[0],
   marked_to_create: true,
@@ -747,6 +763,7 @@ async function addProduct() {
     measurement_id: handleProduct.value.measurement_id,
     measurement_value: handleProduct.value.measurement_value,
     currency_type: handleProduct.value.currency_type,
+    is_utility: handleProduct.value.is_utility || false,
     created_at: handleProduct.value.created_at || new Date().toISOString().split('T')[0],
     marked_to_create: true,
   }
@@ -793,6 +810,7 @@ async function resetearFormulario() {
     measurement_value: 0,
     currency_type: 'USD',
     tempPrice: 0,
+    is_utility: false,
     created_at: new Date().toISOString().split('T')[0],
     updated_at: new Date().toISOString().split('T')[0],
     marked_to_create: true,
@@ -1609,11 +1627,51 @@ function getCategoryInfo(categoryId: string): SearchableItem | undefined {
 }
 
 .conversion-info {
-  font-size: 13px;
-  color: var(--text-secondary);
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.utility-badge {
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: uppercase;
+}
+
+/* Modals extra styles */
+.checkbox-group {
+  margin-top: 8px;
+  grid-column: 1 / -1;
+}
+
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-primary);
+  user-select: none;
+}
+
+.checkbox-container input {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.form-help {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  margin-left: 32px;
 }
 
 /* Modal footer */
