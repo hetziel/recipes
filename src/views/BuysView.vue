@@ -39,9 +39,8 @@
               </label>
               <div class="searchable-select">
                 <div class="input-with-icon">
-                  <input v-model="brandSearch.query" @input="brandSearch.searchBrands"
-                    @focus="brandSearch.showDropdown = true" @blur="onBrandBlur"
-                    placeholder="Buscar o crear marca..." class="form-input search-input" />
+                  <input v-model="brandSearch.query" @input="searchBrands" @focus="brandSearch.showDropdown = true"
+                    @blur="onBrandBlur" placeholder="Buscar o crear marca..." class="form-input search-input" />
                   <Icon name="magnify" class="input-icon" />
                 </div>
                 <div v-if="brandSearch.showDropdown && brandSearch.items.length" class="dropdown">
@@ -117,7 +116,7 @@
                 </label>
                 <div class="select-wrapper">
                   <select v-model="nuevoProducto.measurement_id" class="form-select">
-                    <option v-for="m in measurements.value" :key="m.id" :value="m.id">
+                    <option v-for="m in measurements" :key="m.id" :value="m.id">
                       {{ m.type }}
                     </option>
                   </select>
@@ -187,7 +186,7 @@
             <strong class="item-name">{{ getFormattedProductName(producto) }}</strong>
             <div class="item-details">
               <span>Precio: ${{ producto.price?.toFixed(2) ?? 'N/A' }}</span>
-              <span>Peso: {{ producto.weight ?? 'N/A' }} kg</span>
+              <span>Peso: {{ producto.measurement_value ?? 'N/A' }} kg</span>
             </div>
           </div>
           <div class="item-actions">
@@ -248,7 +247,7 @@
                   <input type="number" v-model.number="producto.cantidad" min="1" class="quantity-input"
                     @change="guardarSelecciones" />
                 </td>
-                <td class="numeric">{{ producto.weight ? producto.weight + ' kg' : '-' }}</td>
+                <td class="numeric">{{ producto.measurement_value ? producto.measurement_value + ' kg' : '-' }}</td>
               </tr>
             </tbody>
             <tfoot>
@@ -468,8 +467,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, inject, type Ref } from 'vue'
-import type { DolarBCV, Product, Brand, Measurement } from '../types/producto'
-import type { SearchableItem, SearchState } from '../types/search'
+import type { DolarBCV, Product } from '../types/producto'
+import type { SearchableItem } from '../types/search'
 import { useBrands } from '../composables/useBrands'
 import { useMeasurements } from '../composables/useMeasurements'
 import Icon from '@/components/ui/Icon.vue'
@@ -488,8 +487,14 @@ const { dolarBCV: dolarBCV } = inject<{
   dolarBCV: Ref<DolarBCV>
 }>('dolarBCV')!
 
-const { getBrandName } = useBrands()
-const { getMeasurementType } = useMeasurements()
+const {
+  brandSearch,
+  searchBrands,
+  createNewBrand,
+  getBrandName,
+  clearBrandSearch,
+} = useBrands()
+const { measurements, getMeasurementType } = useMeasurements()
 
 // Estado del presupuesto
 const presupuesto = ref({
@@ -629,23 +634,20 @@ const totalBs = computed(() => {
 
   return productosFiltrados.value.reduce((sum, producto) => {
     const price = Number(producto?.price) || 0
-    const tasa = Number(dolarBCV.value?.promedio) || 0
-    return sum + price * tasa
+    const tasa = Number(dolarBCV.value?.promedio) || 1
+    const cantidad = Number(producto?.cantidad) || 1
+    return sum + (price * tasa * cantidad)
   }, 0)
 })
 
 const totalPeso = computed(() => {
   return productosFiltrados.value
     .reduce((sum, producto) => {
-      return sum + (parseFloat(producto.weight?.toString() || '0') || 0)
+      const val = Number(producto.measurement_value) || 0
+      const cant = Number(producto.cantidad) || 1
+      return sum + (val * cant)
     }, 0)
     .toFixed(2)
-})
-
-const totalCantidad = computed(() => {
-  return productosFiltrados.value.reduce((sum, producto) => {
-    return sum + (producto.cantidad || 0)
-  }, 0)
 })
 
 const totalSeleccionadoUSD = computed(() => {
@@ -664,21 +666,12 @@ const totalSeleccionadoBS = computed(() => {
 })
 
 // Methods
-function formatDate(dateString: string) {
-  const options: Intl.DateTimeFormatOptions = {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }
-  return new Date(dateString).toLocaleDateString('es-ES', options)
-}
-
 function getFormattedProductName(product: BuyProduct): string {
   const brandName = product.brand_id ? getBrandName(product.brand_id) : ''
   const measurementType = product.measurement_id ? getMeasurementType(product.measurement_id) : ''
   const weight = product.measurement_value ? `${product.measurement_value}${measurementType}` : ''
 
-  let parts: string[] = []
+  const parts: string[] = []
   if (product.name) parts.push(product.name)
   if (brandName) parts.push(brandName)
   if (weight) parts.push(weight)
@@ -690,8 +683,11 @@ function cargarProductos() {
   const datosGuardados = localStorage.getItem(STORAGE_KEY)
   if (datosGuardados) {
     try {
-      const datos = JSON.parse(datosGuardados)
-      productos.value = (datos || []).map((p: Product) => ({
+      const parsed = JSON.parse(datosGuardados)
+      // The data is stored as { productos: [...], tasaCambio: ... }
+      const list = Array.isArray(parsed) ? parsed : (parsed.productos || [])
+
+      productos.value = list.map((p: BuyProduct) => ({
         ...p,
         cantidad: p.cantidad || 1,
       }))
@@ -784,8 +780,7 @@ function onBrandBlur() {
 function clearBrandSelection() {
   nuevoProducto.value.selectedBrandItem = null
   nuevoProducto.value.brand_id = null
-  brandSearch.query = ''
-  brandSearch.items = [] // Clear search results or reload all brands
+  clearBrandSearch()
 }
 
 // Nuevas variables para el modal

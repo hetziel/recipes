@@ -4,9 +4,6 @@ import {
   doc,
   getDocs,
   setDoc,
-  query,
-  where,
-  orderBy,
 } from 'firebase/firestore'
 import { db } from '../firebase.config' // Assuming firebase.config is in parent directory
 import type { Brand } from '../types/producto' // Use Brand interface from producto.ts
@@ -57,7 +54,7 @@ export function useBrands() {
       brandSearch.isLoading = true
 
       // Search in allBrands data
-      const foundBrands = allBrands.value.filter(
+      const foundBrands: SearchableItem[] = allBrands.value.filter(
         (brand) => brand.name.toLowerCase().includes(queryText)
       ).map(b => ({ id: b.id, name: b.name }))
 
