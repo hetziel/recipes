@@ -157,14 +157,27 @@
                 <div class="sc-values">
                   <div class="sc-value-item">
                     <label>Inversión</label>
-                    <span>${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
+                    <div class="price-stack">
+                      <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
+                      <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
+                      }}</span>
+                    </div>
                   </div>
                   <div class="sc-value-item highlight-success">
                     <label>Precio Venta</label>
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
+                    </div>
+                  </div>
+                  <div class="sc-value-item highlight-profit">
+                    <label>Ganancia</label>
+                    <div class="price-stack">
+                      <span class="price-usd">${{ (calculateScenarioSalePrice(scenario) -
+                        calculateScenarioUnitCost(scenario)).toFixed(2) }}</span>
+                      <span class="price-bs">Bs {{ ((calculateScenarioSalePrice(scenario) -
+                        calculateScenarioUnitCost(scenario)) * dolarRate).toFixed(2) }}</span>
                     </div>
                   </div>
                 </div>
@@ -279,20 +292,28 @@
                     <span class="value">{{ calculateEstimatedUnits(scenario).toFixed(1) }}</span>
                   </div>
                   <div class="result-badge">
-                    <span class="label">Inversión (Unit):</span>
-                    <span class="value">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
+                    <div class="badge-content">
+                      <span class="label">Inversión:</span>
+                      <span class="value">${{ calculateScenarioUnitCost(scenario).toFixed(2) }} / Bs {{
+                        (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2) }}</span>
+                    </div>
                   </div>
                   <div class="result-badge primary">
-                    <span class="label">Venta (Unit):</span>
-                    <span class="value">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
+                    <div class="badge-content">
+                      <span class="label">Venta:</span>
+                      <span class="value">${{ calculateScenarioSalePrice(scenario).toFixed(2) }} / Bs {{
+                        (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2) }}</span>
+                    </div>
                   </div>
                   <div class="result-badge success">
-                    <span class="label">Ganancia (Unit):</span>
-                    <span class="value">${{
-                      (
-                        calculateScenarioSalePrice(scenario) - calculateScenarioUnitCost(scenario)
-                      ).toFixed(2)
-                    }}</span>
+                    <div class="badge-content">
+                      <span class="label">Ganancia:</span>
+                      <span class="value">
+                        ${{ (calculateScenarioSalePrice(scenario) - calculateScenarioUnitCost(scenario)).toFixed(2) }}
+                        / Bs {{ ((calculateScenarioSalePrice(scenario) - calculateScenarioUnitCost(scenario)) *
+                          dolarRate).toFixed(2) }}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -801,6 +822,10 @@ onMounted(() => {
   color: #10b981;
 }
 
+.highlight-profit span.price-usd {
+  color: var(--primary);
+}
+
 .price-stack {
   display: flex;
   flex-direction: column;
@@ -899,11 +924,18 @@ onMounted(() => {
 
 .result-badge {
   background: var(--background);
-  padding: 6px 12px;
-  border-radius: 20px;
+  padding: 8px 16px;
+  border-radius: 12px;
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
   font-size: 0.9rem;
+}
+
+.badge-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .result-badge.primary {
