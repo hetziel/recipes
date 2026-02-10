@@ -36,7 +36,7 @@
               <div class="searchable-select">
                 <div class="input-with-icon">
                   <input v-model="categorySearch.query" @input="searchCategories"
-                    @focus="categorySearch.showDropdown = true" @blur="onCategoryBlur"
+                    @focus="() => { categorySearch.showDropdown = true; searchCategories(); }" @blur="onCategoryBlur"
                     placeholder="Buscar o crear categoría..." class="form-input search-input" />
                   <Icon name="magnify" class="input-icon" />
                 </div>
@@ -79,9 +79,9 @@
               </label>
               <div class="searchable-select">
                 <div class="input-with-icon">
-                  <input v-model="brandSearch.query" @input="brandSearch.searchBrands"
-                    @focus="brandSearch.showDropdown = true" @blur="onBrandBlur" placeholder="Buscar o crear marca..."
-                    class="form-input search-input" />
+                  <input v-model="brandSearch.query" @input="searchBrands"
+                    @focus="() => { brandSearch.showDropdown = true; searchBrands(); }" @blur="onBrandBlur"
+                    placeholder="Buscar o crear marca..." class="form-input search-input" />
                   <Icon name="magnify" class="input-icon" />
                 </div>
                 <div v-if="brandSearch.showDropdown && brandSearch.items.length" class="dropdown">
@@ -152,7 +152,7 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     handleProduct.currency_type === 'USD' ? '$' : 'Bs'
-                    }}</span>
+                  }}</span>
                   <input v-model.number="handleProduct.tempPrice" type="number" min="0" step="0.01" class="form-input"
                     placeholder="0.00" />
                 </div>
@@ -304,7 +304,7 @@
                     :name="getCategoryInfo(product.category_id)?.icon ?? ''" class="category-list-icon" />
                   <span v-else>{{
                     getMeasurementType(product.measurement_id)?.charAt(0) || 'P'
-                    }}</span>
+                  }}</span>
                 </div>
                 <div class="product-details">
                   <h3 class="product-name">{{ product.name }}</h3>
@@ -350,7 +350,7 @@
                   <div class="price-primary">
                     <span class="currency-symbol">{{
                       product.currency_type === 'USD' ? '$' : 'Bs'
-                      }}</span>
+                    }}</span>
                     {{ product.price?.toFixed(2) || '0.00' }}
                   </div>
                   <div class="price-secondary">
