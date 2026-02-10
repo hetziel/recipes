@@ -12,54 +12,87 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>Nombre</th>
-              <th>Peso Total</th>
+              <th width="40"></th>
+              <th>Nombre de la Receta</th>
+              <th>Peso Prod.</th>
               <th>Inversión Base</th>
-              <th>Paquetes / Escenarios</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="recipe in recipes" :key="recipe.id">
-              <td>
-                <router-link :to="`/recipes/${recipe.id}/edit`" class="recipe-link">
-                  {{ recipe.name }}
-                </router-link>
-                <div class="text-xs text-muted">{{ formatDate(recipe.updated_at) }}</div>
-              </td>
-              <td>{{ recipe.total_weight.toFixed(2) }}</td>
-              <td>
-                <div>${{ calculateBaseCost(recipe).toFixed(2) }}</div>
-                <div class="text-xs text-muted">Bs {{ (calculateBaseCost(recipe) *
-                  dolarRate).toFixed(2) }}
-                </div>
-              </td>
-              <td>
-                <div class="scenario-list-mini">
-                  <div v-for="(sc, idx) in recipe.scenarios" :key="idx" class="scenario-mini-item">
-                    <div class="sc-main">
-                      <span class="sc-name">{{ sc.name }}</span>
-                      <span class="sc-info">({{ sc.value }}{{ sc.mode === 'weight' ? 'g' : 'und'
-                      }})</span>
-                    </div>
-                    <div class="sc-price-group">
-                      <div class="sc-price">${{ getScenarioPrice(recipe, sc).toFixed(2) }}</div>
-                      <div class="sc-price-bs">Bs {{ (getScenarioPrice(recipe, sc) * dolarRate).toFixed(2) }}</div>
+            <template v-for="recipe in recipes" :key="recipe.id">
+              <tr class="recipe-row" :class="{ 'is-expanded': expandedRecipes[recipe.id!] }"
+                @click="toggleExpanded(recipe.id)">
+                <td>
+                  <button class="btn-expand">
+                    <Icon :name="expandedRecipes[recipe.id!] ? 'chevron-down' : 'chevron-right'" />
+                  </button>
+                </td>
+                <td>
+                  <div class="recipe-name-cell">
+                    <strong>{{ recipe.name }}</strong>
+                    <div class="text-xs text-muted">{{ formatDate(recipe.updated_at) }}</div>
+                  </div>
+                </td>
+                <td>{{ recipe.total_weight.toFixed(0) }}g</td>
+                <td>
+                  <div class="cost-stack">
+                    <span class="price-usd">${{ calculateBaseCost(recipe).toFixed(2) }}</span>
+                    <span class="price-bs">Bs {{ (calculateBaseCost(recipe) * dolarRate).toFixed(2) }}</span>
+                  </div>
+                </td>
+                <td>
+                  <div class="actions" @click.stop>
+                    <button @click="$router.push(`/recipes/${recipe.id}/edit`)" class="btn-icon" title="Editar">
+                      <Icon name="pencil" />
+                    </button>
+                    <button @click="confirmDelete(recipe)" class="btn-icon text-danger" title="Eliminar">
+                      <Icon name="delete" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <!-- LINEA DE HIJOS (ESCENARIOS) -->
+              <tr v-if="expandedRecipes[recipe.id!]" class="nested-row">
+                <td colspan="5">
+                  <div class="tree-children">
+                    <div v-for="(sc, idx) in recipe.scenarios" :key="idx" class="tree-item">
+                      <div class="tree-line"></div>
+                      <div class="scenario-card-mini">
+                        <div class="sc-info">
+                          <Icon name="package-variant" size="sm" />
+                          <span class="sc-name">{{ sc.name }}</span>
+                          <span class="sc-meta">{{ sc.value }}{{ sc.mode === 'weight' ? 'g' : 'und' }}</span>
+                        </div>
+                        <div class="sc-finances">
+                          <div class="fin-item">
+                            <label>Inversión</label>
+                            <div class="price-stack-mini">
+                              <span class="usd">${{ getScenarioUnitCost(recipe, sc).toFixed(2) }}</span>
+                              <span class="bs">Bs {{ (getScenarioUnitCost(recipe, sc) * dolarRate).toFixed(2) }}</span>
+                            </div>
+                          </div>
+                          <div class="fin-item highlight-success">
+                            <label>Venta</label>
+                            <div class="price-stack-mini">
+                              <span class="usd">${{ getScenarioPrice(recipe, sc).toFixed(2) }}</span>
+                              <span class="bs">Bs {{ (getScenarioPrice(recipe, sc) * dolarRate).toFixed(2) }}</span>
+                            </div>
+                          </div>
+                          <div class="fin-item highlight-profit">
+                            <label>Ganancia</label>
+                            <div class="price-stack-mini">
+                              <span class="usd">${{ getScenarioProfit(recipe, sc).toFixed(2) }}</span>
+                              <span class="bs">Bs {{ (getScenarioProfit(recipe, sc) * dolarRate).toFixed(2) }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </td>
-              <td>
-                <div class="actions">
-                  <button @click="$router.push(`/recipes/${recipe.id}/edit`)" class="btn-icon">
-                    <Icon name="pencil" />
-                  </button>
-                  <button @click="confirmDelete(recipe)" class="btn-icon text-danger">
-                    <Icon name="delete" />
-                  </button>
-                </div>
-              </td>
-            </tr>
+                </td>
+              </tr>
+            </template>
             <tr v-if="recipes.length === 0">
               <td colspan="5" class="text-center py-8">
                 <Icon name="chef-hat" size="xl" class="mb-2" />
@@ -84,6 +117,7 @@ import type { DolarBCV, Product } from '../types/producto'
 
 const recipes = ref<Recipe[]>([])
 const availableProducts = ref<Product[]>([])
+const expandedRecipes = ref<Record<string, boolean>>({})
 const loading = ref(false)
 
 const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
@@ -113,6 +147,11 @@ async function confirmDelete(recipe: Recipe) {
   }
 }
 
+function toggleExpanded(recipeId?: string) {
+  if (!recipeId) return
+  expandedRecipes.value[recipeId] = !expandedRecipes.value[recipeId]
+}
+
 function formatDate(dateStr?: string) {
   if (!dateStr) return ''
   return new Date(dateStr).toLocaleDateString()
@@ -132,28 +171,22 @@ function calculateBaseCost(recipe: Recipe): number {
 }
 
 // CALCULATION HELPERS
-function getScenarioPrice(recipe: Recipe, scenario: RecipeScenario) {
-  // Recalculate dynamic costs if products are loaded
-  const baseCost = calculateBaseCost(recipe)
-
+function calculateEstimatedUnits(recipe: Recipe, scenario: RecipeScenario): number {
   const totalFinalWeight = Math.max(0, (recipe.total_weight || 0) - (recipe.weight_loss || 0))
-
-  let units = 1
   if (scenario.mode === 'unit') {
     if (recipe.has_production_units && recipe.total_production_units) {
-      units = recipe.total_production_units / (scenario.value || 1)
-    } else {
-      units = scenario.value || 1
+      return recipe.total_production_units / (scenario.value || 1)
     }
+    return scenario.value || 1
   } else {
-    if (totalFinalWeight > 0) {
-      units = totalFinalWeight / (scenario.value || 1)
-    }
+    if (totalFinalWeight === 0) return 0
+    return totalFinalWeight / (scenario.value || 1)
   }
+}
 
-  if (units === 0) return 0
-
-  const utilityCost = (scenario.utilities || []).reduce((sum: number, u: RecipeUtility) => {
+// CALCULATION HELPERS
+function getScenarioUtilitiesCost(scenario: RecipeScenario): number {
+  return (scenario.utilities || []).reduce((sum: number, u: RecipeUtility) => {
     if (u.product_id) {
       const prod = getProductById(u.product_id)
       if (prod && prod.measurement_value) {
@@ -163,18 +196,28 @@ function getScenarioPrice(recipe: Recipe, scenario: RecipeScenario) {
     if (!u.quantity) return sum
     return sum + (u.cost / u.quantity) * (u.usage_quantity || 0)
   }, 0)
+}
 
-  const totalCost = baseCost + utilityCost
-  const unitCost = totalCost / units
+function getScenarioUnitCost(recipe: Recipe, scenario: RecipeScenario): number {
+  const units = calculateEstimatedUnits(recipe, scenario)
+  if (units <= 0) return 0
+  const baseCost = calculateBaseCost(recipe)
+  return (baseCost / units) + getScenarioUtilitiesCost(scenario)
+}
 
+function getScenarioPrice(recipe: Recipe, scenario: RecipeScenario) {
   if (scenario.fixed_sale_price && scenario.fixed_sale_price > 0) {
     if (scenario.fixed_sale_price_currency === 'Bs') {
       return scenario.fixed_sale_price / (dolarRate.value || 1)
     }
     return scenario.fixed_sale_price
   }
-
+  const unitCost = getScenarioUnitCost(recipe, scenario)
   return unitCost * (1 + (recipe.profit_margin_percent || 0) / 100)
+}
+
+function getScenarioProfit(recipe: Recipe, scenario: RecipeScenario): number {
+  return getScenarioPrice(recipe, scenario) - getScenarioUnitCost(recipe, scenario)
 }
 
 onMounted(() => {
@@ -210,9 +253,154 @@ onMounted(() => {
 
 .data-table th,
 .data-table td {
-  padding: 16px;
+  padding: 12px 16px;
   text-align: left;
   border-bottom: 1px solid var(--border);
+}
+
+.recipe-row {
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.recipe-row:hover {
+  background: var(--background);
+}
+
+.recipe-row.is-expanded {
+  background: rgba(79, 70, 229, 0.03);
+}
+
+.btn-expand {
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  border-radius: 4px;
+}
+
+.btn-expand:hover {
+  background: var(--border);
+  color: var(--primary);
+}
+
+.nested-row td {
+  padding: 0 0 16px 0 !important;
+  background: rgba(79, 70, 229, 0.01);
+}
+
+.tree-children {
+  padding-left: 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tree-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.tree-line {
+  position: absolute;
+  left: -20px;
+  top: -10px;
+  bottom: 50%;
+  width: 20px;
+  border-left: 2px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  border-bottom-left-radius: 8px;
+}
+
+.scenario-card-mini {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.sc-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sc-name {
+  font-weight: 600;
+}
+
+.sc-meta {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  background: var(--background);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.sc-finances {
+  display: flex;
+  gap: 24px;
+}
+
+.fin-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.fin-item label {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.fin-item span {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.highlight-success .usd {
+  color: #10b981;
+  font-weight: 800;
+}
+
+.highlight-profit .usd {
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.price-stack-mini {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.price-stack-mini .bs {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: -2px;
+}
+
+.cost-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.cost-stack .price-bs {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
 }
 
 .recipe-link {
