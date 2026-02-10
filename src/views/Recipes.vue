@@ -14,8 +14,8 @@
                         <tr>
                             <th>Nombre</th>
                             <th>Peso Total</th>
-                            <th>Inversión Total</th>
-                            <th>Formatos de Venta</th>
+                            <th>Inversión Base</th>
+                            <th>Paquetes / Escenarios</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
@@ -29,14 +29,15 @@
                             </td>
                             <td>{{ recipe.total_weight.toFixed(2) }}</td>
                             <td>
-                                <div>${{ recipe.total_cost.toFixed(2) }}</div>
-                                <div class="text-xs text-muted">Bs {{ (recipe.total_cost * dolarRate).toFixed(2) }}
+                                <div>${{ (recipe.total_cost_ingredients || 0).toFixed(2) }}</div>
+                                <div class="text-xs text-muted">Bs {{ ((recipe.total_cost_ingredients || 0) *
+                                    dolarRate).toFixed(2) }}
                                 </div>
                             </td>
                             <td>
                                 <div class="tags">
-                                    <span v-for="(fmt, idx) in recipe.production_formats" :key="idx" class="tag">
-                                        {{ fmt.weight_per_unit }}g
+                                    <span v-for="(sc, idx) in recipe.scenarios" :key="idx" class="tag">
+                                        {{ sc.name }}: {{ sc.value }}{{ sc.mode === 'weight' ? 'g' : 'u' }}
                                     </span>
                                 </div>
                             </td>
@@ -65,6 +66,7 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'RecipesView' })
 import { ref, onMounted, inject, computed, type Ref } from 'vue'
 import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore'
 import { db } from '../firebase.config'

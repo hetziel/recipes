@@ -17,35 +17,31 @@ export interface RecipeUtility {
   usage_quantity: number // Amount used
 }
 
-export interface ProductionFormat {
-  name?: string
+export interface RecipeScenario {
+  name: string // "Nombre del paquete/escenario"
   mode: 'weight' | 'unit'
-  value: number // Weight in grams or Units count
-  // result calculation:
-  // if mode == 'weight': units = total_final_weight / value
-  // if mode == 'unit': units = total_units (static) or value?
-  // Actually, usually if you sell by unit, you've already defined total_production_units.
-  // Let's refine:
+  value: number // weight per unit (if mode=weight) or total units (if mode=unit)
+  utilities: RecipeUtility[] // Scenario-specific utilities
 }
 
 export interface Recipe {
   id?: string
   name: string
   ingredients: RecipeIngredient[]
-  utilities: RecipeUtility[]
+  // Base utilities removed as per user request (moved to scenarios)
 
   // Production Totals
   total_weight: number // Sum of usage_weight of ingredients (Raw weight)
   weight_loss: number // weight lost during cooking (Merma)
-  total_production_units: number // Total units produced (Cantidad)
-
-  total_cost: number // Sum of ingredients cost + utilities cost
+  total_cost_ingredients: number // Cost of ingredients only
+  has_production_units: boolean // Toggle for unit-based yield
+  total_production_units?: number // Yield in units (e.g. 120 cookies)
 
   // Financials
   profit_margin_percent: number // Global profit margin (e.g. 200%)
 
-  // Saved production scenarios
-  production_formats?: ProductionFormat[]
+  // Saved production scenarios (Now called scenarios/paquetes)
+  scenarios: RecipeScenario[]
 
   created_at: string
   updated_at?: string
