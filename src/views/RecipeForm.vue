@@ -44,7 +44,6 @@
                 <th>Peso (Pkg)</th>
                 <th>Utilizado</th>
                 <th>Costo/Uso</th>
-                <th>V+% (Margen)</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -62,10 +61,6 @@
                   <input v-model.number="ing.usage_weight" type="number" class="input-sm" min="0" />
                 </td>
                 <td>${{ calculateIngredientCost(ing).toFixed(2) }}</td>
-                <td>
-                  <!-- Placeholder if needed for per-ingredient margin, or just visual -->
-                  -
-                </td>
                 <td>
                   <button @click="removeIngredient(index)" class="btn-icon text-danger">
                     <Icon name="delete" />
@@ -166,7 +161,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-success">
@@ -174,7 +169,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-profit">
