@@ -14,7 +14,6 @@
             <tr>
               <th width="40"></th>
               <th>Nombre de la Receta</th>
-              <th>Peso Prod.</th>
               <th>Inversión Base</th>
               <th>Acciones</th>
             </tr>
@@ -34,7 +33,6 @@
                     <div class="text-xs text-muted">{{ formatDate(recipe.updated_at) }}</div>
                   </div>
                 </td>
-                <td>{{ recipe.total_weight.toFixed(0) }}g</td>
                 <td>
                   <div class="cost-stack">
                     <span class="price-usd">${{ calculateBaseCost(recipe).toFixed(2) }}</span>
@@ -57,7 +55,6 @@
                 <td colspan="5">
                   <div class="tree-children">
                     <div v-for="(sc, idx) in recipe.scenarios" :key="idx" class="tree-item">
-                      <div class="tree-line"></div>
                       <div class="scenario-card-mini">
                         <div class="sc-info">
                           <Icon name="package-variant" size="sm" />
@@ -229,7 +226,6 @@ onMounted(() => {
 .recipes-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px;
 }
 
 .page-header {
@@ -294,7 +290,6 @@ onMounted(() => {
 }
 
 .tree-children {
-  padding-left: 60px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -304,17 +299,6 @@ onMounted(() => {
   position: relative;
   display: flex;
   align-items: center;
-}
-
-.tree-line {
-  position: absolute;
-  left: -20px;
-  top: -10px;
-  bottom: 50%;
-  width: 20px;
-  border-left: 2px solid var(--border);
-  border-bottom: 2px solid var(--border);
-  border-bottom-left-radius: 8px;
 }
 
 .scenario-card-mini {
@@ -514,5 +498,9 @@ onMounted(() => {
   background: var(--primary-light);
   padding: 2px 8px;
   border-radius: 4px;
+}
+
+.table-responsive {
+  overflow: auto;
 }
 </style>
