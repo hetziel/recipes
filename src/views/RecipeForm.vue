@@ -50,7 +50,12 @@
             </thead>
             <tbody>
               <tr v-for="(ing, index) in recipe.ingredients" :key="index">
-                <td>{{ getProductById(ing.product_id)?.name || 'Cargando...' }}</td>
+                <td>
+                  {{ getProductById(ing.product_id)?.name || 'Cargando...' }}
+                  <span v-if="getProductById(ing.product_id)?.brand_id" class="text-xs text-muted">
+                    ({{ getBrandName(getProductById(ing.product_id)?.brand_id) }})
+                  </span>
+                </td>
                 <td>${{ getProductById(ing.product_id)?.price.toFixed(2) || '0.00' }}</td>
                 <td>{{ getProductById(ing.product_id)?.measurement_value }}</td>
                 <td>
@@ -192,7 +197,12 @@
                       <tr v-for="(util, uIndex) in scenario.utilities" :key="uIndex">
                         <td>
                           <input v-if="!util.product_id" v-model="util.name" class="input-xs-wide" />
-                          <span v-else>{{ util.name }}</span>
+                          <div v-else>
+                            <span>{{ util.name }}</span>
+                            <div class="text-xs text-muted" v-if="getProductById(util.product_id)?.brand_id">
+                              ({{ getBrandName(getProductById(util.product_id)?.brand_id) }})
+                            </div>
+                          </div>
                         </td>
                         <td>
                           <input v-if="!util.product_id" v-model.number="util.cost" type="number" class="input-xs" />
@@ -257,7 +267,10 @@
         <input v-model="productSearch" placeholder="Buscar producto..." class="form-input mb-4" />
         <div class="product-list">
           <div v-for="prod in filteredProducts" :key="prod.id" class="product-item" @click="selectProduct(prod)">
-            <span>{{ prod.name }}</span>
+            <div class="product-info-mini">
+              <span class="product-name-mini">{{ prod.name }}</span>
+              <span v-if="prod.brand_id" class="product-brand-mini">{{ getBrandName(prod.brand_id) }}</span>
+            </div>
             <span>${{ prod.price }} ({{ prod.measurement_value }}
               {{ getMeasurementLabel(prod.measurement_id) }})</span>
           </div>
@@ -273,7 +286,10 @@
         <input v-model="utilitySearch" placeholder="Buscar insumo..." class="form-input mb-4" />
         <div class="product-list">
           <div v-for="prod in filteredUtilities" :key="prod.id" class="product-item" @click="selectUtility(prod)">
-            <span>{{ prod.name }}</span>
+            <div class="product-info-mini">
+              <span class="product-name-mini">{{ prod.name }}</span>
+              <span v-if="prod.brand_id" class="product-brand-mini">{{ getBrandName(prod.brand_id) }}</span>
+            </div>
             <span class="price-tag">${{ prod.price }} ({{ prod.measurement_value }}
               {{ getMeasurementLabel(prod.measurement_id) }})</span>
           </div>
@@ -295,9 +311,11 @@ import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue' // Assuming global Icon component
 import type { Recipe, RecipeIngredient, RecipeUtility, RecipeScenario } from '../types/recipe'
 import type { Product, DolarBCV } from '../types/producto'
+import { useBrands } from '../composables/useBrands'
 
 const route = useRoute()
 const router = useRouter()
+const { getBrandName } = useBrands()
 
 // STATE
 const isEditing = ref(false)
@@ -829,6 +847,20 @@ onMounted(() => {
   padding: 2px 6px;
   border-radius: 4px;
   font-weight: 600;
+}
+
+.product-info-mini {
+  display: flex;
+  flex-direction: column;
+}
+
+.product-name-mini {
+  font-weight: 600;
+}
+
+.product-brand-mini {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
 }
 
 .production-summary-header {
