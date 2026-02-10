@@ -121,6 +121,11 @@ onMounted(() => {
         <span class="icon"><i class="fi fi-rr-home"></i></span>
         <span class="text">Inicio</span>
       </RouterLink>
+      <!-- Ruta de /recipes -->
+      <RouterLink to="/recipes" class="nav-link" @click="toggleMenu">
+        <span class="icon"><i class="fi fi-rr-utensils"></i></span>
+        <span class="text">Recetas</span>
+      </RouterLink>
       <RouterLink to="/buys" class="nav-link" @click="toggleMenu">
         <span class="icon"><i class="fi fi-rr-shopping-cart"></i></span>
         <span class="text">Compras</span>
