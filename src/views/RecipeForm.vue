@@ -139,116 +139,161 @@
           <h3>Escenarios de Venta / Paquetes</h3>
 
           <div class="scenarios-list">
-            <div v-for="(scenario, sIndex) in recipe.scenarios" :key="sIndex" class="scenario-card card">
-              <div class="scenario-header">
-                <div class="form-group">
-                  <label>Nombre del Paquete</label>
-                  <input v-model="scenario.name" type="text" class="form-input" placeholder="Ej: Pack Familiar" />
+            <div v-for="(scenario, sIndex) in recipe.scenarios" :key="sIndex" class="scenario-card card"
+              :class="{ 'is-editing': editingScenarioIndex === sIndex }">
+
+              <!-- MODO RESUMEN -->
+              <div v-if="editingScenarioIndex !== sIndex" class="scenario-summary-item">
+                <div class="sc-main-info">
+                  <div class="sc-title">
+                    <Icon name="package-variant" />
+                    <strong>{{ scenario.name }}</strong>
+                  </div>
+                  <div class="sc-meta">
+                    {{ scenario.mode === 'weight' ? scenario.value + 'g por unidad' : scenario.value + ' unidades' }}
+                  </div>
                 </div>
-                <div class="header-right">
-                  <button @click="removeScenario(sIndex)" class="btn-icon text-danger">
+
+                <div class="sc-values">
+                  <div class="sc-value-item">
+                    <label>Inversión</label>
+                    <span>${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
+                  </div>
+                  <div class="sc-value-item highlight-success">
+                    <label>Precio Venta</label>
+                    <div class="price-stack">
+                      <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
+                      <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
+                        }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sc-actions">
+                  <button @click="editingScenarioIndex = sIndex" class="btn-icon" title="Editar Escenario">
+                    <Icon name="pencil" />
+                  </button>
+                  <button @click="removeScenario(sIndex)" class="btn-icon text-danger" title="Eliminar">
                     <Icon name="delete" />
                   </button>
                 </div>
               </div>
 
-              <div class="scenario-config">
-                <div class="form-group">
-                  <label>Modo</label>
-                  <select v-model="scenario.mode" class="form-select">
-                    <option value="weight">Por Peso Unitario</option>
-                    <option value="unit">Por Cantidad Fija</option>
-                  </select>
+              <!-- MODO EDICIÓN (FORMULARIO) -->
+              <div v-else class="scenario-form-container">
+                <div class="scenario-header">
+                  <div class="form-group">
+                    <label>Nombre del Paquete</label>
+                    <input v-model="scenario.name" type="text" class="form-input" placeholder="Ej: Pack Familiar" />
+                  </div>
+                  <div class="header-right">
+                    <button @click="editingScenarioIndex = null" class="btn btn-sm btn-success">
+                      <Icon name="check" /> Listo
+                    </button>
+                    <button @click="removeScenario(sIndex)" class="btn-icon text-danger">
+                      <Icon name="delete" />
+                    </button>
+                  </div>
                 </div>
-                <div class="form-group">
-                  <label>{{ scenario.mode === 'weight' ? 'Peso por Unidad (g)' : (recipe.has_production_units ?
-                    'Unidades por Paquete' : 'Cantidad de Unidades') }}</label>
-                  <input v-model.number="scenario.value" type="number" class="form-input" min="1" />
-                </div>
-                <div class="form-group">
-                  <label>% Ganancia</label>
-                  <input v-model.number="recipe.profit_margin_percent" type="number" class="form-input" />
-                </div>
-              </div>
 
-              <!-- UTILIDADES DEL ESCENARIO (PAQUETES) -->
-              <div class="packaging-section">
-                <header class="sub-header">
-                  <h4>
-                    <Icon name="package-variant" /> Empaque / Utilidades del Paquete
-                  </h4>
-                  <button @click="addUtilityToScenario(sIndex)" class="btn btn-xs btn-outline">
-                    <Icon name="plus" /> Agregar Insumo
-                  </button>
-                </header>
-                <div class="table-responsive" v-if="scenario.utilities && scenario.utilities.length > 0">
-                  <table class="mini-table">
-                    <thead>
-                      <tr>
-                        <th>Nombre</th>
-                        <th>Precio Pkg</th>
-                        <th>Cant. Pkg</th>
-                        <th>Uso</th>
-                        <th>Costo</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="(util, uIndex) in scenario.utilities" :key="uIndex">
-                        <td>
-                          <input v-if="!util.product_id" v-model="util.name" class="input-xs-wide" />
-                          <div v-else>
-                            <span>{{ util.name }}</span>
-                            <div class="text-xs text-muted" v-if="getProductById(util.product_id)?.brand_id">
-                              ({{ getBrandName(getProductById(util.product_id)?.brand_id) }})
+                <div class="scenario-config">
+                  <div class="form-group">
+                    <label>Modo</label>
+                    <select v-model="scenario.mode" class="form-select">
+                      <option value="weight">Por Peso Unitario</option>
+                      <option value="unit">Por Cantidad Fija</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>{{ scenario.mode === 'weight' ? 'Peso por Unidad (g)' : (recipe.has_production_units ?
+                      'Unidades por Paquete' : 'Cantidad de Unidades') }}</label>
+                    <input v-model.number="scenario.value" type="number" class="form-input" min="1" />
+                  </div>
+                  <div class="form-group">
+                    <label>% Ganancia</label>
+                    <input v-model.number="recipe.profit_margin_percent" type="number" class="form-input" />
+                  </div>
+                </div>
+
+                <!-- UTILIDADES DEL ESCENARIO (PAQUETES) -->
+                <div class="packaging-section">
+                  <header class="sub-header">
+                    <h4>
+                      <Icon name="package-variant" /> Empaque / Utilidades del Paquete
+                    </h4>
+                    <button @click="addUtilityToScenario(sIndex)" class="btn btn-xs btn-outline">
+                      <Icon name="plus" /> Agregar Insumo
+                    </button>
+                  </header>
+                  <div class="table-responsive" v-if="scenario.utilities && scenario.utilities.length > 0">
+                    <table class="mini-table">
+                      <thead>
+                        <tr>
+                          <th>Nombre</th>
+                          <th>Precio Pkg</th>
+                          <th>Cant. Pkg</th>
+                          <th>Uso</th>
+                          <th>Costo</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(util, uIndex) in scenario.utilities" :key="uIndex">
+                          <td>
+                            <input v-if="!util.product_id" v-model="util.name" class="input-xs-wide" />
+                            <div v-else>
+                              <span>{{ util.name }}</span>
+                              <div class="text-xs text-muted" v-if="getProductById(util.product_id)?.brand_id">
+                                ({{ getBrandName(getProductById(util.product_id)?.brand_id) }})
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td>
-                          <input v-if="!util.product_id" v-model.number="util.cost" type="number" class="input-xs" />
-                          <span v-else>${{ getProductById(util.product_id)?.price.toFixed(2) }}</span>
-                        </td>
-                        <td>
-                          <input v-if="!util.product_id" v-model.number="util.quantity" type="number"
-                            class="input-xs" />
-                          <span v-else>{{ getProductById(util.product_id)?.measurement_value }}</span>
-                        </td>
-                        <td>
-                          <input v-model.number="util.usage_quantity" type="number" class="input-xs" />
-                        </td>
-                        <td>${{ calculateScenarioUtilityCost(util).toFixed(2) }}</td>
-                        <td>
-                          <button @click="removeUtilityFromScenario(sIndex, uIndex)"
-                            class="btn-icon text-danger btn-xs">
-                            <Icon name="close" />
-                          </button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                          </td>
+                          <td>
+                            <input v-if="!util.product_id" v-model.number="util.cost" type="number" class="input-xs" />
+                            <span v-else>${{ getProductById(util.product_id)?.price.toFixed(2) }}</span>
+                          </td>
+                          <td>
+                            <input v-if="!util.product_id" v-model.number="util.quantity" type="number"
+                              class="input-xs" />
+                            <span v-else>{{ getProductById(util.product_id)?.measurement_value }}</span>
+                          </td>
+                          <td>
+                            <input v-model.number="util.usage_quantity" type="number" class="input-xs" />
+                          </td>
+                          <td>${{ calculateScenarioUtilityCost(util).toFixed(2) }}</td>
+                          <td>
+                            <button @click="removeUtilityFromScenario(sIndex, uIndex)"
+                              class="btn-icon text-danger btn-xs">
+                              <Icon name="close" />
+                            </button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
 
-              <div class="scenario-results">
-                <div class="result-badge">
-                  <span class="label">Unidades:</span>
-                  <span class="value">{{ calculateEstimatedUnits(scenario).toFixed(1) }}</span>
-                </div>
-                <div class="result-badge">
-                  <span class="label">Inversión (Unit):</span>
-                  <span class="value">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
-                </div>
-                <div class="result-badge primary">
-                  <span class="label">Venta (Unit):</span>
-                  <span class="value">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
-                </div>
-                <div class="result-badge success">
-                  <span class="label">Ganancia (Unit):</span>
-                  <span class="value">${{
-                    (
-                      calculateScenarioSalePrice(scenario) - calculateScenarioUnitCost(scenario)
-                    ).toFixed(2)
-                  }}</span>
+                <div class="scenario-results">
+                  <div class="result-badge">
+                    <span class="label">Unidades:</span>
+                    <span class="value">{{ calculateEstimatedUnits(scenario).toFixed(1) }}</span>
+                  </div>
+                  <div class="result-badge">
+                    <span class="label">Inversión (Unit):</span>
+                    <span class="value">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
+                  </div>
+                  <div class="result-badge primary">
+                    <span class="label">Venta (Unit):</span>
+                    <span class="value">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
+                  </div>
+                  <div class="result-badge success">
+                    <span class="label">Ganancia (Unit):</span>
+                    <span class="value">${{
+                      (
+                        calculateScenarioSalePrice(scenario) - calculateScenarioUnitCost(scenario)
+                      ).toFixed(2)
+                    }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -325,6 +370,7 @@ const showUtilityModal = ref(false)
 const productSearch = ref('')
 const utilitySearch = ref('')
 const activeScenarioIndex = ref<number | null>(null)
+const editingScenarioIndex = ref<number | null>(null)
 const availableProducts = ref<Product[]>([])
 
 const recipe = ref<Recipe>({
@@ -442,6 +488,7 @@ function addScenario() {
     value: 100,
     utilities: [],
   })
+  editingScenarioIndex.value = recipe.value.scenarios.length - 1
 }
 
 function removeScenario(index: number) {
@@ -689,6 +736,87 @@ onMounted(() => {
 
 .scenario-card {
   border-left: 4px solid var(--primary);
+  transition: all 0.2s ease;
+}
+
+.scenario-card.is-editing {
+  border: 2px solid var(--primary);
+  border-left-width: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.scenario-summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.sc-main-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sc-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+}
+
+.sc-meta {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-left: 28px;
+}
+
+.sc-values {
+  display: flex;
+  gap: 32px;
+  margin-left: auto;
+  margin-right: 32px;
+}
+
+.sc-value-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.sc-value-item label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.sc-value-item span {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.highlight-success span.price-usd {
+  color: #10b981;
+}
+
+.price-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.price-bs {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin-top: -2px;
+}
+
+.sc-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .scenario-header {
