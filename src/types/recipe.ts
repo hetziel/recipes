@@ -18,8 +18,14 @@ export interface RecipeUtility {
 }
 
 export interface ProductionFormat {
-  weight_per_unit: number // e.g. 20g
-  // output is calculated dynamically
+  name?: string
+  mode: 'weight' | 'unit'
+  value: number // Weight in grams or Units count
+  // result calculation:
+  // if mode == 'weight': units = total_final_weight / value
+  // if mode == 'unit': units = total_units (static) or value?
+  // Actually, usually if you sell by unit, you've already defined total_production_units.
+  // Let's refine:
 }
 
 export interface Recipe {
@@ -29,13 +35,16 @@ export interface Recipe {
   utilities: RecipeUtility[]
 
   // Production Totals
-  total_weight: number // Sum of usage_weight of ingredients
+  total_weight: number // Sum of usage_weight of ingredients (Raw weight)
+  weight_loss: number // weight lost during cooking (Merma)
+  total_production_units: number // Total units produced (Cantidad)
+
   total_cost: number // Sum of ingredients cost + utilities cost
 
   // Financials
   profit_margin_percent: number // Global profit margin (e.g. 200%)
 
-  // Saved production scenarios (optional, or just re-calculate on view)
+  // Saved production scenarios
   production_formats?: ProductionFormat[]
 
   created_at: string

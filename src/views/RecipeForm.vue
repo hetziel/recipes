@@ -150,11 +150,25 @@
 
                 <div class="summary-grid">
                     <div class="summary-item">
-                        <label>Peso Total Mezcla</label>
-                        <div class="value">{{ totalWeight.toFixed(2) }}</div>
+                        <label>Peso Crudo (Mezcla)</label>
+                        <div class="value">{{ totalWeight.toFixed(2) }}g</div>
                     </div>
                     <div class="summary-item">
-                        <label>Costo Total (Inversión)</label>
+                        <label>Merma (Pérdida)</label>
+                        <input v-model.number="recipe.weight_loss" type="number" class="input-sm large-input" min="0" />
+                        <span class="unit">g</span>
+                    </div>
+                    <div class="summary-item highlight">
+                        <label>Peso Final Cocido</label>
+                        <div class="value">{{ totalFinalWeight.toFixed(2) }}g</div>
+                    </div>
+                    <div class="summary-item">
+                        <label>Unidades Totales</label>
+                        <input v-model.number="recipe.total_production_units" type="number" class="input-sm large-input"
+                            min="1" />
+                    </div>
+                    <div class="summary-item">
+                        <label>Inversión Total</label>
                         <div class="value brand-color">${{ totalCost.toFixed(2) }}</div>
                         <div class="sub-value">Bs {{ (totalCost * dolarRate).toFixed(2) }}</div>
                     </div>
@@ -167,7 +181,8 @@
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Peso Unitario</th>
+                                    <th>Modo</th>
+                                    <th>Valor (g/Unid)</th>
                                     <th>Unidades Est.</th>
                                     <th>Inversión (Unit)</th>
                                     <th>% Ganancia</th>
@@ -179,13 +194,21 @@
                             <tbody>
                                 <tr v-for="(format, index) in recipe.production_formats" :key="index">
                                     <td>
-                                        <input v-model.number="format.weight_per_unit" type="number" class="input-sm" />
+                                        <select v-model="format.mode" class="select-sm">
+                                            <option value="weight">Por Peso</option>
+                                            <option value="unit">Por Unidad</option>
+                                        </select>
                                     </td>
                                     <td>
-                                        {{ (totalWeight / (format.weight_per_unit || 1)).toFixed(2) }}
+                                        <input v-if="format.mode === 'weight'" v-model.number="format.value"
+                                            type="number" class="input-sm" />
+                                        <span v-else>{{ recipe.total_production_units }} Unid.</span>
                                     </td>
                                     <td>
-                                        ${{ calculateUnitCost(format.weight_per_unit).toFixed(2) }}
+                                        {{ calculateEstimatedUnits(format).toFixed(2) }}
+                                    </td>
+                                    <td>
+                                        ${{ calculateUnitCost(format).toFixed(2) }}
                                     </td>
                                     <td>
                                         <input v-model.number="recipe.profit_margin_percent" type="number"
@@ -193,11 +216,11 @@
                                     </td>
                                     <td>
                                         <span class="price-tag">${{
-                                            calculateSalePrice(format.weight_per_unit).toFixed(2) }}</span>
+                                            calculateSalePrice(format).toFixed(2) }}</span>
                                     </td>
                                     <td class="text-success">
-                                        ${{ (calculateSalePrice(format.weight_per_unit) -
-                                            calculateUnitCost(format.weight_per_unit)).toFixed(2) }}
+                                        ${{ (calculateSalePrice(format) -
+                                            calculateUnitCost(format)).toFixed(2) }}
                                     </td>
                                     <td>
                                         <button @click="removeFormat(index)" class="btn-icon">
@@ -261,10 +284,12 @@ const recipe = ref<Recipe>({
     ingredients: [],
     utilities: [],
     total_weight: 0,
+    weight_loss: 0,
+    total_production_units: 1,
     total_cost: 0,
     profit_margin_percent: 30, // Default 30%
     production_formats: [
-        { weight_per_unit: 100 } // Default scenario
+        { mode: 'weight', value: 100 } // Default scenario
     ],
     created_at: new Date().toISOString().split('T')[0]
 })
@@ -276,6 +301,10 @@ const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
 // COMPUTED
 const totalWeight = computed(() => {
     return recipe.value.ingredients.reduce((sum, ing) => sum + (ing.usage_weight || 0), 0)
+})
+
+const totalFinalWeight = computed(() => {
+    return Math.max(0, totalWeight.value - (recipe.value.weight_loss || 0))
 })
 
 const totalIngredientsCost = computed(() => {
@@ -303,14 +332,23 @@ function calculateIngredientCost(ing: RecipeIngredient): number {
     return (ing.cost / ing.package_weight) * (ing.usage_weight || 0)
 }
 
-function calculateUnitCost(weightPerUnit: number): number {
-    if (totalWeight.value === 0) return 0
-    const units = totalWeight.value / (weightPerUnit || 1)
+function calculateEstimatedUnits(format: ProductionFormat): number {
+    if (format.mode === 'unit') {
+        return recipe.value.total_production_units || 1
+    } else {
+        if (totalFinalWeight.value === 0) return 0
+        return totalFinalWeight.value / (format.value || 1)
+    }
+}
+
+function calculateUnitCost(format: ProductionFormat): number {
+    const units = calculateEstimatedUnits(format)
+    if (units === 0) return 0
     return totalCost.value / units
 }
 
-function calculateSalePrice(weightPerUnit: number): number {
-    const unitCost = calculateUnitCost(weightPerUnit)
+function calculateSalePrice(format: ProductionFormat): number {
+    const unitCost = calculateUnitCost(format)
     return unitCost * (1 + (recipe.value.profit_margin_percent / 100))
 }
 
@@ -339,7 +377,7 @@ function removeUtility(index: number) {
 }
 
 function addProductionFormat() {
-    recipe.value.production_formats?.push({ weight_per_unit: 0 })
+    recipe.value.production_formats?.push({ mode: 'weight', value: 0 })
 }
 
 function removeFormat(index: number) {
@@ -541,6 +579,29 @@ onMounted(() => {
 
 .text-success {
     color: #10b981;
+}
+
+.large-input {
+    width: 100px;
+}
+
+.select-sm {
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+}
+
+.summary-item.highlight {
+    border: 2px solid var(--primary);
+    background: rgba(79, 70, 229, 0.05);
+    padding: 8px;
+    border-radius: 8px;
+}
+
+.unit {
+    margin-left: 4px;
+    color: var(--text-secondary);
 }
 
 .modal-overlay {
