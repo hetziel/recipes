@@ -161,7 +161,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
-                      }}</span>
+                        }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-success">
@@ -169,7 +169,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                      }}</span>
+                        }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-profit">
@@ -766,6 +766,10 @@ onMounted(() => {
   margin: 0;
 }
 
+.table-responsive {
+  overflow: auto;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -1250,5 +1254,124 @@ onMounted(() => {
   font-size: 0.85rem;
   margin-top: 6px;
   font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .recipe-form-container {
+    padding: 12px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .header-left {
+    justify-content: flex-start;
+  }
+
+  .header-actions {
+    display: flex;
+    justify-content: stretch;
+  }
+
+  .header-actions .btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .scenario-config {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .scenario-summary-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .sc-values {
+    width: 100%;
+    margin: 0;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 0;
+    border-top: 1px dashed var(--border);
+    border-bottom: 1px dashed var(--border);
+  }
+
+  .sc-meta {
+    margin-left: 0;
+    font-size: 0.8rem;
+  }
+
+  .sc-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .scenario-results {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .result-badge {
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+  }
+
+  .badge-content {
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .scenario-header-main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .scenario-header-main .btn {
+    width: 100%;
+  }
+
+  .sub-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .sub-header .btn {
+    width: 100%;
+  }
+
+  .modal-content {
+    width: 95%;
+    max-height: 90vh;
+    padding: 16px;
+  }
+
+  .summary-item.highlight,
+  .summary-item.success-border {
+    padding: 12px;
+  }
+
+  .value {
+    font-size: 1.25rem;
+  }
+
+  .large-input {
+    width: 100%;
+  }
 }
 </style>
