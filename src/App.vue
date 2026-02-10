@@ -39,7 +39,7 @@ async function cargarTasaDolar() {
   try {
     const dolarBCVLocal = localStorage.getItem('dolarBCV')
     const rate = await getExchangeRate
-    if (rate && rate.usd) {
+    if (rate && (rate.usdOficial || rate.usdParalelo)) {
       let datos = null
       try {
         datos = dolarBCVLocal ? JSON.parse(dolarBCVLocal) : null
@@ -48,7 +48,7 @@ async function cargarTasaDolar() {
       }
 
       dolarBCV.value = {
-        promedio: rate.usd,
+        promedio: rate.usdOficial || rate.usdParalelo || 0,
         fecha: rate.date,
         origen: datos && datos.origen === 'api' ? 'local' : datos?.origen || 'local',
       }
@@ -59,10 +59,10 @@ async function cargarTasaDolar() {
   if (onGetApiDolar) {
     try {
       const rate = await getExchangeRate
-      if (!rate) throw new Error('Error al obtener datos del dólar')
+      if (!rate || (!rate.usdOficial && !rate.usdParalelo)) throw new Error('Error al obtener datos del dólar')
 
       dolarBCV.value = {
-        promedio: rate.usd,
+        promedio: rate.usdOficial || rate.usdParalelo || 0,
         fecha: rate.date,
         origen: 'api',
       }
