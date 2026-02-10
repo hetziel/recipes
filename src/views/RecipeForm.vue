@@ -229,8 +229,26 @@
                     <input v-model.number="scenario.value" type="number" class="form-input" min="1" />
                   </div>
                   <div class="form-group">
-                    <label>% Ganancia</label>
+                    <label>% Ganancia Sugerida</label>
                     <input v-model.number="recipe.profit_margin_percent" type="number" class="form-input" />
+                  </div>
+                  <div class="form-group">
+                    <label>Precio de Venta Fijo</label>
+                    <div class="input-with-toggle">
+                      <input v-model.number="scenario.fixed_sale_price" type="number" class="form-input"
+                        placeholder="Ej: 5.00 (Opcional)" />
+                      <div class="currency-toggle">
+                        <button :class="{ active: scenario.fixed_sale_price_currency === 'USD' }"
+                          @click.prevent="scenario.fixed_sale_price_currency = 'USD'">$</button>
+                        <button :class="{ active: scenario.fixed_sale_price_currency === 'Bs' }"
+                          @click.prevent="scenario.fixed_sale_price_currency = 'Bs'">Bs</button>
+                      </div>
+                    </div>
+                    <div v-if="scenario.fixed_sale_price && scenario.fixed_sale_price > 0" class="real-margin-info"
+                      :class="{ 'text-success': calculateScenarioRealMargin(scenario) >= 30, 'text-warning': calculateScenarioRealMargin(scenario) < 30 }">
+                      <Icon name="trending-up" />
+                      Margen Real: <strong>{{ calculateScenarioRealMargin(scenario).toFixed(1) }}%</strong>
+                    </div>
                   </div>
                 </div>
 
@@ -433,7 +451,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, inject, type Ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { collection, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue' // Assuming global Icon component
@@ -442,7 +460,6 @@ import type { Product, DolarBCV } from '../types/producto'
 import { useBrands } from '../composables/useBrands'
 
 const route = useRoute()
-const router = useRouter()
 const { getBrandName } = useBrands()
 
 // STATE
@@ -549,9 +566,26 @@ function calculateScenarioUnitCost(scenario: RecipeScenario): number {
   return (totalIngredientsCost.value / units) + calculateScenarioUtilitiesCost(scenario)
 }
 
+function getScenarioFixedPriceInUSD(scenario: RecipeScenario): number {
+  if (!scenario.fixed_sale_price) return 0
+  if (scenario.fixed_sale_price_currency === 'Bs') {
+    return scenario.fixed_sale_price / (dolarRate.value || 1)
+  }
+  return scenario.fixed_sale_price
+}
+
 function calculateScenarioSalePrice(scenario: RecipeScenario): number {
+  const fixedPrice = getScenarioFixedPriceInUSD(scenario)
+  if (fixedPrice > 0) return fixedPrice
   const unitCost = calculateScenarioUnitCost(scenario)
   return unitCost * (1 + recipe.value.profit_margin_percent / 100)
+}
+
+function calculateScenarioRealMargin(scenario: RecipeScenario): number {
+  const salePrice = calculateScenarioSalePrice(scenario)
+  const unitCost = calculateScenarioUnitCost(scenario)
+  if (unitCost <= 0) return 0
+  return ((salePrice / unitCost) - 1) * 100
 }
 
 function calculateBatchTotalInvestment(scenario: RecipeScenario): number {
@@ -584,6 +618,7 @@ function addScenario() {
     name: 'Nuevo Paquete',
     mode: 'weight',
     value: 100,
+    fixed_sale_price_currency: 'USD',
     utilities: [],
   })
   editingScenarioIndex.value = recipe.value.scenarios.length - 1
@@ -930,7 +965,7 @@ onMounted(() => {
 
 .scenario-config {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -1177,5 +1212,48 @@ onMounted(() => {
   background: rgba(16, 185, 129, 0.05);
   padding: 8px;
   border-radius: 8px;
+}
+
+.input-with-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.input-with-toggle .form-input {
+  border: none !important;
+  flex: 1;
+}
+
+.currency-toggle {
+  display: flex;
+  background: var(--background);
+  border-left: 1px solid var(--border);
+}
+
+.currency-toggle button {
+  padding: 0 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+
+.currency-toggle button.active {
+  background: var(--primary);
+  color: white;
+}
+
+.real-margin-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  margin-top: 6px;
+  font-weight: 500;
 }
 </style>

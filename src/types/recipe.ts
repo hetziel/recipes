@@ -16,6 +16,8 @@ export interface RecipeScenario {
   name: string // "Nombre del paquete/escenario"
   mode: 'weight' | 'unit'
   value: number // weight per unit (if mode=weight) or total units (if mode=unit)
+  fixed_sale_price?: number // Manual override for sale price
+  fixed_sale_price_currency?: 'USD' | 'Bs'
   utilities: RecipeUtility[] // Scenario-specific utilities
 }
 

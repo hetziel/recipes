@@ -167,6 +167,13 @@ function getScenarioPrice(recipe: Recipe, scenario: RecipeScenario) {
   const totalCost = baseCost + utilityCost
   const unitCost = totalCost / units
 
+  if (scenario.fixed_sale_price && scenario.fixed_sale_price > 0) {
+    if (scenario.fixed_sale_price_currency === 'Bs') {
+      return scenario.fixed_sale_price / (dolarRate.value || 1)
+    }
+    return scenario.fixed_sale_price
+  }
+
   return unitCost * (1 + (recipe.profit_margin_percent || 0) / 100)
 }
 
