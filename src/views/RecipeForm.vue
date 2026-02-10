@@ -136,7 +136,13 @@
         </div>
 
         <div class="scenario-calculator">
-          <h3>Escenarios de Venta / Paquetes</h3>
+          <div class="scenario-header-main">
+            <h3>Escenarios de Venta / Paquetes</h3>
+            <button v-if="recipe.scenarios.length > 0" @click="showBatchSummaryModal = true"
+              class="btn btn-sm btn-outline">
+              <Icon name="chart-bar" /> Ver Totales de Producción
+            </button>
+          </div>
 
           <div class="scenarios-list">
             <div v-for="(scenario, sIndex) in recipe.scenarios" :key="sIndex" class="scenario-card card"
@@ -160,7 +166,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
-                      }}</span>
+                        }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-success">
@@ -168,7 +174,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                      }}</span>
+                        }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-profit">
@@ -366,6 +372,62 @@
         <button @click="showUtilityModal = false" class="btn btn-secondary mt-4">Cancelar</button>
       </div>
     </div>
+
+    <!-- BATCH SUMMARY MODAL -->
+    <div v-if="showBatchSummaryModal" class="modal-overlay">
+      <div class="modal-content large-modal">
+        <header class="modal-header">
+          <h3>
+            <Icon name="chart-pie" /> Resumen de Producción Total (Batch)
+          </h3>
+          <button @click="showBatchSummaryModal = false" class="btn-icon">
+            <Icon name="close" />
+          </button>
+        </header>
+
+        <p class="modal-desc">
+          Este resumen muestra cuánto ganarías si vendieras <strong>toda la producción</strong> del lote bajo cada
+          escenario.
+        </p>
+
+        <div class="table-responsive">
+          <table class="data-table summary-table">
+            <thead>
+              <tr>
+                <th>Escenario</th>
+                <th>Inversión Total</th>
+                <th>Venta Total</th>
+                <th>Ganancia Bruta</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(sc, idx) in recipe.scenarios" :key="idx">
+                <td>
+                  <strong>{{ sc.name }}</strong>
+                  <div class="text-xs text-muted">{{ calculateEstimatedUnits(sc).toFixed(1) }} unidades</div>
+                </td>
+                <td>
+                  <div class="val-usd">${{ calculateBatchTotalInvestment(sc).toFixed(2) }}</div>
+                  <div class="val-bs text-xs">Bs {{ (calculateBatchTotalInvestment(sc) * dolarRate).toFixed(2) }}</div>
+                </td>
+                <td>
+                  <div class="val-usd text-success">${{ calculateBatchTotalIncome(sc).toFixed(2) }}</div>
+                  <div class="val-bs text-xs">Bs {{ (calculateBatchTotalIncome(sc) * dolarRate).toFixed(2) }}</div>
+                </td>
+                <td>
+                  <div class="val-usd brand-color">${{ calculateBatchTotalProfit(sc).toFixed(2) }}</div>
+                  <div class="val-bs text-xs">Bs {{ (calculateBatchTotalProfit(sc) * dolarRate).toFixed(2) }}</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="modal-footer mt-6">
+          <button @click="showBatchSummaryModal = false" class="btn btn-primary btn-block">Entendido</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -392,6 +454,7 @@ const productSearch = ref('')
 const utilitySearch = ref('')
 const activeScenarioIndex = ref<number | null>(null)
 const editingScenarioIndex = ref<number | null>(null)
+const showBatchSummaryModal = ref(false)
 const availableProducts = ref<Product[]>([])
 
 const recipe = ref<Recipe>({
@@ -472,23 +535,37 @@ function calculateScenarioUtilityCost(util: RecipeUtility): number {
   return (util.cost / util.quantity) * (util.usage_quantity || 0)
 }
 
-function calculateScenarioTotalCost(scenario: RecipeScenario): number {
-  const totalUtilities = scenario.utilities.reduce(
+function calculateScenarioUtilitiesCost(scenario: RecipeScenario): number {
+  return scenario.utilities.reduce(
     (sum, u) => sum + calculateScenarioUtilityCost(u),
     0,
   )
-  return totalIngredientsCost.value + totalUtilities
 }
 
 function calculateScenarioUnitCost(scenario: RecipeScenario): number {
   const units = calculateEstimatedUnits(scenario)
-  if (units === 0) return 0
-  return calculateScenarioTotalCost(scenario) / units
+  if (units <= 0) return 0
+  // (Total Ingredients / Total Units) + Utilities per Unit
+  return (totalIngredientsCost.value / units) + calculateScenarioUtilitiesCost(scenario)
 }
 
 function calculateScenarioSalePrice(scenario: RecipeScenario): number {
   const unitCost = calculateScenarioUnitCost(scenario)
   return unitCost * (1 + recipe.value.profit_margin_percent / 100)
+}
+
+function calculateBatchTotalInvestment(scenario: RecipeScenario): number {
+  const units = calculateEstimatedUnits(scenario)
+  return totalIngredientsCost.value + (calculateScenarioUtilitiesCost(scenario) * units)
+}
+
+function calculateBatchTotalIncome(scenario: RecipeScenario): number {
+  const units = calculateEstimatedUnits(scenario)
+  return calculateScenarioSalePrice(scenario) * units
+}
+
+function calculateBatchTotalProfit(scenario: RecipeScenario): number {
+  return calculateBatchTotalIncome(scenario) - calculateBatchTotalInvestment(scenario)
 }
 
 // FORMAT HELPERS
@@ -998,6 +1075,54 @@ onMounted(() => {
 
 .product-item:hover {
   background: var(--background);
+}
+
+.modal-content.large-modal {
+  max-width: 800px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.modal-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.modal-desc {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.summary-table th {
+  background: var(--background);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.val-usd {
+  font-weight: 700;
+}
+
+.val-bs {
+  color: var(--text-secondary);
+}
+
+.scenario-header-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.btn-block {
+  width: 100%;
 }
 
 .price-tag {
