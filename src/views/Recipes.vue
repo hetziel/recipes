@@ -503,4 +503,50 @@ onMounted(() => {
 .table-responsive {
   overflow: auto;
 }
+
+@media (max-width: 768px) {
+  .tree-children {
+    padding-left: 15px;
+  }
+
+  .scenario-card-mini {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .sc-info {
+    width: 100%;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+
+  .sc-finances {
+    width: 100%;
+    justify-content: space-between;
+    gap: 0;
+  }
+
+  .fin-item {
+    align-items: flex-start;
+  }
+
+  .price-stack-mini {
+    align-items: flex-start;
+  }
+
+  .fin-item label {
+    font-size: 0.6rem;
+  }
+
+  .fin-item .usd {
+    font-size: 0.85rem;
+  }
+
+  .fin-item .bs {
+    font-size: 0.7rem;
+  }
+}
 </style>
