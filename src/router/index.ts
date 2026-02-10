@@ -1,7 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Products from '../views/Products.vue'
-import GoogleDriveView from '../views/GoogleDriveView.vue'
-
 const router = createRouter({
   history: createWebHistory('/'),
   routes: [
@@ -15,14 +13,6 @@ const router = createRouter({
       name: 'buys',
       component: () => import('../views/BuysView.vue'),
     },
-    // {
-    //   path: '/drive',
-    //   name: 'drive',
-    //   component: GoogleDriveView,
-    //   meta: {
-    //     requiresAuth: true
-    //   }
-    // },
     {
       path: '/calculator',
       name: 'calculator',
@@ -30,7 +20,22 @@ const router = createRouter({
       meta: {
         title: 'Calculadora Bs/USD'
       }
-    }
+    },
+    {
+      path: '/recipes',
+      name: 'recipes',
+      component: () => import('../views/Recipes.vue'),
+    },
+    {
+      path: '/recipes/create',
+      name: 'recipes-create',
+      component: () => import('../views/RecipeForm.vue'),
+    },
+    {
+      path: '/recipes/:id/edit',
+      name: 'recipes-edit',
+      component: () => import('../views/RecipeForm.vue'),
+    },
   ],
 })
 
