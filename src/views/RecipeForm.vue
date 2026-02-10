@@ -50,9 +50,9 @@
             </thead>
             <tbody>
               <tr v-for="(ing, index) in recipe.ingredients" :key="index">
-                <td>{{ ing.name }}</td>
-                <td>${{ ing.cost.toFixed(2) }}</td>
-                <td>{{ ing.package_weight }}</td>
+                <td>{{ getProductById(ing.product_id)?.name || 'Cargando...' }}</td>
+                <td>${{ getProductById(ing.product_id)?.price.toFixed(2) || '0.00' }}</td>
+                <td>{{ getProductById(ing.product_id)?.measurement_value }}</td>
                 <td>
                   <input v-model.number="ing.usage_weight" type="number" class="input-sm" min="0" />
                 </td>
@@ -190,10 +190,18 @@
                     </thead>
                     <tbody>
                       <tr v-for="(util, uIndex) in scenario.utilities" :key="uIndex">
-                        <td><input v-model="util.name" class="input-xs-wide" /></td>
-                        <td><input v-model.number="util.cost" type="number" class="input-xs" /></td>
                         <td>
-                          <input v-model.number="util.quantity" type="number" class="input-xs" />
+                          <input v-if="!util.product_id" v-model="util.name" class="input-xs-wide" />
+                          <span v-else>{{ util.name }}</span>
+                        </td>
+                        <td>
+                          <input v-if="!util.product_id" v-model.number="util.cost" type="number" class="input-xs" />
+                          <span v-else>${{ getProductById(util.product_id)?.price.toFixed(2) }}</span>
+                        </td>
+                        <td>
+                          <input v-if="!util.product_id" v-model.number="util.quantity" type="number"
+                            class="input-xs" />
+                          <span v-else>{{ getProductById(util.product_id)?.measurement_value }}</span>
                         </td>
                         <td>
                           <input v-model.number="util.usage_quantity" type="number" class="input-xs" />
@@ -318,6 +326,11 @@ const recipe = ref<Recipe>({
 const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
 const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
 
+// HELPERS
+function getProductById(id: string): Product | undefined {
+  return availableProducts.value.find(p => p.id === id)
+}
+
 // COMPUTED
 const totalWeight = computed(() => {
   return recipe.value.ingredients.reduce((sum, ing) => sum + (ing.usage_weight || 0), 0)
@@ -346,8 +359,9 @@ const filteredUtilities = computed(() => {
 
 // METHODS
 function calculateIngredientCost(ing: RecipeIngredient): number {
-  if (!ing.package_weight || ing.package_weight === 0) return 0
-  return (ing.cost / ing.package_weight) * (ing.usage_weight || 0)
+  const prod = getProductById(ing.product_id)
+  if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
+  return (prod.price / prod.measurement_value) * (ing.usage_weight || 0)
 }
 
 function calculateEstimatedUnits(scenario: RecipeScenario): number {
@@ -364,6 +378,11 @@ function calculateEstimatedUnits(scenario: RecipeScenario): number {
 }
 
 function calculateScenarioUtilityCost(util: RecipeUtility): number {
+  if (util.product_id) {
+    const prod = getProductById(util.product_id)
+    if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
+    return (prod.price / prod.measurement_value) * (util.usage_quantity || 0)
+  }
   if (!util.quantity || util.quantity === 0) return 0
   return (util.cost / util.quantity) * (util.usage_quantity || 0)
 }
@@ -419,6 +438,7 @@ function addUtilityToScenario(sIndex: number) {
 function selectUtility(prod: Product) {
   if (activeScenarioIndex.value !== null) {
     recipe.value.scenarios[activeScenarioIndex.value].utilities.push({
+      product_id: prod.id,
       name: prod.name,
       cost: prod.price,
       quantity: prod.measurement_value,
@@ -460,9 +480,6 @@ function openProductModal() {
 function selectProduct(prod: Product) {
   recipe.value.ingredients.push({
     product_id: prod.id || '',
-    name: prod.name,
-    cost: prod.price,
-    package_weight: prod.measurement_value,
     usage_weight: 0,
   })
   showProductModal.value = false

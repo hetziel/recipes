@@ -1,18 +1,13 @@
 export interface RecipeIngredient {
   product_id: string
-  name: string
-  // Snapshot data to preserve recipe history if product changes
-  cost: number // Cost of the product package (Efectivo)
-  package_weight: number // Weight of the product package (Peso)
   usage_weight: number // Amount used in recipe (Utilizado)
-  // Calculated:
-  // cost_used = (cost / package_weight) * usage_weight
 }
 
 export interface RecipeUtility {
   id?: string
+  product_id?: string // Reference to product if applicable
   name: string
-  cost: number // Price of the utility package
+  cost: number // Price if not linked to product, or snapshot
   quantity: number // Total quantity in package
   usage_quantity: number // Amount used
 }

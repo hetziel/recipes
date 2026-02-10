@@ -29,8 +29,8 @@
               </td>
               <td>{{ recipe.total_weight.toFixed(2) }}</td>
               <td>
-                <div>${{ (recipe.total_cost_ingredients || 0).toFixed(2) }}</div>
-                <div class="text-xs text-muted">Bs {{ ((recipe.total_cost_ingredients || 0) *
+                <div>${{ calculateBaseCost(recipe).toFixed(2) }}</div>
+                <div class="text-xs text-muted">Bs {{ (calculateBaseCost(recipe) *
                   dolarRate).toFixed(2) }}
                 </div>
               </td>
@@ -80,9 +80,10 @@ import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
 import type { Recipe, RecipeScenario, RecipeUtility } from '../types/recipe'
-import type { DolarBCV } from '../types/producto'
+import type { DolarBCV, Product } from '../types/producto'
 
 const recipes = ref<Recipe[]>([])
+const availableProducts = ref<Product[]>([])
 const loading = ref(false)
 
 const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
@@ -91,6 +92,10 @@ const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
 async function loadRecipes() {
   loading.value = true
   try {
+    // Load products first for calculations
+    const prodSnap = await getDocs(collection(db, 'productos'))
+    availableProducts.value = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
+
     const snap = await getDocs(collection(db, 'recipes'))
     recipes.value = snap.docs.map(d => ({ id: d.id, ...d.data() } as Recipe))
   } catch (e) {
@@ -113,8 +118,24 @@ function formatDate(dateStr?: string) {
   return new Date(dateStr).toLocaleDateString()
 }
 
+function getProductById(id: string): Product | undefined {
+  return availableProducts.value.find(p => p.id === id)
+}
+
+function calculateBaseCost(recipe: Recipe): number {
+  const dynamicCost = recipe.ingredients.reduce((sum, ing) => {
+    const prod = getProductById(ing.product_id)
+    if (!prod || !prod.measurement_value) return sum
+    return sum + (prod.price / prod.measurement_value) * (ing.usage_weight || 0)
+  }, 0)
+  return dynamicCost || recipe.total_cost_ingredients || 0
+}
+
 // CALCULATION HELPERS
 function getScenarioPrice(recipe: Recipe, scenario: RecipeScenario) {
+  // Recalculate dynamic costs if products are loaded
+  const baseCost = calculateBaseCost(recipe)
+
   const totalFinalWeight = Math.max(0, (recipe.total_weight || 0) - (recipe.weight_loss || 0))
 
   let units = 1
@@ -133,11 +154,17 @@ function getScenarioPrice(recipe: Recipe, scenario: RecipeScenario) {
   if (units === 0) return 0
 
   const utilityCost = (scenario.utilities || []).reduce((sum: number, u: RecipeUtility) => {
+    if (u.product_id) {
+      const prod = getProductById(u.product_id)
+      if (prod && prod.measurement_value) {
+        return sum + (prod.price / prod.measurement_value) * (u.usage_quantity || 0)
+      }
+    }
     if (!u.quantity) return sum
     return sum + (u.cost / u.quantity) * (u.usage_quantity || 0)
   }, 0)
 
-  const totalCost = (recipe.total_cost_ingredients || 0) + utilityCost
+  const totalCost = baseCost + utilityCost
   const unitCost = totalCost / units
 
   return unitCost * (1 + (recipe.profit_margin_percent || 0) / 100)
