@@ -31,6 +31,38 @@
               <input id="name" v-model="nuevoProducto.name" type="text" class="form-input" />
             </div>
 
+            <!-- Marca -->
+            <div class="form-group">
+              <label class="form-label">
+                <Icon name="tag-outline" />
+                Marca
+              </label>
+              <div class="searchable-select">
+                <div class="input-with-icon">
+                  <input v-model="brandSearch.query" @input="brandSearch.searchBrands"
+                    @focus="brandSearch.showDropdown = true" @blur="onBrandBlur"
+                    placeholder="Buscar o crear marca..." class="form-input search-input" />
+                  <Icon name="magnify" class="input-icon" />
+                </div>
+                <div v-if="brandSearch.showDropdown && brandSearch.items.length" class="dropdown">
+                  <div v-for="item in brandSearch.items" :key="item.id" @mousedown="selectBrandItem(item)"
+                    class="dropdown-item" :class="{ 'new-item': item.isNew }">
+                    <Icon :name="item.isNew ? 'plus' : 'tag-outline'" />
+                    {{ item.isNew ? `Crear: "${item.name}"` : item.name }}
+                  </div>
+                </div>
+                <div v-if="nuevoProducto.selectedBrandItem" class="selected-item chip">
+                  <Icon name="check" />
+                  {{ nuevoProducto.selectedBrandItem.name }}
+                  <button type="button" @click="clearBrandSelection" class="clear-btn">&times;</button>
+                </div>
+                <div v-if="brandSearch.isLoading" class="loading-spinner">
+                  <div class="spinner"></div>
+                  Buscando...
+                </div>
+              </div>
+            </div>
+
             <div class="form-row">
               <div class="form-group">
                 <label for="moneda" class="form-label">
@@ -80,18 +112,31 @@
 
             <div class="form-row">
               <div class="form-group">
-                <label for="weight" class="form-label">
-                  <span class="label-icon">⚖️</span> Peso (kg)
+                <label class="form-label">
+                  <span class="label-icon">⚖️</span> Medida
                 </label>
-                <input id="weight" v-model.number="nuevoProducto.weight" type="number" min="0" step="0.1"
-                  class="form-input" />
+                <div class="select-wrapper">
+                  <select v-model="nuevoProducto.measurement_id" class="form-select">
+                    <option v-for="m in measurements.value" :key="m.id" :value="m.id">
+                      {{ m.type }}
+                    </option>
+                  </select>
+                  <i class="select-arrow"></i>
+                </div>
               </div>
               <div class="form-group">
-                <label for="cantidad" class="form-label">
-                  <span class="label-icon">📊</span> Cantidad
+                <label class="form-label">
+                  <span class="label-icon">🔢</span> Valor
                 </label>
-                <input id="cantidad" v-model.number="nuevoProducto.cantidad" type="number" min="1" class="form-input" />
+                <input v-model.number="nuevoProducto.measurement_value" type="number" min="0" step="0.01"
+                  class="form-input" placeholder="0.00" />
               </div>
+            </div>
+            <div class="form-group">
+              <label for="cantidad" class="form-label">
+                <span class="label-icon">📊</span> Cantidad
+              </label>
+              <input id="cantidad" v-model.number="nuevoProducto.cantidad" type="number" min="1" class="form-input" />
             </div>
           </div>
         </div>
@@ -139,7 +184,7 @@
       <div v-if="searchResults.length" class="search-results-selector">
         <div v-for="producto in searchResults" :key="`search-${producto.id}`" class="search-result-item">
           <div class="item-info">
-            <strong class="item-name">{{ producto.name }}</strong>
+            <strong class="item-name">{{ getFormattedProductName(producto) }}</strong>
             <div class="item-details">
               <span>Precio: ${{ producto.price?.toFixed(2) ?? 'N/A' }}</span>
               <span>Peso: {{ producto.weight ?? 'N/A' }} kg</span>
@@ -188,7 +233,7 @@
                 <td class="checkbox-cell">
                   <input type="checkbox" v-model="producto.seleccionado" @change="guardarSelecciones" />
                 </td>
-                <td class="product-name">{{ producto.name }}</td>
+                <td class="product-name">{{ getFormattedProductName(producto) }}</td>
                 <td class="numeric">
                   {{ producto.price ? '$' + producto.price.toFixed(2) : '-' }}
                 </td>
@@ -276,7 +321,7 @@
             </thead>
             <tbody>
               <tr v-for="producto in productosSeleccionados" :key="'selected-' + producto.id">
-                <td>{{ producto.name }}</td>
+                <td>{{ getFormattedProductName(producto) }}</td>
                 <td class="numeric">{{ producto.cantidad }}</td>
                 <td class="numeric">${{ producto.price?.toFixed(2) || '0.00' }}</td>
                 <td class="numeric">
@@ -423,26 +468,28 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, inject, type Ref } from 'vue'
-import type { DolarBCV } from '../types/producto'
+import type { DolarBCV, Product, Brand, Measurement } from '../types/producto'
+import type { SearchableItem, SearchState } from '../types/search'
+import { useBrands } from '../composables/useBrands'
+import { useMeasurements } from '../composables/useMeasurements'
+import Icon from '@/components/ui/Icon.vue'
 
-interface Product {
-  id?: number
-  name: string
-  price?: number
-  weight?: number | string
-  updated_at?: string
+interface BuyProduct extends Product {
   seleccionado?: boolean
   cantidad?: number
 }
 
 const STORAGE_KEY = 'productos-app-data'
 const SELECTION_KEY = 'productos-seleccionados'
-const productos = ref<Product[]>([])
-const productosSeleccionados = ref<Product[]>([])
+const productos = ref<BuyProduct[]>([])
+const productosSeleccionados = ref<BuyProduct[]>([])
 
 const { dolarBCV: dolarBCV } = inject<{
   dolarBCV: Ref<DolarBCV>
 }>('dolarBCV')!
+
+const { getBrandName } = useBrands()
+const { getMeasurementType } = useMeasurements()
 
 // Estado del presupuesto
 const presupuesto = ref({
@@ -626,6 +673,19 @@ function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString('es-ES', options)
 }
 
+function getFormattedProductName(product: BuyProduct): string {
+  const brandName = product.brand_id ? getBrandName(product.brand_id) : ''
+  const measurementType = product.measurement_id ? getMeasurementType(product.measurement_id) : ''
+  const weight = product.measurement_value ? `${product.measurement_value}${measurementType}` : ''
+
+  let parts: string[] = []
+  if (product.name) parts.push(product.name)
+  if (brandName) parts.push(brandName)
+  if (weight) parts.push(weight)
+
+  return parts.join(' - ')
+}
+
 function cargarProductos() {
   const datosGuardados = localStorage.getItem(STORAGE_KEY)
   if (datosGuardados) {
@@ -690,7 +750,7 @@ function resetSelecciones() {
   }
 }
 
-function seleccionarProductoDesdeBusqueda(productoASeleccionar: Product) {
+function seleccionarProductoDesdeBusqueda(productoASeleccionar: BuyProduct) {
   const productoEnListaPrincipal = productos.value.find((p) => p.id === productoASeleccionar.id)
   if (productoEnListaPrincipal) {
     productoEnListaPrincipal.seleccionado = true
@@ -700,6 +760,34 @@ function seleccionarProductoDesdeBusqueda(productoASeleccionar: Product) {
   }
 }
 
+async function selectBrandItem(item: SearchableItem) {
+  if (item.isNew) {
+    const newBrand = await createNewBrand(item.name)
+    if (newBrand) {
+      brandSearch.selectedItem = { id: newBrand.id!, name: newBrand.name }
+      nuevoProducto.value.brand_id = newBrand.id!
+    }
+  } else {
+    brandSearch.selectedItem = item
+    nuevoProducto.value.brand_id = item.id
+  }
+  brandSearch.query = item.name
+  brandSearch.showDropdown = false
+}
+
+function onBrandBlur() {
+  setTimeout(() => {
+    brandSearch.showDropdown = false
+  }, 200)
+}
+
+function clearBrandSelection() {
+  nuevoProducto.value.selectedBrandItem = null
+  nuevoProducto.value.brand_id = null
+  brandSearch.query = ''
+  brandSearch.items = [] // Clear search results or reload all brands
+}
+
 // Nuevas variables para el modal
 const showModal = ref(false)
 const nuevoProducto = ref({
@@ -707,8 +795,12 @@ const nuevoProducto = ref({
   price: 0,
   precioBs: '',
   moneda: 'USD',
-  weight: 0,
   cantidad: 1,
+  category_id: '', // Default to empty for now
+  brand_id: null as string | null,
+  measurement_id: 'mea1', // Default to 'Kg'
+  measurement_value: 0,
+  selectedBrandItem: null as SearchableItem | null,
 })
 
 // Computed para el price convertido
@@ -728,15 +820,25 @@ function convertirMoneda() {
 
 function agregarProducto() {
   if (!nuevoProducto.value.name) {
-    alert('Por favor ingresa un name para el producto')
+    alert('Por favor ingresa un nombre para el producto')
+    return
+  }
+  // Validate that a brand is selected if the selected item is new, and no brand_id is set yet
+  if (nuevoProducto.value.selectedBrandItem?.isNew && !nuevoProducto.value.brand_id) {
+    alert('Por favor selecciona una marca existente o crea la nueva marca antes de agregar el producto.')
     return
   }
 
-  const producto: Product = {
-    id: Date.now(),
+  const producto: BuyProduct = {
+    id: Date.now().toString(), // Use toString() for string ID
     name: nuevoProducto.value.name,
+    category_id: nuevoProducto.value.category_id,
+    brand_id: nuevoProducto.value.brand_id,
+    measurement_id: nuevoProducto.value.measurement_id,
+    measurement_value: nuevoProducto.value.measurement_value,
+    currency_type: nuevoProducto.value.moneda, // Use moneda for currency_type
+    price: 0, // Will be set below based on moneda
     cantidad: nuevoProducto.value.cantidad || 1,
-    weight: nuevoProducto.value.weight || 0,
     seleccionado: false,
   }
 
@@ -744,7 +846,7 @@ function agregarProducto() {
   if (nuevoProducto.value.moneda === 'USD') {
     producto.price = nuevoProducto.value.price
   } else {
-    producto.price = nuevoProducto.value.price / dolarBCV.value.promedio
+    producto.price = nuevoProducto.value.price / dolarBCV.value.promedio // Convert to USD for storage
   }
 
   productos.value.push(producto)
@@ -756,8 +858,12 @@ function agregarProducto() {
     price: 0,
     precioBs: '',
     moneda: 'USD',
-    weight: 0,
     cantidad: 1,
+    category_id: '',
+    brand_id: null,
+    measurement_id: 'mea1', // Default to 'Kg'
+    measurement_value: 0,
+    selectedBrandItem: null,
   }
 
   showModal.value = false

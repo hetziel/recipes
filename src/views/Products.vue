@@ -79,12 +79,13 @@
               </label>
               <div class="searchable-select">
                 <div class="input-with-icon">
-                  <input v-model="brandSearch.query" @input="searchBrands" @focus="brandSearch.showDropdown = true"
-                    @blur="onBrandBlur" placeholder="Buscar o crear marca..." class="form-input search-input" />
+                  <input v-model="brandSearch.query" @input="brandSearch.searchBrands"
+                    @focus="brandSearch.showDropdown = true" @blur="onBrandBlur"
+                    placeholder="Buscar o crear marca..." class="form-input search-input" />
                   <Icon name="magnify" class="input-icon" />
                 </div>
                 <div v-if="brandSearch.showDropdown && brandSearch.items.length" class="dropdown">
-                  <div v-for="item in brandSearch.items" :key="item.id" @mousedown="selectBrand(item)"
+                  <div v-for="item in brandSearch.items" :key="item.id" @mousedown="selectBrandItem(item)"
                     class="dropdown-item" :class="{ 'new-item': item.isNew }">
                     <Icon :name="item.isNew ? 'plus' : 'tag-outline'" />
                     {{ item.isNew ? `Crear: "${item.name}"` : item.name }}
@@ -93,7 +94,7 @@
                 <div v-if="brandSearch.selectedItem" class="selected-item chip">
                   <Icon name="check" />
                   {{ brandSearch.selectedItem.name }}
-                  <button type="button" @click="clearBrand" class="clear-btn">&times;</button>
+                  <button type="button" @click="clearBrandSearch" class="clear-btn">&times;</button>
                 </div>
                 <div v-if="brandSearch.isLoading" class="loading-spinner">
                   <div class="spinner"></div>
@@ -398,7 +399,12 @@ import {
 import { db } from '../firebase.config'
 
 // Interfaces y tipos
-import type { Product, DolarBCV, ExtendedProduct } from '../types/producto'
+import type { Product, DolarBCV, ExtendedProduct, Measurement } from '../types/producto'
+import type { SearchableItem, SearchState } from '../types/search'
+
+// Composables
+import { useBrands } from '../composables/useBrands'
+import { useMeasurements } from '../composables/useMeasurements'
 
 // Datos de configuración
 const onTesting = true
@@ -408,7 +414,6 @@ const typeAction = ref<'create' | 'edit'>('create')
 const STORAGE_KEY = 'productos-app-data'
 const PRODUCTOS_COLLECTION = 'productos'
 const CATEGORIAS_COLLECTION = 'categorias'
-const MARCAS_COLLECTION = 'marcas'
 
 const { dolarBCV: dolarBCV, actualizarDolarBCV } = inject<{
   dolarBCV: Ref<DolarBCV | null>
@@ -420,22 +425,11 @@ const error = ref<string | null>(null)
 const cargando = ref<boolean>(false)
 const isOnline = ref<boolean>(true)
 
-// Estados para búsqueda dinámica
-interface SearchableItem {
-  id: string
-  name: string
-  isNew?: boolean
-  icon?: string
-}
+// Use composables
+const { brandSearch, loadBrands, searchBrands, createNewBrand, clearBrandSearch, getBrandName } = useBrands()
+const { measurements, getMeasurementType } = useMeasurements()
 
-interface SearchState {
-  query: string
-  items: SearchableItem[]
-  selectedItem: SearchableItem | null
-  showDropdown: boolean
-  isLoading: boolean
-}
-
+// Estados para búsqueda dinámica (categorySearch remains local, but uses imported types)
 const categorySearch = reactive<SearchState>({
   query: '',
   items: [],
@@ -443,21 +437,6 @@ const categorySearch = reactive<SearchState>({
   showDropdown: false,
   isLoading: false,
 })
-
-const brandSearch = reactive<SearchState>({
-  query: '',
-  items: [],
-  selectedItem: null,
-  showDropdown: false,
-  isLoading: false,
-})
-
-const measurements = ref([
-  { id: 'mea1', type: 'Kg' },
-  { id: 'mea2', type: 'g' },
-  { id: 'mea3', type: 'L' },
-  { id: 'mea4', type: 'ml' },
-])
 
 const handleProduct = ref<ExtendedProduct>({
   name: '',
@@ -498,9 +477,8 @@ onMounted(() => {
   // Limpiar intervalo al desmontar
   onUnmounted(() => clearInterval(intervalo))
 
-  // 4. Cargar categorías y marcas iniciales
+  // 4. Cargar categorías iniciales (brands are loaded by useBrands composable)
   loadCategories()
-  loadBrands()
 })
 
 async function showModal(show: boolean) {
@@ -636,112 +614,20 @@ function onCategoryBlur() {
   }, 200)
 }
 
-// FUNCIONES PARA MARCAS
-async function loadBrands() {
-  try {
-    if (onFireStore) {
-      const querySnapshot = await getDocs(collection(db, MARCAS_COLLECTION))
-      const loadedBrands = querySnapshot.docs.map(
-        (doc) =>
-          ({
-            id: doc.id,
-            name: doc.data().name,
-          }) as SearchableItem,
-      )
-
-      brandSearch.items = loadedBrands
-    }
-  } catch (err) {
-    console.error('Error cargando marcas:', err)
-  }
-}
-
-async function searchBrands() {
-  const queryText = brandSearch.query.trim().toLowerCase()
-
-  if (queryText.length === 0) {
-    brandSearch.items = []
-    return
-  }
-
-  try {
-    brandSearch.isLoading = true
-
-    const brandsQuery = query(
-      collection(db, MARCAS_COLLECTION),
-      where('name', '>=', queryText),
-      where('name', '<=', queryText + '\uf8ff'),
-      orderBy('name'),
-    )
-
-    const querySnapshot = await getDocs(brandsQuery)
-    const foundBrands = querySnapshot.docs.map(
-      (doc) =>
-        ({
-          id: doc.id,
-          name: doc.data().name,
-        }) as SearchableItem,
-    )
-
-    const exactMatch = foundBrands.some(
-      (brand) => brand.name.toLowerCase() === queryText.toLowerCase(),
-    )
-
-    if (!exactMatch && queryText.length > 0) {
-      foundBrands.push({
-        id: 'new_' + Date.now(),
-        name: brandSearch.query,
-        isNew: true,
-      })
-    }
-
-    brandSearch.items = foundBrands
-    brandSearch.showDropdown = true
-  } catch (err) {
-    console.error('Error buscando marcas:', err)
-    brandSearch.items = []
-  } finally {
-    brandSearch.isLoading = false
-  }
-}
-
-async function selectBrand(item: SearchableItem) {
+// Funciones para la interacción con el composable de marcas
+async function selectBrandItem(item: SearchableItem) {
   if (item.isNew) {
-    await createNewBrand(item.name)
+    const newBrand = await createNewBrand(item.name)
+    if (newBrand) {
+      brandSearch.selectedItem = { id: newBrand.id!, name: newBrand.name }
+      handleProduct.value.brand_id = newBrand.id!
+    }
   } else {
     brandSearch.selectedItem = item
     handleProduct.value.brand_id = item.id
   }
-
   brandSearch.query = item.name
   brandSearch.showDropdown = false
-}
-
-async function createNewBrand(name: string) {
-  try {
-    const newBrandRef = doc(collection(db, MARCAS_COLLECTION))
-    const newBrand = {
-      id: newBrandRef.id,
-      name: name,
-      created_at: new Date().toISOString().split('T')[0],
-    }
-
-    await setDoc(newBrandRef, newBrand)
-
-    brandSearch.selectedItem = { id: newBrandRef.id, name: name }
-    handleProduct.value.brand_id = newBrandRef.id
-
-    await loadBrands()
-  } catch (err) {
-    console.error('Error creando marca:', err)
-    error.value = 'Error al crear la marca'
-  }
-}
-
-function clearBrand() {
-  brandSearch.selectedItem = null
-  brandSearch.query = ''
-  handleProduct.value.brand_id = ''
 }
 
 function onBrandBlur() {
@@ -884,10 +770,9 @@ async function resetearFormulario() {
 
   // Limpiar buscadores
   clearCategory()
-  clearBrand()
+  clearBrandSearch() // Use composable function
 
   categorySearch.query = ''
-  brandSearch.query = ''
 
   const close = await boxyModal.close('formProductModal')
   mostrarFormulario.value = close ?? false
@@ -932,18 +817,14 @@ async function loadEditProduct(id: string) {
   }
 
   if (product.brand_id) {
-    try {
-      const brandDoc = await getDoc(doc(db, MARCAS_COLLECTION, product.brand_id))
-      if (brandDoc.exists()) {
-        brandSearch.selectedItem = {
-          id: brandDoc.id,
-          name: brandDoc.data().name,
-        }
-        brandSearch.query = brandDoc.data().name
-        handleProduct.value.brand_id = brandDoc.id
+    const brandName = getBrandName(product.brand_id)
+    if (brandName) {
+      brandSearch.selectedItem = {
+        id: product.brand_id,
+        name: brandName,
       }
-    } catch (err) {
-      console.error('Error cargando marca:', err)
+      brandSearch.query = brandName
+      handleProduct.value.brand_id = product.brand_id
     }
   }
 
@@ -1192,97 +1073,7 @@ async function createProductInFireStore(product: Product) {
 
 // Definir filteredProducts como un computed que filtra el array reactivo
 const filteredProducts = computed(() => {
-  return products.value.filter((p) => !p.marked_to_delete)
-})
-
-async function getProductByData(value: string, field: string): Promise<string | null> {
-  try {
-    // 1. Crear una consulta que filtre por el campo buscado' en Firestore
-    const productsQuery = query(collection(db, PRODUCTOS_COLLECTION), where(field, '==', value))
-
-    const productSnapshot = await getDocs(productsQuery)
-
-    // 2. Verificar si se encontraron documentos
-    if (productSnapshot.empty) {
-      return null
-    }
-
-    // 3. Asumimos que el valor es único, por lo que tomamos el primer resultado
-    const docSnapshot = productSnapshot.docs[0]
-
-    return docSnapshot.id
-  } catch (error) {
-    console.error(`Error al obtener el producto con campo ${field} = ${value}:`, error)
-    return null
-  }
-}
-
-// Computed puro solo para el cálculo de conversión
-const precioConvertido = computed(() => {
-  const { tempPrice, currency_type: moneda } = handleProduct.value
-  const tasaDolar = dolarBCV.value?.promedio ?? 1
-
-  if (!tempPrice || tempPrice <= 0) return '0.00'
-  if (tasaDolar <= 0) return '0.00'
-
-  let newPrice = 0
-
-  if (moneda === 'USD') {
-    newPrice = tempPrice * tasaDolar
-  } else {
-    newPrice = tempPrice / tasaDolar
-  }
-
-  return newPrice.toFixed(2)
-})
-
-// Watch para manejar las asignaciones a handleProduct.value.price
-watch(
-  [
-    () => handleProduct.value.tempPrice,
-    () => handleProduct.value.currency_type,
-    () => dolarBCV.value?.promedio,
-  ],
-  ([tempPrice, moneda, tasaDolar]) => {
-    if (!tempPrice || tempPrice <= 0) {
-      handleProduct.value.price = 0
-      return
-    }
-
-    const tasa = tasaDolar ?? 1
-    if (tasa <= 0) {
-      handleProduct.value.price = 0
-      return
-    }
-
-    if (moneda === 'USD') {
-      // Cuando la moneda es USD, guardamos el precio original
-      handleProduct.value.price = tempPrice
-    } else {
-      // Cuando la moneda es local, convertimos a USD y guardamos
-      const priceInUSD = tempPrice / tasa
-      handleProduct.value.price = parseFloat(priceInUSD.toFixed(2))
-    }
-  },
-  { immediate: true }, // Ejecutar inmediatamente al inicializar
-)
-
-function getMeasurementType(id: string): string {
-  const measurement = measurements.value.find((m) => m.id === id)
-  return measurement ? measurement.type : ''
-}
-
-const totalValueBs = computed(() => {
-  if (!dolarBCV.value?.promedio) return 0
-  return filteredProducts.value.reduce((total, product) => {
-    if (product.price) {
-      if (product.currency_type === 'USD') {
-        return total + product.price * dolarBCV.value!.promedio
-      }
-      return total + product.price
-    }
-    return total
-  }, 0)
+  return products.value
 })
 
 function getCategoryColor(categoryId: string): string {
@@ -1306,11 +1097,6 @@ function formatDate(dateString: string | null | undefined): string {
 // Necesitarás agregar estas funciones para obtener nombres
 function getCategoryInfo(categoryId: string): SearchableItem | undefined {
   return categorySearch.items.find((cat) => cat.id === categoryId)
-}
-
-function getBrandName(brandId: string): string {
-  const brand = brandSearch.items.find((b) => b.id === brandId)
-  return brand ? brand.name : brandId
 }
 </script>
 
