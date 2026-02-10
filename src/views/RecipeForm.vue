@@ -522,7 +522,6 @@ async function saveRecipe() {
       dataToSave.id = newRef.id
       await setDoc(newRef, dataToSave)
     }
-    router.push('/recipes')
   } catch (e) {
     console.error(e)
   } finally {

@@ -152,7 +152,7 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     handleProduct.currency_type === 'USD' ? '$' : 'Bs'
-                  }}</span>
+                    }}</span>
                   <input v-model.number="handleProduct.tempPrice" type="number" min="0" step="0.01" class="form-input"
                     placeholder="0.00" />
                 </div>
@@ -304,7 +304,7 @@
                     :name="getCategoryInfo(product.category_id)?.icon ?? ''" class="category-list-icon" />
                   <span v-else>{{
                     getMeasurementType(product.measurement_id)?.charAt(0) || 'P'
-                  }}</span>
+                    }}</span>
                 </div>
                 <div class="product-details">
                   <h3 class="product-name">{{ product.name }}</h3>
@@ -350,7 +350,7 @@
                   <div class="price-primary">
                     <span class="currency-symbol">{{
                       product.currency_type === 'USD' ? '$' : 'Bs'
-                    }}</span>
+                      }}</span>
                     {{ product.price?.toFixed(2) || '0.00' }}
                   </div>
                   <div class="price-secondary">
@@ -899,6 +899,7 @@ async function editProduct(id: string) {
         measurement_id: handleProduct.value.measurement_id,
         measurement_value: handleProduct.value.measurement_value,
         currency_type: handleProduct.value.currency_type,
+        is_utility: handleProduct.value.is_utility || false,
         updated_at: new Date().toISOString().split('T')[0],
         marked_to_update: true, // Marcar como pendiente de actualización
       }
@@ -1100,6 +1101,7 @@ async function createProductInFireStore(product: Product) {
     measurement_id: product.measurement_id,
     measurement_value: product.measurement_value,
     currency_type: product.currency_type,
+    is_utility: product.is_utility || false,
     created_at: product.created_at || new Date().toISOString().split('T')[0],
     updated_at: new Date().toISOString().split('T')[0], // Siempre actualiza en la creación/modificación
   }
