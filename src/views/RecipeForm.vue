@@ -161,7 +161,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-success">
@@ -169,7 +169,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-profit">
@@ -894,11 +894,11 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
 .sc-meta {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
   margin-left: 28px;
 }
@@ -917,7 +917,7 @@ onMounted(() => {
 }
 
 .sc-value-item label {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: var(--text-secondary);
   text-transform: uppercase;
   font-weight: 700;
@@ -926,7 +926,7 @@ onMounted(() => {
 
 .sc-value-item span {
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 0.95rem;
 }
 
 .highlight-success span.price-usd {
@@ -944,7 +944,7 @@ onMounted(() => {
 }
 
 .price-bs {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
   font-weight: 600;
   margin-top: -2px;
