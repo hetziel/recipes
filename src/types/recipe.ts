@@ -6,14 +6,16 @@ export interface RecipeIngredient {
 export interface RecipeUtility {
   id?: string
   product_id?: string // Reference to product if applicable
-  name: string
-  cost: number // Price if not linked to product, or snapshot
-  quantity: number // Total quantity in package
+  name?: string
+  cost?: number // Price if not linked to product, or snapshot
+  quantity?: number // Total quantity in package
   usage_quantity: number // Amount used
   profit_margin?: number // Profit margin for this specific utility (%)
 }
 
 export interface RecipeScenario {
+  id?: string
+  recipe_id: string // Reference to parent recipe
   name: string // "Nombre del paquete/escenario"
   mode: 'weight' | 'unit'
   value: number // weight per unit (if mode=weight) or total units (if mode=unit)
@@ -37,9 +39,6 @@ export interface Recipe {
 
   // Financials
   profit_margin_percent: number // Global profit margin (e.g. 200%)
-
-  // Saved production scenarios (Now called scenarios/paquetes)
-  scenarios: RecipeScenario[]
 
   created_at: string
   updated_at?: string

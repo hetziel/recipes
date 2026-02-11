@@ -12,6 +12,10 @@
           <Icon name="content-save" />
           {{ isSaving ? 'Guardando...' : 'Guardar Receta' }}
         </button>
+        <button v-if="hasLegacyScenarios" @click="migrateScenarios" class="btn btn-warning" :disabled="isMigrating">
+          <Icon name="database-sync" />
+          {{ isMigrating ? 'Migrando...' : 'Migrar Paquetes' }}
+        </button>
       </div>
     </header>
 
@@ -56,7 +60,7 @@
                   </span>
                 </td>
                 <td>${{ getProductById(ing.product_id)?.price.toFixed(2) || '0.00' }}</td>
-                <td>{{ getProductById(ing.product_id)?.measurement_value }}</td>
+                <td>{{ getProductById(ing.product_id)?.measurement_value || 0 }}</td>
                 <td>
                   <input v-model.number="ing.usage_weight" type="number" class="input-sm" min="0" />
                 </td>
@@ -133,14 +137,20 @@
         <div class="scenario-calculator">
           <div class="scenario-header-main">
             <h3>Escenarios de Venta / Paquetes</h3>
-            <button v-if="recipe.scenarios.length > 0" @click="showBatchSummaryModal = true"
-              class="btn btn-sm btn-outline">
-              <Icon name="chart-bar" /> Ver Totales de Producción
-            </button>
+            <div class="header-actions-group">
+              <button v-if="scenarios.length > 0" @click="showBatchSummaryModal = true" class="btn btn-sm btn-outline">
+                <Icon name="chart-bar" /> Ver Totales de Producción
+              </button>
+            </div>
           </div>
 
-          <div class="scenarios-list">
-            <div v-for="(scenario, sIndex) in recipe.scenarios" :key="sIndex" class="scenario-card card"
+          <div v-if="!recipe.id" class="alert alert-info mb-4">
+            <Icon name="information" />
+            Debe guardar la receta primero para poder gestionar los paquetes.
+          </div>
+
+          <div v-else class="scenarios-list">
+            <div v-for="(scenario, sIndex) in scenarios" :key="sIndex" class="scenario-card card"
               :class="{ 'is-editing': editingScenarioIndex === sIndex }">
 
               <!-- MODO RESUMEN -->
@@ -201,10 +211,10 @@
                     <input v-model="scenario.name" type="text" class="form-input" placeholder="Ej: Pack Familiar" />
                   </div>
                   <div class="header-right">
-                    <button @click="editingScenarioIndex = null" class="btn btn-sm btn-success">
-                      <Icon name="check" /> Listo
+                    <button @click="saveScenario(scenario)" class="btn btn-sm btn-success" :disabled="isSavingScenario">
+                      <Icon name="check" /> {{ isSavingScenario ? 'Guardando...' : 'Listo' }}
                     </button>
-                    <button @click="removeScenario(sIndex)" class="btn-icon text-danger">
+                    <button @click="deleteScenario(scenario.id!, sIndex)" class="btn-icon text-danger">
                       <Icon name="delete" />
                     </button>
                   </div>
@@ -419,7 +429,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(sc, idx) in recipe.scenarios" :key="idx">
+              <tr v-for="(sc, idx) in scenarios" :key="idx">
                 <td>
                   <strong>{{ sc.name }}</strong>
                   <div class="text-xs text-muted">{{ calculateEstimatedUnits(sc).toFixed(1) }} unidades</div>
@@ -452,7 +462,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, inject, type Ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { collection, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, deleteDoc } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue' // Assuming global Icon component
 import type { Recipe, RecipeIngredient, RecipeUtility, RecipeScenario } from '../types/recipe'
@@ -473,6 +483,10 @@ const activeScenarioIndex = ref<number | null>(null)
 const editingScenarioIndex = ref<number | null>(null)
 const showBatchSummaryModal = ref(false)
 const availableProducts = ref<Product[]>([])
+const scenarios = ref<RecipeScenario[]>([])
+const isSavingScenario = ref(false)
+const isMigrating = ref(false)
+const hasLegacyScenarios = ref(false)
 
 const recipe = ref<Recipe>({
   name: '',
@@ -483,7 +497,6 @@ const recipe = ref<Recipe>({
   has_production_units: false,
   total_production_units: 1,
   profit_margin_percent: 30, // Default 30%
-  scenarios: [{ name: 'Estándar', mode: 'weight', value: 100, utilities: [] }],
   created_at: new Date().toISOString().split('T')[0],
 })
 
@@ -627,18 +640,93 @@ function removeIngredient(index: number) {
 }
 
 function addScenario() {
-  recipe.value.scenarios.push({
+  if (!recipe.value.id) return
+
+  const newScenario: RecipeScenario = {
+    recipe_id: recipe.value.id,
     name: 'Nuevo Paquete',
     mode: 'weight',
     value: 100,
     fixed_sale_price_currency: 'USD',
     utilities: [],
-  })
-  editingScenarioIndex.value = recipe.value.scenarios.length - 1
+  }
+
+  scenarios.value.push(newScenario)
+  editingScenarioIndex.value = scenarios.value.length - 1
+}
+
+async function saveScenario(scenario: RecipeScenario) {
+  if (!recipe.value.id) return
+  isSavingScenario.value = true
+
+  try {
+    if (scenario.id) {
+      await updateDoc(doc(db, 'scenarios', scenario.id), { ...scenario })
+    } else {
+      const newRef = doc(collection(db, 'scenarios'))
+      scenario.id = newRef.id
+      await setDoc(newRef, scenario)
+    }
+    editingScenarioIndex.value = null
+  } catch (e) {
+    console.error('Error al guardar escenario:', e)
+  } finally {
+    isSavingScenario.value = false
+  }
+}
+
+async function deleteScenario(id: string, index: number) {
+  if (!id) {
+    scenarios.value.splice(index, 1)
+    editingScenarioIndex.value = null
+    return
+  }
+
+  if (confirm('¿Estás seguro de eliminar este paquete?')) {
+    try {
+      await deleteDoc(doc(db, 'scenarios', id))
+      scenarios.value.splice(index, 1)
+      editingScenarioIndex.value = null
+    } catch (e) {
+      console.error('Error al eliminar escenario:', e)
+    }
+  }
+}
+
+async function migrateScenarios() {
+  if (!recipe.value.id || !hasLegacyScenarios.value) return
+  isMigrating.value = true
+
+  try {
+    const legacyData = recipe.value as { scenarios?: RecipeScenario[] }
+    const legacyScenarios = legacyData.scenarios || []
+    for (const sc of legacyScenarios) {
+      const newRef = doc(collection(db, 'scenarios'))
+      await setDoc(newRef, {
+        ...sc,
+        id: newRef.id,
+        recipe_id: recipe.value.id
+      })
+    }
+
+    // Remove from recipe and update
+    await updateDoc(doc(db, 'recipes', recipe.value.id), { scenarios: null })
+
+    hasLegacyScenarios.value = false
+    if (recipe.value.id) {
+      await loadScenarios(recipe.value.id)
+    }
+    alert('Migración completada con éxito')
+  } catch (e) {
+    console.error('Error en migración:', e)
+    alert('Error al migrar')
+  } finally {
+    isMigrating.value = false
+  }
 }
 
 function removeScenario(index: number) {
-  recipe.value.scenarios.splice(index, 1)
+  scenarios.value.splice(index, 1)
 }
 
 function addUtilityToScenario(sIndex: number) {
@@ -648,7 +736,7 @@ function addUtilityToScenario(sIndex: number) {
 
 function selectUtility(prod: Product) {
   if (activeScenarioIndex.value !== null) {
-    recipe.value.scenarios[activeScenarioIndex.value].utilities.push({
+    scenarios.value[activeScenarioIndex.value].utilities.push({
       product_id: prod.id,
       name: prod.name,
       cost: prod.price,
@@ -662,10 +750,15 @@ function selectUtility(prod: Product) {
 }
 
 function removeUtilityFromScenario(sIndex: number, uIndex: number) {
-  recipe.value.scenarios[sIndex].utilities.splice(uIndex, 1)
+  scenarios.value[sIndex].utilities.splice(uIndex, 1)
 }
 
 // DATA LOADING
+async function loadScenarios(recipeId: string) {
+  const q = query(collection(db, 'scenarios'), where('recipe_id', '==', recipeId))
+  const snap = await getDocs(q)
+  scenarios.value = snap.docs.map(d => ({ ...d.data() } as RecipeScenario))
+}
 async function loadProducts() {
   const local = localStorage.getItem('productos-app-data')
   if (local) {
@@ -680,8 +773,15 @@ async function loadRecipe(id: string) {
   const docRef = doc(db, 'recipes', id)
   const snap = await getDoc(docRef)
   if (snap.exists()) {
-    recipe.value = { id: snap.id, ...snap.data() } as Recipe
-    if (!recipe.value.scenarios) recipe.value.scenarios = []
+    const data = snap.data()
+    recipe.value = { id: snap.id, ...data } as Recipe
+
+    // Check for legacy scenarios inside the recipe document
+    if (data.scenarios && data.scenarios.length > 0) {
+      hasLegacyScenarios.value = true
+    }
+
+    loadScenarios(snap.id)
   }
 }
 

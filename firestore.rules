@@ -1,26 +1,38 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Colección de Productos
     match /productos/{producto} {
       allow read, write: if request.auth == null;
     }
 
+    // Colección de Marcas
     match /marcas/{marca} {
       allow read, write: if request.auth == null;
     }
 
+    // Colección de Medidas
     match /medidas/{medida} {
       allow read, write: if request.auth == null;
     }
 
+    // Colección de Categorías
     match /categorias/{categoria} {
       allow read, write: if request.auth == null;
     }
 
+    // Colección de Recetas
     match /recipes/{recipe} {
       allow read, write: if request.auth == null;
     }
     
+    // NUEVA: Colección de Escenarios (Paquetes)
+    match /scenarios/{scenario} {
+      allow read, write: if request.auth == null;
+    }
+    
+    // Configuración general
     match /config/{document} {
       allow read;
       allow write: if request.auth == null;
