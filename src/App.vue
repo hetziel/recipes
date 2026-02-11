@@ -126,9 +126,9 @@ onMounted(() => {
         <span class="icon"><i class="fi fi-rr-utensils"></i></span>
         <span class="text">Recetas</span>
       </RouterLink>
-      <RouterLink to="/buys" class="nav-link" @click="toggleMenu">
-        <span class="icon"><i class="fi fi-rr-shopping-cart"></i></span>
-        <span class="text">Compras</span>
+      <RouterLink to="/sales" class="nav-link" @click="toggleMenu">
+        <span class="icon"><i class="fi fi-rr-diploma"></i></span>
+        <span class="text">Ventas</span>
       </RouterLink>
       <RouterLink to="/drive" class="nav-link" @click="toggleMenu">
         <span class="icon"><i class="fi fi-rr-cloud"></i></span>

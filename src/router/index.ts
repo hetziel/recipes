@@ -36,6 +36,11 @@ const router = createRouter({
       name: 'recipes-edit',
       component: () => import('../views/RecipeForm.vue'),
     },
+    {
+      path: '/sales',
+      name: 'sales',
+      component: () => import('../views/SalesView.vue'),
+    },
   ],
 })
 
