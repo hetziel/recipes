@@ -16,7 +16,7 @@
           <Icon name="database-sync" />
           {{ isMigrating ? 'Migrando...' : 'Migrar Paquetes' }}
         </button>
-        <button v-if="scenarios.length > 0" @click="cleanUtilitiesData" class="btn btn-outline" :disabled="isCleaning">
+        <button v-if="canCleanUtilities" @click="cleanUtilitiesData" class="btn btn-outline" :disabled="isCleaning">
           <Icon name="broom" />
           {{ isCleaning ? 'Limpiando...' : 'Limpiar Datos Utilería' }}
         </button>
@@ -201,7 +201,8 @@
                   <button @click="editingScenarioIndex = sIndex" class="btn-icon" title="Editar Escenario">
                     <Icon name="pencil" />
                   </button>
-                  <button @click="removeScenario(sIndex)" class="btn-icon text-danger" title="Eliminar">
+                  <button @click="deleteScenario(scenario.id || '', sIndex)" class="btn-icon text-danger"
+                    title="Eliminar">
                     <Icon name="delete" />
                   </button>
                 </div>
@@ -460,6 +461,18 @@
         </div>
       </div>
     </div>
+
+    <!-- DELETE CONFIRMATION MODAL -->
+    <div v-if="showDeleteConfirmModal" class="modal-overlay">
+      <div class="modal-content">
+        <h3>¿Eliminar Paquete?</h3>
+        <p>¿Estás seguro de que deseas eliminar este paquete? Esta acción no se puede deshacer.</p>
+        <div class="modal-actions mt-6">
+          <button @click="showDeleteConfirmModal = false" class="btn btn-outline">Cancelar</button>
+          <button @click="confirmDeleteScenario" class="btn btn-danger">Eliminar</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -492,6 +505,8 @@ const isSavingScenario = ref(false)
 const isMigrating = ref(false)
 const isCleaning = ref(false)
 const hasLegacyScenarios = ref(false)
+const showDeleteConfirmModal = ref(false)
+const scenarioToDelete = ref<{ id: string, index: number } | null>(null)
 
 const recipe = ref<Recipe>({
   name: '',
@@ -538,6 +553,14 @@ const filteredUtilities = computed(() => {
   if (!utilitySearch.value) return utilities
   const q = utilitySearch.value.toLowerCase()
   return utilities.filter((p) => p.name.toLowerCase().includes(q))
+})
+
+const canCleanUtilities = computed(() => {
+  return scenarios.value.some(sc =>
+    sc.utilities.some(util =>
+      util.product_id && (util.name !== undefined || util.cost !== undefined || util.quantity !== undefined)
+    )
+  )
 })
 
 // METHODS
@@ -689,14 +712,23 @@ async function deleteScenario(id: string, index: number) {
     return
   }
 
-  if (confirm('¿Estás seguro de eliminar este paquete?')) {
-    try {
-      await deleteDoc(doc(db, 'scenarios', id))
-      scenarios.value.splice(index, 1)
-      editingScenarioIndex.value = null
-    } catch (e) {
-      console.error('Error al eliminar escenario:', e)
-    }
+  scenarioToDelete.value = { id, index }
+  showDeleteConfirmModal.value = true
+}
+
+async function confirmDeleteScenario() {
+  if (!scenarioToDelete.value) return
+  const { id, index } = scenarioToDelete.value
+
+  try {
+    await deleteDoc(doc(db, 'scenarios', id))
+    scenarios.value.splice(index, 1)
+    editingScenarioIndex.value = null
+    showDeleteConfirmModal.value = false
+    scenarioToDelete.value = null
+  } catch (e) {
+    console.error('Error al eliminar escenario:', e)
+    alert('Error al eliminar paquete')
   }
 }
 
@@ -705,8 +737,7 @@ async function migrateScenarios() {
   isMigrating.value = true
 
   try {
-    const legacyData = recipe.value as { scenarios?: any[] }
-    const legacyScenarios = legacyData.scenarios || []
+    const legacyScenarios = recipe.value.scenarios || []
     for (const sc of legacyScenarios) {
       const newRef = doc(collection(db, 'scenarios'))
       await setDoc(newRef, {
@@ -747,7 +778,9 @@ async function cleanUtilitiesData() {
           // Check if it has static data to remove
           if (util.name !== undefined || util.cost !== undefined || util.quantity !== undefined) {
             changed = true
-            const { name: _, cost: __, quantity: ___, ...cleanUtil } = util
+            const { name, cost, quantity, ...cleanUtil } = util
+            // Explicitly ignore unused to fix lint
+            void name; void cost; void quantity;
             return cleanUtil
           }
         }
@@ -772,9 +805,7 @@ async function cleanUtilitiesData() {
   }
 }
 
-function removeScenario(index: number) {
-  scenarios.value.splice(index, 1)
-}
+
 
 function addUtilityToScenario(sIndex: number) {
   activeScenarioIndex.value = sIndex
@@ -1408,6 +1439,22 @@ onMounted(() => {
 .currency-toggle button.active {
   background: var(--primary);
   color: white;
+}
+
+.btn-danger {
+  background-color: var(--danger);
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: #dc2626;
+  filter: brightness(1.1);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 .real-margin-info {

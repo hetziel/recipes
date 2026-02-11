@@ -29,6 +29,7 @@ export interface Recipe {
   name: string
   ingredients: RecipeIngredient[]
   // Base utilities removed as per user request (moved to scenarios)
+  scenarios?: RecipeScenario[] // LEGACY: To be migrated
 
   // Production Totals
   total_weight: number // Sum of usage_weight of ingredients (Raw weight)
