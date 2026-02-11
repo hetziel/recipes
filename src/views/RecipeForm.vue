@@ -16,6 +16,10 @@
           <Icon name="database-sync" />
           {{ isMigrating ? 'Migrando...' : 'Migrar Paquetes' }}
         </button>
+        <button v-if="scenarios.length > 0" @click="cleanUtilitiesData" class="btn btn-outline" :disabled="isCleaning">
+          <Icon name="broom" />
+          {{ isCleaning ? 'Limpiando...' : 'Limpiar Datos Utilería' }}
+        </button>
       </div>
     </header>
 
@@ -171,7 +175,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
-                      }}</span>
+                        }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-success">
@@ -179,7 +183,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                      }}</span>
+                        }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-profit">
@@ -285,7 +289,7 @@
                           <td>
                             <input v-if="!util.product_id" v-model="util.name" class="input-xs-wide" />
                             <div v-else>
-                              <span>{{ util.name }}</span>
+                              <span>{{ getProductById(util.product_id)?.name || util.name }}</span>
                               <div class="text-xs text-muted" v-if="getProductById(util.product_id)?.brand_id">
                                 ({{ getBrandName(getProductById(util.product_id)?.brand_id) }})
                               </div>
@@ -486,6 +490,7 @@ const availableProducts = ref<Product[]>([])
 const scenarios = ref<RecipeScenario[]>([])
 const isSavingScenario = ref(false)
 const isMigrating = ref(false)
+const isCleaning = ref(false)
 const hasLegacyScenarios = ref(false)
 
 const recipe = ref<Recipe>({
@@ -561,8 +566,10 @@ function calculateScenarioUtilityCost(util: RecipeUtility): number {
     if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
     return (prod.price / prod.measurement_value) * (util.usage_quantity || 0)
   }
-  if (!util.quantity || util.quantity === 0) return 0
-  return (util.cost / util.quantity) * (util.usage_quantity || 0)
+  const cost = util.cost || 0
+  const qty = util.quantity || 0
+  if (qty === 0) return 0
+  return (cost / qty) * (util.usage_quantity || 0)
 }
 
 function calculateScenarioUtilitiesCost(scenario: RecipeScenario): number {
@@ -698,7 +705,7 @@ async function migrateScenarios() {
   isMigrating.value = true
 
   try {
-    const legacyData = recipe.value as { scenarios?: RecipeScenario[] }
+    const legacyData = recipe.value as { scenarios?: any[] }
     const legacyScenarios = legacyData.scenarios || []
     for (const sc of legacyScenarios) {
       const newRef = doc(collection(db, 'scenarios'))
@@ -725,6 +732,46 @@ async function migrateScenarios() {
   }
 }
 
+async function cleanUtilitiesData() {
+  if (!scenarios.value.length) return
+  isCleaning.value = true
+
+  try {
+    let totalsUpdated = 0
+    for (const sc of scenarios.value) {
+      if (!sc.id) continue
+
+      let changed = false
+      const newUtilities = sc.utilities.map(util => {
+        if (util.product_id) {
+          // Check if it has static data to remove
+          if (util.name !== undefined || util.cost !== undefined || util.quantity !== undefined) {
+            changed = true
+            const { name: _, cost: __, quantity: ___, ...cleanUtil } = util
+            return cleanUtil
+          }
+        }
+        return util
+      })
+
+      if (changed) {
+        await updateDoc(doc(db, 'scenarios', sc.id), { utilities: newUtilities })
+        totalsUpdated++
+      }
+    }
+
+    if (recipe.value.id) {
+      await loadScenarios(recipe.value.id)
+    }
+    alert(`Limpieza completada: ${totalsUpdated} paquetes actualizados.`)
+  } catch (e) {
+    console.error('Error en limpieza:', e)
+    alert('Error al limpiar datos')
+  } finally {
+    isCleaning.value = false
+  }
+}
+
 function removeScenario(index: number) {
   scenarios.value.splice(index, 1)
 }
@@ -738,9 +785,6 @@ function selectUtility(prod: Product) {
   if (activeScenarioIndex.value !== null) {
     scenarios.value[activeScenarioIndex.value].utilities.push({
       product_id: prod.id,
-      name: prod.name,
-      cost: prod.price,
-      quantity: prod.measurement_value,
       usage_quantity: 1,
       profit_margin: 50,
     })
