@@ -265,6 +265,7 @@
                           <th>Precio Pkg</th>
                           <th>Cant. Pkg</th>
                           <th>Uso</th>
+                          <th>Ganancia %</th>
                           <th>Costo</th>
                           <th></th>
                         </tr>
@@ -292,7 +293,11 @@
                           <td>
                             <input v-model.number="util.usage_quantity" type="number" class="input-xs" />
                           </td>
-                          <td>${{ calculateScenarioUtilityCost(util).toFixed(2) }}</td>
+                          <td>
+                            <input v-model.number="util.profit_margin" type="number" class="input-xs" min="0" />
+                          </td>
+                          <td>${{ (calculateScenarioUtilityCost(util) * (1 + (util.profit_margin || 0) /
+                            100)).toFixed(2) }}</td>
                           <td>
                             <button @click="removeUtilityFromScenario(sIndex, uIndex)"
                               class="btn-icon text-danger btn-xs">
@@ -572,8 +577,21 @@ function getScenarioFixedPriceInUSD(scenario: RecipeScenario): number {
 function calculateScenarioSalePrice(scenario: RecipeScenario): number {
   const fixedPrice = getScenarioFixedPriceInUSD(scenario)
   if (fixedPrice > 0) return fixedPrice
-  const unitCost = calculateScenarioUnitCost(scenario)
-  return unitCost * (1 + recipe.value.profit_margin_percent / 100)
+
+  const units = calculateEstimatedUnits(scenario)
+  if (units <= 0) return 0
+
+  const ingredientCostPerUnit = totalIngredientsCost.value / units
+  const marginGen = 1 + (recipe.value.profit_margin_percent / 100)
+
+  // Calulate utility cost WITH margin for each utility
+  const utilitySaleTotalPerPack = scenario.utilities.reduce((sum, util) => {
+    const cost = calculateScenarioUtilityCost(util)
+    const margin = 1 + ((util.profit_margin ?? 50) / 100)
+    return sum + (cost * margin)
+  }, 0)
+
+  return (ingredientCostPerUnit * marginGen) + utilitySaleTotalPerPack
 }
 
 function calculateScenarioRealMargin(scenario: RecipeScenario): number {
@@ -636,6 +654,7 @@ function selectUtility(prod: Product) {
       cost: prod.price,
       quantity: prod.measurement_value,
       usage_quantity: 1,
+      profit_margin: 50,
     })
   }
   showUtilityModal.value = false
@@ -1373,5 +1392,24 @@ onMounted(() => {
   .large-input {
     width: 100%;
   }
+}
+
+.utility-margin-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.utility-margin-group label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 </style>

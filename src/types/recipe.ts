@@ -10,6 +10,7 @@ export interface RecipeUtility {
   cost: number // Price if not linked to product, or snapshot
   quantity: number // Total quantity in package
   usage_quantity: number // Amount used
+  profit_margin?: number // Profit margin for this specific utility (%)
 }
 
 export interface RecipeScenario {
