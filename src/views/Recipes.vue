@@ -54,7 +54,7 @@
               <tr v-if="expandedRecipes[recipe.id!]" class="nested-row">
                 <td colspan="5">
                   <div class="tree-children">
-                    <div v-for="(sc, idx) in recipe.scenarios" :key="idx" class="tree-item">
+                    <div v-for="(sc, idx) in getRecipesScenarios(recipe.id!)" :key="idx" class="tree-item">
                       <div class="scenario-card-mini">
                         <div class="sc-info">
                           <Icon name="package-variant" size="sm" />
@@ -115,6 +115,7 @@ import type { DolarBCV, Product } from '../types/producto'
 const recipes = ref<Recipe[]>([])
 const availableProducts = ref<Product[]>([])
 const expandedRecipes = ref<Record<string, boolean>>({})
+const allScenarios = ref<RecipeScenario[]>([])
 const loading = ref(false)
 
 const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
@@ -129,6 +130,10 @@ async function loadRecipes() {
 
     const snap = await getDocs(collection(db, 'recipes'))
     recipes.value = snap.docs.map(d => ({ id: d.id, ...d.data() } as Recipe))
+
+    // Load all scenarios to distribute among recipes
+    const scSnap = await getDocs(collection(db, 'scenarios'))
+    allScenarios.value = scSnap.docs.map(d => ({ id: d.id, ...d.data() } as RecipeScenario))
   } catch (e) {
     console.error(e)
   } finally {
@@ -152,6 +157,10 @@ function toggleExpanded(recipeId?: string) {
 function formatDate(dateStr?: string) {
   if (!dateStr) return ''
   return new Date(dateStr).toLocaleDateString()
+}
+
+function getRecipesScenarios(recipeId: string): RecipeScenario[] {
+  return allScenarios.value.filter(sc => sc.recipe_id === recipeId)
 }
 
 function getProductById(id: string): Product | undefined {
@@ -190,8 +199,10 @@ function getScenarioUtilitiesCost(scenario: RecipeScenario): number {
         return sum + (prod.price / prod.measurement_value) * (u.usage_quantity || 0)
       }
     }
-    if (!u.quantity) return sum
-    return sum + (u.cost / u.quantity) * (u.usage_quantity || 0)
+    const cost = u.cost || 0
+    const qty = u.quantity || 0
+    if (qty === 0) return sum
+    return sum + (cost / qty) * (u.usage_quantity || 0)
   }, 0)
 }
 

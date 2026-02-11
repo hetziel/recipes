@@ -1,7 +1,7 @@
 
 
 import { initializeApp } from "firebase/app";
-import { initializeFirestore, persistentLocalCache } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
 
@@ -18,8 +18,10 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-// Inicializar Firestore (si lo necesitas para otras partes de tu app)
-const db = initializeFirestore(app, { localCache: persistentLocalCache() });
+// Inicializar Firestore con persistencia local y soporte multi-pestaña
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+});
 
 const auth = getAuth(app);
 const analytics = getAnalytics(app);
