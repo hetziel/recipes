@@ -68,7 +68,7 @@
                   </div>
                   <div class="sale-due">
                     <span class="text-xs text-muted">Vence: {{ formatDate(sale.payment_due_date)
-                    }}</span>
+                      }}</span>
                   </div>
                 </div>
 
@@ -84,7 +84,7 @@
                   <div class="total-amount">
                     Total: <strong>${{ sale.total_amount.toFixed(2) }}</strong>
                     <span class="bs-val">/ Bs {{ (sale.total_amount * dolarRate).toFixed(2)
-                    }}</span>
+                      }}</span>
                   </div>
                   <div class="sale-actions">
                     <button @click="openStatusModal(sale)" class="btn-icon" title="Cambiar Estado">
@@ -797,8 +797,8 @@ onMounted(() => {
 }
 
 .status-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
@@ -806,31 +806,53 @@ onMounted(() => {
   padding: 16px;
   border-radius: 8px;
   border: 2px solid transparent;
-  background: var(--success);
   cursor: pointer;
   font-weight: 700;
   transition: all 0.2s;
   text-align: center;
+  color: #1a1a1a;
+  background: #f3f4f6;
 }
 
 .status-option.active {
-  border-color: var(--primary);
+  border-color: #2563eb;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  transform: scale(1.02);
+}
+
+.status-option.pendiente {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-option.pagado {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-option.por\ pagar {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-option.cancelado {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .status-option.pendiente:hover {
-  background: #fef3c7;
+  background: #fde68a;
 }
 
 .status-option.pagado:hover {
-  background: #d1fae5;
+  background: #a7f3d0;
 }
 
 .status-option.por\ pagar:hover {
-  background: #dbeafe;
+  background: #bfdbfe;
 }
 
 .status-option.cancelado:hover {
-  background: #fee2e2;
+  background: #fecaca;
 }
 </style>

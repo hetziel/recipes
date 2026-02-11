@@ -1,7 +1,7 @@
 
 
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
 
@@ -18,7 +18,9 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// Inicializar Firestore (si lo necesitas para otras partes de tu app)
+const db = initializeFirestore(app, { localCache: persistentLocalCache() });
+
 const auth = getAuth(app);
 const analytics = getAnalytics(app);
 
