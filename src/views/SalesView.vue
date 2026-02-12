@@ -68,7 +68,7 @@
                   </div>
                   <div class="sale-due">
                     <span class="text-xs text-muted">Vence: {{ formatDate(sale.payment_due_date)
-                      }}</span>
+                    }}</span>
                   </div>
                 </div>
 
@@ -90,7 +90,7 @@
                   <div class="total-amount">
                     Total: <strong>${{ sale.total_amount.toFixed(2) }}</strong>
                     <span class="bs-val">/ Bs {{ (sale.total_amount * dolarRate).toFixed(2)
-                      }}</span>
+                    }}</span>
                   </div>
                   <div class="sale-actions">
                     <button @click="editSale(sale)" class="btn-icon" title="Editar Venta">
@@ -343,7 +343,7 @@
                 <div class="meta-item">
                   <span class="label">Fecha:</span>
                   <span class="value">{{ selectedSaleForInvoice ? formatDate(selectedSaleForInvoice.created_at) : ''
-                    }}</span>
+                  }}</span>
                 </div>
               </div>
             </div>
@@ -1346,7 +1346,22 @@ onMounted(() => {
   padding: 40px;
   color: #1a1a1a;
   font-family: 'Inter', system-ui, sans-serif;
-  width: 100%;
+  width: 750px;
+  min-width: 750px;
+  max-width: 750px;
+  margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+  .invoice-modal .modal-body {
+    padding: 0;
+  }
+
+  .invoice-container {
+    transform: scale(0.5);
+    transform-origin: top center;
+    margin-bottom: -375px;
+  }
 }
 
 .invoice-header {
