@@ -18,8 +18,10 @@ export interface SaleItem {
 
 export interface Sale {
     id?: string
+    invoice_number?: string
     customer_id: string
     customer_name: string // Denormalized for quick access
+    customer_phone?: string
     items: SaleItem[]
     total_amount: number // USD
     status: SaleStatus

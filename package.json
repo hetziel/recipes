@@ -21,6 +21,7 @@
     "@mdi/js": "^7.4.47",
     "firebase": "^12.0.0",
     "googleapis": "^153.0.0",
+    "html-to-image": "^1.11.13",
     "uuid": "^13.0.0",
     "vue": "^3.5.17",
     "vue-router": "^4.5.1"

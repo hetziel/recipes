@@ -99,6 +99,9 @@
                     <button @click="openStatusModal(sale)" class="btn-icon text-success" title="Cambiar Estado">
                       <Icon name="list-status" />
                     </button>
+                    <button @click="openInvoiceModal(sale)" class="btn-icon text-primary" title="Ver Factura">
+                      <Icon name="printer" />
+                    </button>
                     <button @click="deleteSale(sale.id!)" class="btn-icon text-danger" title="Eliminar Venta">
                       <Icon name="delete" />
                     </button>
@@ -299,16 +302,125 @@
         </div>
       </div>
     </div>
+
+    <!-- MODAL FACTURA -->
+    <div v-if="showInvoiceModal" class="modal-overlay">
+      <div class="modal-content invoice-modal">
+        <header class="modal-header">
+          <h3>Previsualización de Factura</h3>
+          <div class="header-actions">
+            <button @click="exportarFacturaJPG" class="btn btn-primary" :disabled="isExporting">
+              <Icon :name="isExporting ? 'loading' : 'download'" />
+              {{ isExporting ? 'Generando...' : 'Descargar JPG' }}
+            </button>
+            <button @click="showInvoiceModal = false" class="btn-icon">
+              <Icon name="close" />
+            </button>
+          </div>
+        </header>
+
+        <div class="modal-body scrollable">
+          <div id="seccion-factura" class="invoice-container">
+            <div class="invoice-header">
+              <div class="biz-info">
+                <h1 class="biz-name">BOXY RECIPES</h1>
+                <p>Inversiones Boxy, C.A.</p>
+                <p>RIF: J-50000000-0</p>
+                <p>Ventas al mayor y detal</p>
+              </div>
+              <div class="invoice-meta">
+                <div class="meta-item">
+                  <span class="label">Nro. Factura:</span>
+                  <div class="invoice-num-box">
+                    <span class="value">#{{ selectedSaleForInvoice?.invoice_number || 'S/N' }}</span>
+                    <button v-if="!selectedSaleForInvoice?.invoice_number"
+                      @click="assignInvoiceNumber(selectedSaleForInvoice!)" class="btn-generate-invoice"
+                      title="Generar Correlativo">
+                      <Icon name="numeric-positive-1" />
+                    </button>
+                  </div>
+                </div>
+                <div class="meta-item">
+                  <span class="label">Fecha:</span>
+                  <span class="value">{{ selectedSaleForInvoice ? formatDate(selectedSaleForInvoice.created_at) : ''
+                    }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="customer-info-section">
+              <h4 class="section-title">Datos del Cliente</h4>
+              <div class="customer-grid">
+                <div class="c-item">
+                  <span class="label">Cliente:</span>
+                  <span class="value">{{ selectedSaleForInvoice?.customer_name }}</span>
+                </div>
+                <div class="c-item">
+                  <span class="label">Teléfono:</span>
+                  <span class="value">{{ selectedSaleForInvoice?.customer_phone || 'N/A' }}</span>
+                </div>
+                <div class="c-item">
+                  <span class="label">Estatus:</span>
+                  <span class="value status-text" :class="selectedSaleForInvoice?.status">
+                    {{ selectedSaleForInvoice ? formatStatus(selectedSaleForInvoice.status) : '' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="invoice-table-wrapper">
+              <table class="invoice-table">
+                <thead>
+                  <tr>
+                    <th>Cant.</th>
+                    <th>Descripción</th>
+                    <th class="text-right">P. Unit ($)</th>
+                    <th class="text-right">Subtotal ($)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(item, idx) in selectedSaleForInvoice?.items" :key="idx">
+                    <td>{{ item.quantity }}</td>
+                    <td>{{ item.recipe_name }} ({{ item.scenario_name }})</td>
+                    <td class="text-right">{{ item.unit_price.toFixed(2) }}</td>
+                    <td class="text-right">{{ item.total_price.toFixed(2) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="invoice-footer">
+              <div class="totals-section">
+                <div class="total-row">
+                  <span>TOTAL DIVISAS:</span>
+                  <strong>${{ selectedSaleForInvoice?.total_amount.toFixed(2) }}</strong>
+                </div>
+                <div class="total-row bs">
+                  <span>TOTAL BS (Tasa BCV):</span>
+                  <strong>Bs {{ ((selectedSaleForInvoice?.total_amount || 0) * dolarRate).toFixed(2) }}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="invoice-notes">
+              <p>Gracias por su compra. Esta factura ha sido generada digitalmente.</p>
+              <p class="tasa-ref">Tasa de cambio referencial BCV: {{ dolarRate }} Bs/$</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, inject, watch, type Ref } from 'vue'
-import { collection, query, getDocs, addDoc, updateDoc, doc, orderBy, deleteDoc } from 'firebase/firestore'
+import { collection, query, getDocs, addDoc, updateDoc, doc, orderBy, deleteDoc, runTransaction } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
 import type { Customer, Sale, SaleItem, SaleStatus } from '../types/sales'
 import type { Recipe, RecipeScenario, RecipeIngredient, RecipeUtility } from '../types/recipe'
+import { toJpeg } from 'html-to-image'
 import type { DolarBCV, Product } from '../types/producto'
 
 // INJECTS
@@ -343,6 +455,9 @@ const manualUnitPriceCurrency = ref<'USD' | 'Bs'>('USD')
 const editingItemIndex = ref<number | null>(null)
 const editingSaleId = ref<string | null>(null)
 const isEditingSale = ref(false)
+const showInvoiceModal = ref(false)
+const isExporting = ref(false)
+const selectedSaleForInvoice = ref<Sale | null>(null)
 
 // COMPUTED
 const filteredCustomers = computed(() => {
@@ -599,7 +714,7 @@ function editSale(sale: Sale) {
   editingSaleId.value = sale.id!
   newSale.value = {
     customer_name: sale.customer_name,
-    customer_phone: customers.value.find(c => c.id === sale.customer_id)?.phone || '',
+    customer_phone: sale.customer_phone || customers.value.find(c => c.id === sale.customer_id)?.phone || '',
     status: sale.status,
     payment_due_date: sale.payment_due_date,
   }
@@ -628,6 +743,7 @@ async function createSale() {
     const saleData: Partial<Sale> = {
       customer_id: customerId,
       customer_name: newSale.value.customer_name,
+      customer_phone: newSale.value.customer_phone,
       items: newSaleItems.value,
       total_amount: totalNewSaleAmount.value,
       status: newSale.value.status,
@@ -639,6 +755,8 @@ async function createSale() {
       await updateDoc(doc(db, 'sales', editingSaleId.value), saleData)
     } else {
       saleData.created_at = new Date().toISOString()
+      // Generate Invoice Number for NEW sales
+      saleData.invoice_number = await getNextInvoiceNumber()
       await addDoc(collection(db, 'sales'), saleData)
     }
 
@@ -651,9 +769,113 @@ async function createSale() {
   }
 }
 
+function openInvoiceModal(sale: Sale) {
+  selectedSaleForInvoice.value = sale
+  showInvoiceModal.value = true
+}
+
+async function exportarFacturaJPG() {
+  const node = document.getElementById('seccion-factura')
+  if (!node || isExporting.value) return
+
+  isExporting.value = true
+  try {
+    const dataUrl = await toJpeg(node, {
+      quality: 0.95,
+      backgroundColor: '#ffffff',
+      style: {
+        transform: 'scale(1)',
+        transformOrigin: 'top left'
+      }
+    })
+
+    const link = document.createElement('a')
+    const fileName = `factura_${selectedSaleForInvoice.value?.customer_name.replace(/\s+/g, '_')}_${new Date().getTime()}.jpg`
+    link.download = fileName
+    link.href = dataUrl
+    link.click()
+  } catch (error) {
+    console.error('Error al exportar factura:', error)
+    alert('No se pudo generar la imagen. Verifica si hay imágenes con errores de CORS.')
+  } finally {
+    isExporting.value = false
+  }
+}
+
 function openStatusModal(sale: Sale) {
   currentSale.value = sale
   showStatusModal.value = true
+}
+
+// INVOICE NUMBERING LOGIC
+function incrementLetters(letters: string): string | null {
+  const chars = letters.split('')
+  for (let i = chars.length - 1; i >= 0; i--) {
+    if (chars[i] === 'Z') {
+      chars[i] = 'A'
+    } else {
+      chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1)
+      return chars.join('')
+    }
+  }
+  return null
+}
+
+async function getNextInvoiceNumber(): Promise<string> {
+  const docRef = doc(db, 'settings', 'invoices')
+  let nextNumber = "AAA001"
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      const docSnap = await transaction.get(docRef)
+      let current = "AAA000"
+      if (docSnap.exists()) {
+        current = docSnap.data().last_number
+      }
+
+      const letters = current.substring(0, 3)
+      const numbersStr = current.substring(3)
+      const numLength = numbersStr.length || 3
+      let numVal = parseInt(numbersStr, 10) || 0
+
+      numVal++
+      const maxVal = Math.pow(10, numLength) - 1
+
+      if (numVal > maxVal) {
+        const nextLetters = incrementLetters(letters)
+        if (nextLetters === null) {
+          // Reset letters but increase digits (AAA + 5 digits as per AAA00001)
+          nextNumber = "AAA" + "1".padStart(5, '0')
+        } else {
+          nextNumber = nextLetters + "1".padStart(numLength, '0')
+        }
+      } else {
+        nextNumber = letters + numVal.toString().padStart(numLength, '0')
+      }
+
+      transaction.set(docRef, { last_number: nextNumber })
+    })
+  } catch (e) {
+    console.error('Error in invoice numbering transaction:', e)
+    // Fallback or rethrow
+    throw e
+  }
+
+  return nextNumber
+}
+
+async function assignInvoiceNumber(sale: Sale) {
+  if (sale.invoice_number) return
+
+  try {
+    const next = await getNextInvoiceNumber()
+    await updateDoc(doc(db, 'sales', sale.id!), { invoice_number: next })
+    sale.invoice_number = next
+    await loadData()
+  } catch (error) {
+    console.error('Error al asignar nro. factura:', error)
+    alert('Error al generar correlativo')
+  }
 }
 
 async function updateSaleStatus(newStatus: SaleStatus) {
@@ -1111,5 +1333,210 @@ onMounted(() => {
 
 .status-option.cancelado:hover {
   background: #fecaca;
+}
+
+/* INVOICE STYLES */
+.invoice-modal {
+  max-width: 800px;
+  width: 95%;
+}
+
+.invoice-container {
+  background: white;
+  padding: 40px;
+  color: #1a1a1a;
+  font-family: 'Inter', system-ui, sans-serif;
+  width: 100%;
+}
+
+.invoice-header {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 2px solid #f3f4f6;
+  padding-bottom: 20px;
+  margin-bottom: 30px;
+}
+
+.biz-name {
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #2563eb;
+  margin-bottom: 5px;
+}
+
+.biz-info p {
+  margin: 2px 0;
+  font-size: 0.9rem;
+  color: #4b5563;
+}
+
+.invoice-meta {
+  text-align: right;
+}
+
+.meta-item {
+  margin-bottom: 8px;
+}
+
+.meta-item .label {
+  font-size: 0.8rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  font-weight: 700;
+  display: block;
+}
+
+.meta-item .value {
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.invoice-num-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-generate-invoice {
+  background: #dbeafe;
+  color: #1e40af;
+  border: none;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-generate-invoice:hover {
+  background: #bfdbfe;
+  transform: scale(1.1);
+}
+
+.customer-info-section {
+  background: #f9fafb;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 30px;
+}
+
+.section-title {
+  font-size: 0.8rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 5px;
+}
+
+.customer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.c-item .label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  display: block;
+}
+
+.c-item .value {
+  font-weight: 700;
+}
+
+.status-text {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.status-text.pagado {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-text.pendiente {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.invoice-table-wrapper {
+  margin-bottom: 40px;
+}
+
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.invoice-table th {
+  text-align: left;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  color: #6b7280;
+  padding: 12px 8px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.invoice-table td {
+  padding: 12px 8px;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 0.95rem;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.invoice-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 40px;
+}
+
+.totals-section {
+  width: 300px;
+}
+
+.total-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 1.1rem;
+}
+
+.total-row.bs {
+  color: #6b7280;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.total-row strong {
+  font-size: 1.4rem;
+  color: #1a1a1a;
+}
+
+.invoice-notes {
+  text-align: center;
+  border-top: 2px solid #f3f4f6;
+  padding-top: 20px;
+  color: #9ca3af;
+  font-size: 0.8rem;
+}
+
+.tasa-ref {
+  font-size: 0.7rem;
+  margin-top: 5px;
+}
+
+.scrollable {
+  max-height: 70vh;
+  overflow-y: auto;
 }
 </style>
