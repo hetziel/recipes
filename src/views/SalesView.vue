@@ -164,6 +164,11 @@
                 <label>Cant.</label>
                 <input v-model.number="itemQuantity" type="number" class="form-input" min="1" />
               </div>
+              <div v-if="itemPreviewSubtotal > 0" class="subtotal-preview">
+                <span class="label">Monto Preview</span>
+                <span class="value">${{ itemPreviewSubtotal.toFixed(2) }}</span>
+                <span class="value-bs">Bs. {{ (itemPreviewSubtotal * dolarRate).toFixed(2) }}</span>
+              </div>
               <button @click="addSaleItem" class="btn btn-secondary mt-auto" :disabled="!selectedScenarioId">
                 Agregar
               </button>
@@ -312,6 +317,13 @@ const totalNewSaleAmount = computed(() => {
 })
 
 const availableRecipes = computed(() => recipes.value)
+
+const itemPreviewSubtotal = computed(() => {
+  if (!selectedScenarioId.value) return 0
+  const sc = allScenarios.value.find(s => s.id === selectedScenarioId.value)
+  if (!sc) return 0
+  return calculateScenarioPrice(sc) * (itemQuantity.value || 0)
+})
 
 // METHODS
 async function loadData() {
@@ -835,6 +847,36 @@ onMounted(() => {
 .total-preview strong {
   color: var(--primary);
   font-weight: 800;
+}
+
+.subtotal-preview {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-bottom: 4px;
+  min-width: 140px;
+}
+
+.subtotal-preview .label {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.subtotal-preview .value {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--primary);
+  line-height: 1.1;
+}
+
+.subtotal-preview .value-bs {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {
