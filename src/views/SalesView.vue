@@ -74,9 +74,15 @@
 
                 <div class="sale-products">
                   <div v-for="(item, idx) in sale.items" :key="idx" class="product-mini-tag">
-                    <strong>{{ item.quantity }}x</strong> {{ item.recipe_name }} ({{
-                      item.scenario_name }})
-                    <span class="price">${{ item.total_price.toFixed(2) }}</span>
+                    <div class="tag-info">
+                      <strong>{{ item.quantity }}x</strong> {{ item.recipe_name }} ({{ item.scenario_name }})
+                    </div>
+                    <div class="tag-prices">
+                      <span class="unit-price">U: ${{ (item.unit_price || 0).toFixed(2) }} / Bs {{ ((item.unit_price ||
+                        0) *
+                        dolarRate).toFixed(2) }}</span>
+                      <span class="total-price-sm">T: ${{ item.total_price.toFixed(2) }}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -87,8 +93,11 @@
                     }}</span>
                   </div>
                   <div class="sale-actions">
-                    <button @click="openStatusModal(sale)" class="btn-icon" title="Cambiar Estado">
+                    <button @click="editSale(sale)" class="btn-icon" title="Editar Venta">
                       <Icon name="pencil" />
+                    </button>
+                    <button @click="openStatusModal(sale)" class="btn-icon text-success" title="Cambiar Estado">
+                      <Icon name="list-status" />
                     </button>
                     <button @click="deleteSale(sale.id!)" class="btn-icon text-danger" title="Eliminar Venta">
                       <Icon name="delete" />
@@ -110,9 +119,9 @@
       <div class="modal-content large-modal">
         <header class="modal-header">
           <h3>
-            <Icon name="cart-plus" /> Crear Nueva Venta
+            <Icon name="tag-plus" /> {{ isEditingSale ? 'Editar Venta' : 'Nueva Venta' }}
           </h3>
-          <button @click="showSaleModal = false" class="btn-icon">
+          <button @click="showSaleModal = false; resetSaleForm()" class="btn-icon">
             <Icon name="close" />
           </button>
         </header>
@@ -155,7 +164,8 @@
                   <option value="">Seleccione un paquete...</option>
                   <optgroup v-for="recipe in availableRecipes" :key="recipe.id" :label="recipe.name">
                     <option v-for="sc in getScenariosForRecipe(recipe.id!)" :key="sc.id" :value="sc.id">
-                      {{ sc.name }} (${{ calculateScenarioPrice(sc).toFixed(2) }})
+                      {{ sc.name }} (${{ calculateScenarioPrice(sc).toFixed(2) }} / Bs {{ (calculateScenarioPrice(sc) *
+                        dolarRate).toFixed(2) }})
                     </option>
                   </optgroup>
                 </select>
@@ -164,14 +174,31 @@
                 <label>Cant.</label>
                 <input v-model.number="itemQuantity" type="number" class="form-input" min="1" />
               </div>
+              <div class="form-group">
+                <label>Precio Unitario</label>
+                <div class="input-with-toggle">
+                  <input v-model.number="manualUnitPrice" type="number" step="0.01" class="form-input" />
+                  <div class="currency-toggle">
+                    <button @click="manualUnitPriceCurrency = 'USD'"
+                      :class="{ active: manualUnitPriceCurrency === 'USD' }">USD</button>
+                    <button @click="manualUnitPriceCurrency = 'Bs'"
+                      :class="{ active: manualUnitPriceCurrency === 'Bs' }">Bs</button>
+                  </div>
+                </div>
+              </div>
               <div v-if="itemPreviewSubtotal > 0" class="subtotal-preview">
                 <span class="label">Monto Preview</span>
                 <span class="value">${{ itemPreviewSubtotal.toFixed(2) }}</span>
                 <span class="value-bs">Bs. {{ (itemPreviewSubtotal * dolarRate).toFixed(2) }}</span>
               </div>
-              <button @click="addSaleItem" class="btn btn-secondary mt-auto" :disabled="!selectedScenarioId">
-                Agregar
-              </button>
+              <div class="add-product-actions mt-auto">
+                <button @click="addSaleItem" class="btn btn-secondary" :disabled="!selectedScenarioId">
+                  {{ editingItemIndex !== null ? 'Actualizar' : 'Agregar' }}
+                </button>
+                <button v-if="editingItemIndex !== null" @click="cancelEdit" class="btn btn-outline ml-2">
+                  Cancelar
+                </button>
+              </div>
             </div>
 
             <!-- TABLA DE ITEMS AGREGADOS -->
@@ -189,12 +216,27 @@
                 <tr v-for="(item, idx) in newSaleItems" :key="idx">
                   <td>{{ item.recipe_name }} - {{ item.scenario_name }}</td>
                   <td>{{ item.quantity }}</td>
-                  <td>${{ item.unit_price.toFixed(2) }}</td>
-                  <td>${{ item.total_price.toFixed(2) }}</td>
                   <td>
-                    <button @click="newSaleItems.splice(idx, 1)" class="btn-icon text-danger">
-                      <Icon name="delete" />
-                    </button>
+                    <div class="price-stack">
+                      <span>${{ item.unit_price.toFixed(2) }}</span>
+                      <span class="price-bs">Bs. {{ (item.unit_price * dolarRate).toFixed(2) }}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="price-stack">
+                      <span>${{ item.total_price.toFixed(2) }}</span>
+                      <span class="price-bs">Bs. {{ (item.total_price * dolarRate).toFixed(2) }}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="sc-actions">
+                      <button @click="editSaleItem(idx)" class="btn-icon" title="Editar">
+                        <Icon name="pencil" />
+                      </button>
+                      <button @click="newSaleItems.splice(idx, 1)" class="btn-icon text-danger" title="Eliminar">
+                        <Icon name="delete" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -261,7 +303,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, inject, type Ref } from 'vue'
+import { ref, computed, onMounted, inject, watch, type Ref } from 'vue'
 import { collection, query, getDocs, addDoc, updateDoc, doc, orderBy, deleteDoc } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
@@ -296,6 +338,11 @@ const newSaleItems = ref<SaleItem[]>([])
 const matchingCustomers = ref<Customer[]>([])
 const selectedScenarioId = ref('')
 const itemQuantity = ref(1)
+const manualUnitPrice = ref(0)
+const manualUnitPriceCurrency = ref<'USD' | 'Bs'>('USD')
+const editingItemIndex = ref<number | null>(null)
+const editingSaleId = ref<string | null>(null)
+const isEditingSale = ref(false)
 
 // COMPUTED
 const filteredCustomers = computed(() => {
@@ -318,11 +365,26 @@ const totalNewSaleAmount = computed(() => {
 
 const availableRecipes = computed(() => recipes.value)
 
+const itemPreviewPriceUSD = computed(() => {
+  if (manualUnitPriceCurrency.value === 'Bs') {
+    return manualUnitPrice.value / (dolarRate.value || 1)
+  }
+  return manualUnitPrice.value
+})
+
 const itemPreviewSubtotal = computed(() => {
   if (!selectedScenarioId.value) return 0
-  const sc = allScenarios.value.find(s => s.id === selectedScenarioId.value)
-  if (!sc) return 0
-  return calculateScenarioPrice(sc) * (itemQuantity.value || 0)
+  return itemPreviewPriceUSD.value * (itemQuantity.value || 0)
+})
+
+watch(selectedScenarioId, (newId) => {
+  if (newId && editingItemIndex.value === null) {
+    const sc = allScenarios.value.find(s => s.id === newId)
+    if (sc) {
+      manualUnitPrice.value = calculateScenarioPrice(sc)
+      manualUnitPriceCurrency.value = 'USD'
+    }
+  }
 })
 
 // METHODS
@@ -475,19 +537,73 @@ function addSaleItem() {
   if (!sc) return
 
   const recipe = recipes.value.find(r => r.id === sc.recipe_id)
-  const unitPrice = calculateScenarioPrice(sc) // Note: This might be 0 if not fixed
+  const unitPrice = itemPreviewPriceUSD.value
 
-  newSaleItems.value.push({
+  const itemData: SaleItem = {
     scenario_id: sc.id!,
     scenario_name: sc.name,
     recipe_name: recipe?.name || 'Receta',
     quantity: itemQuantity.value,
     unit_price: unitPrice,
     total_price: unitPrice * itemQuantity.value
-  })
+  }
+
+  if (editingItemIndex.value !== null) {
+    newSaleItems.value[editingItemIndex.value] = itemData
+    editingItemIndex.value = null
+  } else {
+    newSaleItems.value.push(itemData)
+  }
 
   selectedScenarioId.value = ''
   itemQuantity.value = 1
+  manualUnitPrice.value = 0
+}
+
+function editSaleItem(idx: number) {
+  const item = newSaleItems.value[idx]
+  selectedScenarioId.value = item.scenario_id
+  itemQuantity.value = item.quantity
+  manualUnitPrice.value = item.unit_price
+  editingItemIndex.value = idx
+}
+
+function cancelEdit() {
+  editingItemIndex.value = null
+  selectedScenarioId.value = ''
+  itemQuantity.value = 1
+  manualUnitPrice.value = 0
+  manualUnitPriceCurrency.value = 'USD'
+}
+
+function resetSaleForm() {
+  newSale.value = {
+    customer_name: '',
+    customer_phone: '',
+    status: 'pendiente',
+    payment_due_date: new Date().toISOString().split('T')[0],
+  }
+  newSaleItems.value = []
+  selectedScenarioId.value = ''
+  itemQuantity.value = 1
+  manualUnitPrice.value = 0
+  manualUnitPriceCurrency.value = 'USD'
+  editingItemIndex.value = null
+  editingSaleId.value = null
+  isEditingSale.value = false
+}
+
+function editSale(sale: Sale) {
+  isEditingSale.value = true
+  editingSaleId.value = sale.id!
+  newSale.value = {
+    customer_name: sale.customer_name,
+    customer_phone: customers.value.find(c => c.id === sale.customer_id)?.phone || '',
+    status: sale.status,
+    payment_due_date: sale.payment_due_date,
+  }
+  newSaleItems.value = JSON.parse(JSON.stringify(sale.items))
+  showSaleModal.value = true
 }
 
 async function createSale() {
@@ -507,24 +623,30 @@ async function createSale() {
       customerId = newCustRef.id
     }
 
-    // 2. Create Sale
-    const saleData: Sale = {
+    // 2. Create/Update Sale
+    const saleData: Partial<Sale> = {
       customer_id: customerId,
       customer_name: newSale.value.customer_name,
       items: newSaleItems.value,
       total_amount: totalNewSaleAmount.value,
       status: newSale.value.status,
       payment_due_date: newSale.value.payment_due_date,
-      created_at: new Date().toISOString()
     }
 
-    await addDoc(collection(db, 'sales'), saleData)
+    if (isEditingSale.value && editingSaleId.value) {
+      saleData.updated_at = new Date().toISOString()
+      await updateDoc(doc(db, 'sales', editingSaleId.value), saleData)
+    } else {
+      saleData.created_at = new Date().toISOString()
+      await addDoc(collection(db, 'sales'), saleData)
+    }
 
     showSaleModal.value = false
+    resetSaleForm()
     await loadData()
   } catch (e) {
-    console.error('Error al crear venta:', e)
-    alert('Error al crear venta')
+    console.error('Error al guardar venta:', e)
+    alert('Error al guardar venta')
   }
 }
 
@@ -741,17 +863,40 @@ onMounted(() => {
 }
 
 .product-mini-tag {
-  font-size: 0.85rem;
-  padding: 4px 8px;
+  font-size: 0.8rem;
+  padding: 6px 10px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--surface);
+  min-width: 180px;
 }
 
-.product-mini-tag .price {
-  font-weight: 700;
+.product-mini-tag .tag-info {
+  line-height: 1.2;
+}
+
+.product-mini-tag .tag-prices {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px dashed var(--border);
+  padding-top: 4px;
+}
+
+.product-mini-tag .unit-price {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.product-mini-tag .total-price-sm {
+  font-weight: 800;
   color: var(--primary);
+  font-size: 0.85rem;
 }
 
 .sale-footer {
@@ -802,6 +947,21 @@ onMounted(() => {
 
 .flex-2 {
   flex: 2;
+}
+
+.ml-2 {
+  margin-left: 8px;
+}
+
+.add-product-actions {
+  display: flex;
+  align-items: center;
+}
+
+.sc-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .searchable-input {
