@@ -27,10 +27,6 @@ const dolarBCV = ref<DolarBCV | null>({
 const cargandoTasa = ref<boolean>(false)
 const errorTasa = ref<string | null>(null)
 
-function formatearFecha(fecha: string | null) {
-  if (!fecha) return 'N/A'
-  return new Date(fecha).toLocaleString()
-}
 
 async function cargarTasaDolar() {
   cargandoTasa.value = true
@@ -129,6 +125,10 @@ onMounted(() => {
       <RouterLink to="/sales" class="nav-link" @click="toggleMenu">
         <span class="icon"><i class="fi fi-rr-diploma"></i></span>
         <span class="text">Ventas</span>
+      </RouterLink>
+      <RouterLink to="/customers" class="nav-link" @click="toggleMenu">
+        <span class="icon"><i class="fi fi-rr-users"></i></span>
+        <span class="text">Clientes</span>
       </RouterLink>
       <RouterLink to="/drive" class="nav-link" @click="toggleMenu">
         <span class="icon"><i class="fi fi-rr-cloud"></i></span>

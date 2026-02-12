@@ -68,7 +68,7 @@
                   </div>
                   <div class="sale-due">
                     <span class="text-xs text-muted">Vence: {{ formatDate(sale.payment_due_date)
-                    }}</span>
+                      }}</span>
                   </div>
                 </div>
 
@@ -90,7 +90,7 @@
                   <div class="total-amount">
                     Total: <strong>${{ sale.total_amount.toFixed(2) }}</strong>
                     <span class="bs-val">/ Bs {{ (sale.total_amount * dolarRate).toFixed(2)
-                    }}</span>
+                      }}</span>
                   </div>
                   <div class="sale-actions">
                     <button @click="editSale(sale)" class="btn-icon" title="Editar Venta">
@@ -346,9 +346,10 @@ const isEditingSale = ref(false)
 
 // COMPUTED
 const filteredCustomers = computed(() => {
-  if (!searchQuery.value) return customers.value
+  const withSales = customers.value.filter(c => getCustomerSales(c.id!).length > 0)
+  if (!searchQuery.value) return withSales
   const q = searchQuery.value.toLowerCase()
-  return customers.value.filter(c => c.name.toLowerCase().includes(q))
+  return withSales.filter(c => c.name.toLowerCase().includes(q))
 })
 
 const stats = computed(() => {
