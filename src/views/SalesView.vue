@@ -68,7 +68,7 @@
                   </div>
                   <div class="sale-due">
                     <span class="text-xs text-muted">Vence: {{ formatDate(sale.payment_due_date)
-                      }}</span>
+                    }}</span>
                   </div>
                 </div>
 
@@ -84,7 +84,7 @@
                   <div class="total-amount">
                     Total: <strong>${{ sale.total_amount.toFixed(2) }}</strong>
                     <span class="bs-val">/ Bs {{ (sale.total_amount * dolarRate).toFixed(2)
-                      }}</span>
+                    }}</span>
                   </div>
                   <div class="sale-actions">
                     <button @click="openStatusModal(sale)" class="btn-icon" title="Cambiar Estado">
@@ -261,8 +261,8 @@ import { collection, query, getDocs, addDoc, updateDoc, doc, orderBy, deleteDoc 
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
 import type { Customer, Sale, SaleItem, SaleStatus } from '../types/sales'
-import type { Recipe, RecipeScenario } from '../types/recipe'
-import type { DolarBCV } from '../types/producto'
+import type { Recipe, RecipeScenario, RecipeIngredient, RecipeUtility } from '../types/recipe'
+import type { DolarBCV, Product } from '../types/producto'
 
 // INJECTS
 const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
@@ -273,6 +273,7 @@ const customers = ref<Customer[]>([])
 const sales = ref<Sale[]>([])
 const recipes = ref<Recipe[]>([])
 const allScenarios = ref<RecipeScenario[]>([])
+const availableProducts = ref<Product[]>([])
 const showSaleModal = ref(false)
 const searchQuery = ref('')
 const expandedCustomers = ref<string[]>([])
@@ -314,6 +315,10 @@ const availableRecipes = computed(() => recipes.value)
 
 // METHODS
 async function loadData() {
+  // Load Products
+  const prodSnap = await getDocs(collection(db, 'productos'))
+  availableProducts.value = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
+
   // Load Customers
   const custSnap = await getDocs(collection(db, 'customers'))
   customers.value = custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer))
@@ -389,6 +394,43 @@ function getScenariosForRecipe(recipeId: string) {
   return allScenarios.value.filter(sc => sc.recipe_id === recipeId)
 }
 
+function getProductById(id: string): Product | undefined {
+  return availableProducts.value.find(p => p.id === id)
+}
+
+function calculateIngredientCost(ing: RecipeIngredient): number {
+  const prod = getProductById(ing.product_id)
+  if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
+  return (prod.price / prod.measurement_value) * (ing.usage_weight || 0)
+}
+
+function calculateEstimatedUnits(recipe: Recipe, scenario: RecipeScenario): number {
+  const totalWeight = recipe.ingredients.reduce((sum, ing) => sum + (ing.usage_weight || 0), 0)
+  const totalFinalWeight = Math.max(0, totalWeight - (recipe.weight_loss || 0))
+
+  if (scenario.mode === 'unit') {
+    if (recipe.has_production_units && recipe.total_production_units) {
+      return recipe.total_production_units / (scenario.value || 1)
+    }
+    return scenario.value || 1
+  } else {
+    if (totalFinalWeight === 0) return 0
+    return totalFinalWeight / (scenario.value || 1)
+  }
+}
+
+function calculateScenarioUtilityCost(util: RecipeUtility): number {
+  if (util.product_id) {
+    const prod = getProductById(util.product_id)
+    if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
+    return (prod.price / prod.measurement_value) * (util.usage_quantity || 0)
+  }
+  const cost = util.cost || 0
+  const qty = util.quantity || 0
+  if (qty === 0) return 0
+  return (cost / qty) * (util.usage_quantity || 0)
+}
+
 function calculateScenarioPrice(scenario: RecipeScenario): number {
   if (scenario.fixed_sale_price) {
     if (scenario.fixed_sale_price_currency === 'Bs') {
@@ -396,12 +438,24 @@ function calculateScenarioPrice(scenario: RecipeScenario): number {
     }
     return scenario.fixed_sale_price
   }
-  // Simplified calculation for modal preview
-  // Actually we should store the price in the scenario or calculate it properly
-  // Since we don't have the recipe's ingredient costs here easily,
-  // let's assume it was calculated or needs a rethink.
-  // For now, I'll return 0 if not fixed, but ideally it should be cached price.
-  return 0
+
+  const recipe = recipes.value.find(r => r.id === scenario.recipe_id)
+  if (!recipe) return 0
+
+  const units = calculateEstimatedUnits(recipe, scenario)
+  if (units <= 0) return 0
+
+  const totalIngredientsCost = recipe.ingredients.reduce((sum, ing) => sum + calculateIngredientCost(ing), 0)
+  const ingredientCostPerUnit = totalIngredientsCost / units
+  const marginGen = 1 + (recipe.profit_margin_percent / 100)
+
+  const utilitySaleTotalPerPack = (scenario.utilities || []).reduce((sum, util) => {
+    const cost = calculateScenarioUtilityCost(util)
+    const margin = 1 + ((util.profit_margin ?? 50) / 100)
+    return sum + (cost * margin)
+  }, 0)
+
+  return (ingredientCostPerUnit * marginGen) + utilitySaleTotalPerPack
 }
 
 function addSaleItem() {
