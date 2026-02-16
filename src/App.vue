@@ -138,6 +138,10 @@ onMounted(() => {
         <span class="icon"><i class="fi fi-rr-calculator"></i></span>
         <span class="text">Calculadora</span>
       </RouterLink>
+      <RouterLink to="/establishments" class="nav-link" @click="toggleMenu">
+        <span class="icon"><i class="fi fi-rr-shop"></i></span>
+        <span class="text">Establecimientos</span>
+      </RouterLink>
     </nav>
     <div class="sidebar-overlay" @click="toggleMenu" v-if="isMenuOpen"></div>
 

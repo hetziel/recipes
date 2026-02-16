@@ -7,7 +7,9 @@ import {
     query,
     where,
     orderBy,
-    limit
+    limit,
+    updateDoc,
+    deleteDoc
 } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import type { Establishment } from '../types/establishment'
@@ -146,6 +148,43 @@ export function useEstablishments() {
         }
     }
 
+    // Update establishment
+    async function updateEstablishment(id: string, updates: Partial<Establishment>): Promise<boolean> {
+        try {
+            const estRef = doc(db, ESTABLISHMENTS_COLLECTION, id)
+            await updateDoc(estRef, {
+                ...updates,
+                updated_at: new Date().toISOString()
+            })
+
+            // Update local state
+            const index = establishments.value.findIndex(e => e.id === id)
+            if (index !== -1) {
+                establishments.value[index] = { ...establishments.value[index], ...updates }
+            }
+            return true
+        } catch (err) {
+            console.error('Error updating establishment:', err)
+            error.value = 'Error al actualizar establecimiento'
+            return false
+        }
+    }
+
+    // Delete establishment
+    async function deleteEstablishment(id: string): Promise<boolean> {
+        try {
+            await deleteDoc(doc(db, ESTABLISHMENTS_COLLECTION, id))
+
+            // Update local state
+            establishments.value = establishments.value.filter(e => e.id !== id)
+            return true
+        } catch (err) {
+            console.error('Error deleting establishment:', err)
+            error.value = 'Error al eliminar establecimiento'
+            return false
+        }
+    }
+
     function getEstablishmentName(id: string): string {
         const est = establishments.value.find(e => e.id === id)
         return est ? est.name : 'Desconocido'
@@ -167,6 +206,8 @@ export function useEstablishments() {
         searchEstablishments,
         createEstablishment,
         getEstablishmentName,
-        clearEstablishmentSearch
+        clearEstablishmentSearch,
+        updateEstablishment,
+        deleteEstablishment
     }
 }
