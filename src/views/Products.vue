@@ -364,6 +364,53 @@
     </div>
   </div>
 
+  <!-- Modal de Precios -->
+  <div class="b-modal" modal="pricesModal" fx="in-out">
+    <div bx-content class="prices-modal">
+      <div bx-head class="modal-header">
+        <h2 bx-title class="modal-title">
+          <Icon name="tag-multiple" />
+          Precios: {{ selectedProductForPrices?.name }}
+        </h2>
+        <button @click="boxyModal.close('pricesModal')" class="close-btn">
+          <Icon name="close" />
+        </button>
+      </div>
+      <div bx-body class="modal-body">
+        <div v-if="selectedProductForPrices?.prices?.length" class="prices-list-view">
+          <div v-for="(price, idx) in selectedProductForPrices.prices" :key="idx" class="price-row-item">
+            <div class="est-name">
+              <Icon name="store" size="sm" class="mr-2" />
+              {{ getEstablishmentName(price.establishment_id) }}
+            </div>
+            <div class="est-price">
+              <span class="currency">{{ price.currency === 'USD' ? '$' : 'Bs' }}</span>
+              <span class="value">{{ price.price.toFixed(2) }}</span>
+            </div>
+          </div>
+          <div class="average-row mt-3 pt-3 border-t">
+            <div class="est-name font-bold">Promedio</div>
+            <div class="est-price font-bold text-primary">
+              ${{ (selectedProductForPrices.average_price || 0).toFixed(2) }}
+            </div>
+          </div>
+        </div>
+        <div v-else class="empty-prices text-center py-4">
+          <Icon name="tag-off" size="xl" class="text-muted mb-2" />
+          <p class="text-muted">Este producto no tiene precios por establecimiento registrados.</p>
+          <div class="mt-2">
+            <span class="text-sm font-bold">Precio Base: ${{ (selectedProductForPrices?.price || 0).toFixed(2) }}</span>
+          </div>
+        </div>
+      </div>
+      <div bx-footer class="modal-footer">
+        <button @click="boxyModal.close('pricesModal')" class="btn btn-primary btn-block">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Main Content -->
   <main class="container">
     <div class="products-dashboard">
@@ -440,6 +487,9 @@
                   <div class="action-buttons">
                     <button @click="loadEditProduct(String(product.id))" class="btn-icon btn-edit" title="Editar">
                       <Icon name="pencil" />
+                    </button>
+                    <button @click="openPricesModal(product)" class="btn-icon btn-info" title="Ver Precios">
+                      <Icon name="currency-usd" />
                     </button>
                     <button @click="loadDeleteProduct(String(product.id))" class="btn-icon btn-delete" title="Eliminar">
                       <Icon name="trash-can-outline" />
@@ -545,7 +595,7 @@ const cargando = ref<boolean>(false)
 const isOnline = ref<boolean>(true)
 
 // Use composables
-const { brandSearch, createNewBrand, clearBrandSearch, getBrandName } = useBrands()
+const { brandSearch, searchBrands, createNewBrand, clearBrandSearch, getBrandName } = useBrands()
 const { measurements, getMeasurementType } = useMeasurements()
 const {
   establishmentSearch,
@@ -741,6 +791,14 @@ async function selectCategory(item: SearchableItem) {
 
   categorySearch.query = item.name
   categorySearch.showDropdown = false
+}
+
+// State for Prices Modal
+const selectedProductForPrices = ref<Product | null>(null)
+
+async function openPricesModal(product: Product) {
+  selectedProductForPrices.value = product
+  await boxyModal.open('pricesModal')
 }
 
 async function createNewCategory(name: string, icon?: string) {
@@ -2199,7 +2257,50 @@ function getCategoryInfo(categoryId: string): SearchableItem | undefined {
   .product-badge {
     align-self: flex-start;
   }
+}
 
+/* Prices Modal Styles */
+.prices-list-view {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px;
+}
+
+.price-row-item {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 10px;
+  background-color: var(--background-secondary, #f8f9fa);
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #e9ecef);
+}
+
+.est-name {
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.est-price {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 600;
+}
+
+.est-price .currency {
+  color: var(--text-muted);
+  font-size: 0.9em;
+  margin-right: 2px;
+}
+
+.average-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+@media (max-width: 480px) {
   .action-buttons {
     width: 100%;
     justify-content: flex-start;
