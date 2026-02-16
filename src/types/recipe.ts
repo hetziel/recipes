@@ -1,16 +1,18 @@
 export interface RecipeIngredient {
   product_id: string
-  usage_weight: number // Amount used in recipe (Utilizado)
+  usage_weight: number // in grams or units depending on product measurement
+  establishment_id?: string // Specific establishment selected for this ingredient
 }
 
 export interface RecipeUtility {
   id?: string
-  product_id?: string // Reference to product if applicable
-  name?: string
+  product_id?: string // Optional link to a real product
+  name: string // Name of the utility
   cost?: number // Price if not linked to product, or snapshot
-  quantity?: number // Total quantity in package
-  usage_quantity: number // Amount used
+  quantity?: number // Yield quantity for the cost (e.g., 100 units pack)
+  usage_quantity: number // How many utilized per scenario unit/batch
   profit_margin?: number // Profit margin for this specific utility (%)
+  establishment_id?: string // Specific establishment selected for this utility
 }
 
 export interface RecipeScenario {

@@ -126,12 +126,118 @@
               </div>
             </div>
 
-            <!-- Moneda y Precio -->
+            <!-- PRECIOS Y ESTABLECIMIENTOS -->
+            <div class="form-section-title">
+              <h3>Precios por Establecimiento</h3>
+            </div>
+
+            <div class="prices-manager mb-4">
+              <!-- Lista de precios existentes -->
+              <div v-if="handleProduct.prices && handleProduct.prices.length > 0" class="prices-list mb-3">
+                <div v-for="(priceItem, idx) in handleProduct.prices" :key="idx" class="price-item-row">
+                  <div class="price-est-name">
+                    <Icon name="store" size="sm" />
+                    {{ getEstablishmentName(priceItem.establishment_id) }}
+                  </div>
+                  <div class="price-val">
+                    <strong>{{ priceItem.currency === 'USD' ? '$' : 'Bs' }} {{ priceItem.price.toFixed(2) }}</strong>
+                  </div>
+                  <button type="button" @click="removePrice(idx)" class="btn-icon text-danger">
+                    <Icon name="close" />
+                  </button>
+                </div>
+              </div>
+              <div v-else class="empty-prices text-muted text-sm mb-3">
+                No hay precios registrados. Se usará el precio base.
+              </div>
+
+              <!-- Agregar nuevo precio -->
+              <div class="add-price-form p-3 bg-light rounded">
+                <label class="form-label text-xs mb-1">Agregar Precio / Establecimiento</label>
+                <div class="form-row narrow-gap align-end">
+                  <!-- Buscador de Establecimiento -->
+                  <div class="form-group flex-grow-1 mb-0">
+                    <div class="searchable-select">
+                      <div class="input-with-icon">
+                        <input v-model="establishmentSearch.query" @input="searchEstablishments"
+                          @focus="() => { establishmentSearch.showDropdown = true; searchEstablishments(); }"
+                          @blur="onEstablishmentBlur" placeholder="Buscar establecimiento..."
+                          class="form-input search-input" />
+                        <Icon name="magnify" class="input-icon" />
+                      </div>
+                      <div v-if="establishmentSearch.showDropdown && establishmentSearch.items.length" class="dropdown">
+                        <div v-for="item in establishmentSearch.items" :key="item.id"
+                          @mousedown="selectEstablishment(item)" class="dropdown-item"
+                          :class="{ 'new-item': item.isNew }">
+                          <Icon :name="item.isNew ? 'plus' : 'store'" />
+                          {{ item.isNew ? `Crear: "${item.name}"` : item.name }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Input Precio -->
+                  <div class="form-group mb-0" style="width: 120px;">
+                    <div class="price-input">
+                      <span class="price-prefix">{{ newPriceEntry.currency === 'USD' ? '$' : 'Bs' }}</span>
+                      <input v-model.number="newPriceEntry.price" type="number" min="0" step="0.01" class="form-input"
+                        placeholder="0.00" />
+                    </div>
+                  </div>
+
+                  <!-- Toggle Moneda -->
+                  <div class="form-group mb-0">
+                    <div class="currency-selector small">
+                      <button type="button" @click="newPriceEntry.currency = 'USD'"
+                        :class="['currency-btn', { active: newPriceEntry.currency === 'USD' }]">$</button>
+                      <button type="button" @click="newPriceEntry.currency = 'Bs'"
+                        :class="['currency-btn', { active: newPriceEntry.currency === 'Bs' }]">Bs</button>
+                    </div>
+                  </div>
+
+                  <!-- Botón Agregar -->
+                  <div class="form-group mb-0">
+                    <button type="button" @click="addPriceToProduct" class="btn btn-primary btn-icon"
+                      :disabled="!establishmentSearch.selectedItem || newPriceEntry.price <= 0">
+                      <Icon name="plus" />
+                    </button>
+                  </div>
+                </div>
+                <!-- Selección actual -->
+                <div v-if="establishmentSearch.selectedItem" class="selected-establishment mt-2">
+                  <span class="chip">
+                    <Icon name="store" /> {{ establishmentSearch.selectedItem.name }}
+                    <button type="button" @click="clearEstablishmentSelection" class="clear-btn">&times;</button>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Precio General / Promedio (Read only calculation) -->
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label">
+                  <Icon name="calculator" />
+                  Precio Promedio Calculado
+                </label>
+                <div class="price-display-large">
+                  ${{ calculateAveragePrice(handleProduct.prices).toFixed(2) }}
+                  <span class="text-xs text-muted">Bs {{ (calculateAveragePrice(handleProduct.prices) *
+                    (dolarBCV?.promedio || 0)).toFixed(2) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- OLD PRICE SECTION HIDDEN OR MIGRATED -->
+            <!-- We keep the old price input as a "Base Price" fallback or for quick editing if no establishments are used -->
+            <div class="form-row border-top pt-3 mt-2">
+              <div class="form-group full-width">
+                <label class="form-label text-muted text-sm">Configuración Manual (Precio Base / Fallback)</label>
+              </div>
+              <div class="form-group">
+                <label class="form-label">
                   <Icon name="currency-usd" />
-                  Moneda
+                  Moneda Base
                 </label>
                 <div class="currency-selector">
                   <button type="button" @click="handleProduct.currency_type = 'USD'"
@@ -147,7 +253,7 @@
               <div class="form-group">
                 <label class="form-label">
                   <Icon name="cash" />
-                  Precio
+                  Precio Base
                 </label>
                 <div class="price-input">
                   <span class="price-prefix">{{
@@ -263,10 +369,16 @@
     <div class="products-dashboard">
       <!-- Header -->
       <div class="dashboard-header">
-        <button @click="showModal(true)" class="btn btn-primary btn-add" open-modal="formProductModal">
-          <Icon name="plus" />
-          Agregar Producto
-        </button>
+        <div class="header-actions">
+          <button @click="showModal(true)" class="btn btn-primary btn-add" open-modal="formProductModal">
+            <Icon name="plus" />
+            Agregar Producto
+          </button>
+          <button @click="migrarPrecios" class="btn btn-outline ml-2"
+            title="Migrar precios antiguos a establecimientos">
+            <Icon name="database-sync" /> Migrar Precios
+          </button>
+        </div>
       </div>
 
       <!-- Error Message -->
@@ -348,20 +460,11 @@
               <div class="product-price">
                 <div class="price-display">
                   <div class="price-primary">
-                    <span class="currency-symbol">{{
-                      product.currency_type === 'USD' ? '$' : 'Bs'
-                      }}</span>
-                    {{ product.price?.toFixed(2) || '0.00' }}
+                    <span class="currency-symbol">$</span>
+                    {{ (product.average_price || product.price || 0).toFixed(2) }}
                   </div>
-                  <div class="price-secondary">
-                    {{ product.currency_type === 'USD' ? 'Bs' : '$' }}
-                    {{
-                      product.price && dolarBCV?.promedio
-                        ? product.currency_type === 'USD'
-                          ? (product.price * dolarBCV.promedio).toFixed(2)
-                          : (product.price / dolarBCV.promedio).toFixed(2)
-                        : '0.00'
-                    }}
+                  <div class="price-info-sub text-xs text-muted" v-if="product.prices && product.prices.length > 1">
+                    Promedio ({{ product.prices.length }} est.)
                   </div>
                 </div>
               </div>
@@ -414,12 +517,14 @@ import {
 import { db } from '../firebase.config'
 
 // Interfaces y tipos
-import type { Product, DolarBCV, ExtendedProduct, Measurement } from '../types/producto'
+// Product imports
+import type { Product, ProductPrice, DolarBCV, ExtendedProduct } from '../types/producto'
 import type { SearchableItem, SearchState } from '../types/search'
 
 // Composables
 import { useBrands } from '../composables/useBrands'
 import { useMeasurements } from '../composables/useMeasurements'
+import { useEstablishments } from '../composables/useEstablishments'
 
 // Datos de configuración
 const onTesting = true
@@ -430,9 +535,8 @@ const STORAGE_KEY = 'productos-app-data'
 const PRODUCTOS_COLLECTION = 'productos'
 const CATEGORIAS_COLLECTION = 'categorias'
 
-const { dolarBCV: dolarBCV, actualizarDolarBCV } = inject<{
+const { dolarBCV: dolarBCV } = inject<{
   dolarBCV: Ref<DolarBCV | null>
-  actualizarDolarBCV: (nuevoValor: DolarBCV) => void
 }>('dolarBCV')!
 
 const products = ref<Product[]>([])
@@ -441,8 +545,16 @@ const cargando = ref<boolean>(false)
 const isOnline = ref<boolean>(true)
 
 // Use composables
-const { brandSearch, loadBrands, searchBrands, createNewBrand, clearBrandSearch, getBrandName } = useBrands()
+const { brandSearch, createNewBrand, clearBrandSearch, getBrandName } = useBrands()
 const { measurements, getMeasurementType } = useMeasurements()
+const {
+  establishmentSearch,
+  loadEstablishments,
+  searchEstablishments,
+  createEstablishment,
+  clearEstablishmentSearch,
+  getEstablishmentName
+} = useEstablishments()
 
 // Estados para búsqueda dinámica (categorySearch remains local, but uses imported types)
 const categorySearch = reactive<SearchState>({
@@ -453,9 +565,17 @@ const categorySearch = reactive<SearchState>({
   isLoading: false,
 })
 
+// Estado para nuevo precio
+const newPriceEntry = reactive({
+  price: 0,
+  currency: 'USD' as 'USD' | 'Bs',
+})
+
 const handleProduct = ref<ExtendedProduct>({
   name: '',
   price: 0,
+  prices: [], // Initialize prices array
+  average_price: 0,
   category_id: '',
   brand_id: '',
   measurement_id: '',
@@ -524,7 +644,9 @@ onMounted(() => {
   onUnmounted(() => clearInterval(intervalo))
 
   // 4. Cargar categorías iniciales (brands are loaded by useBrands composable)
+  // 4. Cargar categorías iniciales (brands are loaded by useBrands composable)
   loadCategories()
+  loadEstablishments() // Cargar establecimientos
 })
 
 async function showModal(show: boolean) {
@@ -747,17 +869,227 @@ async function loadProductsFromFireStore(): Promise<void> {
   }
 }
 
-// Modificar las funciones existentes para usar Firestore
+
+
+async function handleAction() {
+  if (typeAction.value === 'create') {
+    await addProduct()
+  } else if (typeAction.value === 'edit') {
+    if (typeof handleProduct.value.id === 'string') {
+      await editProduct(handleProduct.value.id)
+    } else {
+      error.value = 'ID de producto inválido para editar.'
+    }
+  }
+}
+
+async function editProduct(id: string) {
+  if (!handleProduct.value.name) {
+    error.value = 'El nombre del producto es requerido'
+    return
+  }
+
+  // Calculate final average if not done
+  const avg = calculateAveragePrice(handleProduct.value.prices)
+
+  const updates: Partial<Product> = {
+    name: handleProduct.value.name.trim(),
+    price: handleProduct.value.price || 0,
+    prices: handleProduct.value.prices || [],
+    average_price: avg || handleProduct.value.price || 0,
+    category_id: handleProduct.value.category_id,
+    brand_id: handleProduct.value.brand_id || null,
+    measurement_id: handleProduct.value.measurement_id,
+    measurement_value: handleProduct.value.measurement_value,
+    currency_type: handleProduct.value.currency_type,
+    is_utility: handleProduct.value.is_utility || false,
+    updated_at: new Date().toISOString(),
+    marked_to_update: true
+  }
+
+  try {
+    // Update local state
+    const index = products.value.findIndex(p => p.id === id)
+    if (index !== -1) {
+      products.value[index] = { ...products.value[index], ...updates }
+    }
+
+    saveProductsInLocal()
+    resetearFormulario()
+
+    if (onFireStore && navigator.onLine) {
+      await syncPendingProducts()
+    }
+
+  } catch (err) {
+    error.value = 'Error al actualizar el producto'
+    console.error(err)
+  }
+}
+
+// ESTABLISHMENT FUNCTIONS
+function onEstablishmentBlur() {
+  setTimeout(() => {
+    establishmentSearch.showDropdown = false
+  }, 200)
+}
+
+async function selectEstablishment(item: SearchableItem) {
+  if (item.isNew) {
+    const newEst = await createEstablishment(item.name)
+    if (newEst) {
+      establishmentSearch.selectedItem = { id: newEst.id!, name: newEst.name }
+    }
+  } else {
+    establishmentSearch.selectedItem = item
+  }
+  establishmentSearch.query = item.name // Show name in input
+  establishmentSearch.showDropdown = false
+}
+
+function clearEstablishmentSelection() {
+  clearEstablishmentSearch()
+  newPriceEntry.price = 0
+}
+
+function addPriceToProduct() {
+  if (!establishmentSearch.selectedItem || newPriceEntry.price <= 0) return
+
+  // Check if establishment already exists in prices
+  if (!handleProduct.value.prices) handleProduct.value.prices = []
+
+  const existingIdx = handleProduct.value.prices.findIndex(p => p.establishment_id === establishmentSearch.selectedItem!.id)
+
+  const newPrice: ProductPrice = {
+    establishment_id: establishmentSearch.selectedItem.id,
+    price: newPriceEntry.price,
+    currency: newPriceEntry.currency,
+    updated_at: new Date().toISOString()
+  }
+
+  if (existingIdx >= 0) {
+    if (confirm('Este establecimiento ya tiene un precio. ¿Deseas actualizarlo?')) {
+      handleProduct.value.prices[existingIdx] = newPrice
+    }
+  } else {
+    handleProduct.value.prices.push(newPrice)
+  }
+
+  // Update average price
+  handleProduct.value.average_price = calculateAveragePrice(handleProduct.value.prices)
+  // If no base price set, set it to this one for compatibility
+  if (!handleProduct.value.price || handleProduct.value.price === 0) {
+    handleProduct.value.tempPrice = newPrice.currency === 'USD' ? newPrice.price : newPrice.price / (dolarBCV.value?.promedio || 1)
+    handleProduct.value.currency_type = 'USD'
+  }
+
+  // Reset
+  clearEstablishmentSelection()
+}
+
+function removePrice(index: number) {
+  if (!handleProduct.value.prices) return
+  handleProduct.value.prices.splice(index, 1)
+  handleProduct.value.average_price = calculateAveragePrice(handleProduct.value.prices)
+}
+
+function calculateAveragePrice(prices?: ProductPrice[]): number {
+  if (!prices || prices.length === 0) return 0
+  let totalUSD = 0
+  let count = 0
+
+  for (const p of prices) {
+    let priceUSD = p.price
+    if (p.currency === 'Bs') {
+      const rate = dolarBCV.value?.promedio || 1
+      priceUSD = p.price / rate
+    }
+    totalUSD += priceUSD
+    count++
+  }
+  return count > 0 ? totalUSD / count : 0
+}
+
+// MIGRATION TOOL
+async function migrarPrecios() {
+  if (!confirm('¿Estás seguro de migrar los precios antiguos? Esto asignará el precio actual a un establecimiento "General" para todos los productos que no tengan precios detallados.')) return
+
+  cargando.value = true
+  try {
+    // 1. Ensure "General" establishment exists
+    let generalId = ''
+    await searchEstablishments() // load cache
+    // Simple search in existing
+    /* Note: This assumes searchEstablishments loaded something or we rely on firestore.
+       Better to use loadEstablishments for this check or create strictly.
+    */
+    // Let's create it blindly or check
+    const q = query(collection(db, 'establishments'), where('name', '==', 'General'))
+    const snap = await getDocs(q)
+
+    if (!snap.empty) {
+      generalId = snap.docs[0].id
+    } else {
+      const newEst = await createEstablishment('General')
+      if (newEst) generalId = newEst.id
+    }
+
+    if (!generalId) throw new Error('No se pudo crear el establecimiento General')
+
+    let updatedCount = 0
+
+    // 2. Iterate products
+    const productsToUpdate = products.value.filter(p => (!p.prices || p.prices.length === 0) && p.price > 0)
+
+    for (const prod of productsToUpdate) {
+      const priceEntry: ProductPrice = {
+        establishment_id: generalId,
+        price: prod.price,
+        currency: prod.currency_type as 'USD' | 'Bs',
+        updated_at: new Date().toISOString()
+      }
+
+      const updates: Partial<Product> = {
+        prices: [priceEntry],
+        average_price: prod.currency_type === 'USD' ? prod.price : prod.price / (dolarBCV.value?.promedio || 1)
+      }
+
+      // Update Firestore
+      if (prod.id) {
+        await updateDoc(doc(db, 'productos', prod.id), updates)
+        // Update local
+        prod.prices = [priceEntry]
+        prod.average_price = updates.average_price
+        updatedCount++
+      }
+    }
+
+    alert(`Migración completada. ${updatedCount} productos actualizados.`)
+
+  } catch (err) {
+    console.error('Error en migración:', err)
+    alert('Error durante la migración')
+  } finally {
+    cargando.value = false
+  }
+}
+
+// Modify addProduct/editProduct to ensure average_price is saved
 async function addProduct() {
   if (!handleProduct.value.name) {
     error.value = 'El nombre del producto es requerido'
     return
   }
 
+  // Calculate final average if not done
+  const avg = calculateAveragePrice(handleProduct.value.prices)
+
   const product: Product = {
-    id: 'temp_' + Date.now(), // ID temporal
+    id: 'temp_' + Date.now(),
     name: handleProduct.value.name.trim(),
     price: handleProduct.value.price || 0,
+    prices: handleProduct.value.prices || [],
+    average_price: avg || handleProduct.value.price || 0,
     category_id: handleProduct.value.category_id,
     brand_id: handleProduct.value.brand_id || null,
     measurement_id: handleProduct.value.measurement_id,
@@ -771,14 +1103,10 @@ async function addProduct() {
   console.log('Producto para agregar:', product)
 
   try {
-    // 1. Agregar localmente
     products.value.unshift(product)
     saveProductsInLocal()
-
-    // 3. Limpiar formulario
     resetearFormulario()
 
-    // 2. Intentar sincronización inmediata si hay conexión
     if (onFireStore && navigator.onLine) {
       await syncPendingProducts()
     }
@@ -788,17 +1116,8 @@ async function addProduct() {
   }
 }
 
-async function handleAction() {
-  if (typeAction.value === 'create') {
-    await addProduct()
-  } else if (typeAction.value === 'edit') {
-    if (typeof handleProduct.value.id === 'string') {
-      await editProduct(handleProduct.value.id)
-    } else {
-      error.value = 'ID de producto inválido para editar.'
-    }
-  }
-}
+
+
 
 async function resetearFormulario() {
   handleProduct.value = {
@@ -884,35 +1203,7 @@ async function loadEditProduct(id: string) {
   boxyModal.open('formProductModal')
 }
 
-async function editProduct(id: string) {
-  console.log('Editado producto con ID:', id)
-  if (!id) return
 
-  products.value = products.value.map((p) => {
-    if (String(p.id) === id) {
-      return {
-        ...p,
-        name: handleProduct.value.name.trim(),
-        price: handleProduct.value.price || 0,
-        category_id: handleProduct.value.category_id,
-        brand_id: handleProduct.value.brand_id,
-        measurement_id: handleProduct.value.measurement_id,
-        measurement_value: handleProduct.value.measurement_value,
-        currency_type: handleProduct.value.currency_type,
-        is_utility: handleProduct.value.is_utility || false,
-        updated_at: new Date().toISOString().split('T')[0],
-        marked_to_update: true, // Marcar como pendiente de actualización
-      }
-    }
-    return p
-  })
-
-  resetearFormulario()
-
-  if (onFireStore && navigator.onLine && isOnline.value) {
-    await syncPendingProducts()
-  }
-}
 
 async function loadDeleteProduct(id: string) {
   if (onTesting) {

@@ -49,6 +49,7 @@
               <tr>
                 <th>Nombre</th>
                 <th>Costo (Pkg)</th>
+                <th>Establecimiento</th>
                 <th>Peso (Pkg)</th>
                 <th>Utilizado</th>
                 <th>Costo/Uso</th>
@@ -63,7 +64,24 @@
                     ({{ getBrandName(getProductById(ing.product_id)?.brand_id) }})
                   </span>
                 </td>
-                <td>${{ getProductById(ing.product_id)?.price.toFixed(2) || '0.00' }}</td>
+                <td>
+                  <div class="price-display-cell">
+                    <span class="text-xs text-muted" v-if="!ing.establishment_id">Promedio</span>
+                    ${{ (calculateIngredientCost(ing) / (ing.usage_weight || 1) *
+                      (getProductById(ing.product_id)?.measurement_value || 1)).toFixed(2) }}
+                  </div>
+                </td>
+                <td>
+                  <select v-model="ing.establishment_id" class="input-xs">
+                    <option :value="undefined">Promedio ({{ getProductById(ing.product_id)?.prices?.length || 0 }} est.)
+                    </option>
+                    <option v-for="price in getProductById(ing.product_id)?.prices" :key="price.establishment_id"
+                      :value="price.establishment_id">
+                      {{ getEstablishmentName(price.establishment_id) }} - ${{ price.currency === 'USD' ?
+                        price.price.toFixed(2) : (price.price / (dolarRate || 1)).toFixed(2) }}
+                    </option>
+                  </select>
+                </td>
                 <td>{{ getProductById(ing.product_id)?.measurement_value || 0 }}</td>
                 <td>
                   <input v-model.number="ing.usage_weight" type="number" class="input-sm" min="0" />
@@ -76,12 +94,12 @@
                 </td>
               </tr>
               <tr v-if="recipe.ingredients.length === 0">
-                <td colspan="7" class="text-center text-muted">No hay ingredientes agregados</td>
+                <td colspan="8" class="text-center text-muted">No hay ingredientes agregados</td>
               </tr>
             </tbody>
             <tfoot>
               <tr class="table-summary">
-                <td colspan="3" class="text-right"><strong>Totales:</strong></td>
+                <td colspan="4" class="text-right"><strong>Totales:</strong></td>
                 <td>
                   <strong>{{ totalWeight }}</strong>
                 </td>
@@ -175,7 +193,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-success">
@@ -183,7 +201,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-profit">
@@ -278,6 +296,7 @@
                         <tr>
                           <th>Nombre</th>
                           <th>Precio Pkg</th>
+                          <th>Establecimiento</th>
                           <th>Cant. Pkg</th>
                           <th>Uso</th>
                           <th>Ganancia %</th>
@@ -298,7 +317,24 @@
                           </td>
                           <td>
                             <input v-if="!util.product_id" v-model.number="util.cost" type="number" class="input-xs" />
-                            <span v-else>${{ getProductById(util.product_id)?.price.toFixed(2) }}</span>
+                            <div v-else class="price-display-cell">
+                              <span class="text-xs text-muted" v-if="!util.establishment_id">Promedio</span>
+                              ${{ (calculateScenarioUtilityCost(util) / (util.usage_quantity || 1) *
+                                (getProductById(util.product_id)?.measurement_value || 1)).toFixed(2) }}
+                            </div>
+                          </td>
+                          <td>
+                            <div v-if="util.product_id">
+                              <select v-model="util.establishment_id" class="input-xs">
+                                <option :value="undefined">Promedio</option>
+                                <option v-for="price in getProductById(util.product_id)?.prices"
+                                  :key="price.establishment_id" :value="price.establishment_id">
+                                  {{ getEstablishmentName(price.establishment_id) }} - ${{ price.currency === 'USD' ?
+                                    price.price.toFixed(2) : (price.price / (dolarRate || 1)).toFixed(2) }}
+                                </option>
+                              </select>
+                            </div>
+                            <div v-else class="text-center text-muted">-</div>
                           </td>
                           <td>
                             <input v-if="!util.product_id" v-model.number="util.quantity" type="number"
@@ -485,9 +521,15 @@ import Icon from '@/components/ui/Icon.vue' // Assuming global Icon component
 import type { Recipe, RecipeIngredient, RecipeUtility, RecipeScenario } from '../types/recipe'
 import type { Product, DolarBCV } from '../types/producto'
 import { useBrands } from '../composables/useBrands'
+import { useEstablishments } from '../composables/useEstablishments'
 
 const route = useRoute()
 const { getBrandName } = useBrands()
+const { loadEstablishments, getEstablishmentName } = useEstablishments()
+
+onMounted(() => {
+  loadEstablishments()
+})
 
 // STATE
 const isEditing = ref(false)
@@ -567,7 +609,17 @@ const canCleanUtilities = computed(() => {
 function calculateIngredientCost(ing: RecipeIngredient): number {
   const prod = getProductById(ing.product_id)
   if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
-  return (prod.price / prod.measurement_value) * (ing.usage_weight || 0)
+
+  let finalPrice = prod.average_price || prod.price // Default to average
+
+  if (ing.establishment_id) {
+    const specificPrice = prod.prices?.find(p => p.establishment_id === ing.establishment_id)
+    if (specificPrice) {
+      finalPrice = specificPrice.currency === 'USD' ? specificPrice.price : specificPrice.price / (dolarRate.value || 1)
+    }
+  }
+
+  return (finalPrice / prod.measurement_value) * (ing.usage_weight || 0)
 }
 
 function calculateEstimatedUnits(scenario: RecipeScenario): number {
@@ -587,7 +639,16 @@ function calculateScenarioUtilityCost(util: RecipeUtility): number {
   if (util.product_id) {
     const prod = getProductById(util.product_id)
     if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
-    return (prod.price / prod.measurement_value) * (util.usage_quantity || 0)
+
+    let finalPrice = prod.average_price || prod.price
+    if (util.establishment_id) {
+      const specificPrice = prod.prices?.find(p => p.establishment_id === util.establishment_id)
+      if (specificPrice) {
+        finalPrice = specificPrice.currency === 'USD' ? specificPrice.price : specificPrice.price / (dolarRate.value || 1)
+      }
+    }
+
+    return (finalPrice / prod.measurement_value) * (util.usage_quantity || 0)
   }
   const cost = util.cost || 0
   const qty = util.quantity || 0
@@ -807,19 +868,23 @@ async function cleanUtilitiesData() {
 
 
 
-function addUtilityToScenario(sIndex: number) {
-  activeScenarioIndex.value = sIndex
+function addUtilityToScenario(scenarioIndex: number) {
   showUtilityModal.value = true
+  activeScenarioIndex.value = scenarioIndex
 }
 
-function selectUtility(prod: Product) {
-  if (activeScenarioIndex.value !== null) {
-    scenarios.value[activeScenarioIndex.value].utilities.push({
-      product_id: prod.id,
-      usage_quantity: 1,
-      profit_margin: 50,
-    })
+function selectUtility(product: Product) {
+  if (activeScenarioIndex.value === null) return
+
+  const util: RecipeUtility = {
+    name: product.name, // Initialize name
+    product_id: product.id,
+    usage_quantity: 1,
+    profit_margin: 50,
+    establishment_id: undefined // Default to average
   }
+
+  scenarios.value[activeScenarioIndex.value].utilities.push(util)
   showUtilityModal.value = false
   activeScenarioIndex.value = null
 }

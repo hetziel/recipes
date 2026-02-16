@@ -1,3 +1,12 @@
+
+
+export interface ProductPrice {
+  establishment_id: string
+  price: number
+  currency: 'USD' | 'Bs'
+  updated_at?: string
+}
+
 export interface Product {
   id?: string
   name: string
@@ -7,6 +16,8 @@ export interface Product {
   measurement_value: number
   currency_type: string
   price: number
+  prices?: ProductPrice[]
+  average_price?: number
   is_utility?: boolean
   created_at?: string
   updated_at?: string | null
