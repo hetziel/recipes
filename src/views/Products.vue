@@ -386,6 +386,9 @@
             <div class="est-price">
               <span class="currency">{{ price.currency === 'USD' ? '$' : 'Bs' }}</span>
               <span class="value">{{ price.price.toFixed(2) }}</span>
+              <div v-if="price.currency === 'USD'" class="text-xs text-muted text-right">
+                Bs {{ (price.price * (dolarBCV?.promedio || 0)).toFixed(2) }}
+              </div>
             </div>
           </div>
           <div class="average-row mt-3 pt-3 border-t">
@@ -512,6 +515,9 @@
                   <div class="price-primary">
                     <span class="currency-symbol">$</span>
                     {{ (product.average_price || product.price || 0).toFixed(2) }}
+                  </div>
+                  <div class="price-secondary text-xs text-muted">
+                    Bs {{ ((product.average_price || product.price || 0) * (dolarBCV?.promedio || 0)).toFixed(2) }}
                   </div>
                   <div class="price-info-sub text-xs text-muted" v-if="product.prices && product.prices.length > 1">
                     Promedio ({{ product.prices.length }} est.)
@@ -950,16 +956,23 @@ async function editProduct(id: string) {
   // Calculate final average if not done
   const avg = calculateAveragePrice(handleProduct.value.prices)
 
+  // Force base price to USD
+  let basePriceUSD = handleProduct.value.price || 0
+  if (handleProduct.value.currency_type === 'Bs' || handleProduct.value.currency_type === 'BS') {
+    const rate = dolarBCV.value?.promedio || 1
+    basePriceUSD = basePriceUSD / rate
+  }
+
   const updates: Partial<Product> = {
     name: handleProduct.value.name.trim(),
-    price: handleProduct.value.price || 0,
+    price: basePriceUSD,
     prices: handleProduct.value.prices || [],
-    average_price: avg || handleProduct.value.price || 0,
+    average_price: avg || basePriceUSD,
     category_id: handleProduct.value.category_id,
     brand_id: handleProduct.value.brand_id || null,
     measurement_id: handleProduct.value.measurement_id,
     measurement_value: handleProduct.value.measurement_value,
-    currency_type: handleProduct.value.currency_type,
+    currency_type: 'USD', // Force USD
     is_utility: handleProduct.value.is_utility || false,
     updated_at: new Date().toISOString(),
     marked_to_update: true
@@ -1018,10 +1031,16 @@ function addPriceToProduct() {
 
   const existingIdx = handleProduct.value.prices.findIndex(p => p.establishment_id === establishmentSearch.selectedItem!.id)
 
+  let priceToSave = newPriceEntry.price
+  if (newPriceEntry.currency === 'Bs') {
+    const rate = dolarBCV.value?.promedio || 1
+    priceToSave = newPriceEntry.price / rate
+  }
+
   const newPrice: ProductPrice = {
     establishment_id: establishmentSearch.selectedItem.id,
-    price: newPriceEntry.price,
-    currency: newPriceEntry.currency,
+    price: priceToSave,
+    currency: 'USD',
     updated_at: new Date().toISOString()
   }
 
@@ -1142,17 +1161,24 @@ async function addProduct() {
   // Calculate final average if not done
   const avg = calculateAveragePrice(handleProduct.value.prices)
 
+  // Force base price to USD
+  let basePriceUSD = handleProduct.value.price || 0
+  if (handleProduct.value.currency_type === 'Bs' || handleProduct.value.currency_type === 'BS') {
+    const rate = dolarBCV.value?.promedio || 1
+    basePriceUSD = basePriceUSD / rate
+  }
+
   const product: Product = {
     id: 'temp_' + Date.now(),
     name: handleProduct.value.name.trim(),
-    price: handleProduct.value.price || 0,
+    price: basePriceUSD,
     prices: handleProduct.value.prices || [],
-    average_price: avg || handleProduct.value.price || 0,
+    average_price: avg || basePriceUSD,
     category_id: handleProduct.value.category_id,
     brand_id: handleProduct.value.brand_id || null,
     measurement_id: handleProduct.value.measurement_id,
     measurement_value: handleProduct.value.measurement_value,
-    currency_type: handleProduct.value.currency_type,
+    currency_type: 'USD', // Force USD
     is_utility: handleProduct.value.is_utility || false,
     created_at: handleProduct.value.created_at || new Date().toISOString().split('T')[0],
     marked_to_create: true,
