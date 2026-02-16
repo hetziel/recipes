@@ -372,9 +372,11 @@
           <Icon name="tag-multiple" />
           Precios: {{ selectedProductForPrices?.name }}
         </h2>
-        <button @click="boxyModal.close('pricesModal')" class="close-btn">
-          <Icon name="close" />
-        </button>
+        <div class="header-actions flex items-center">
+          <button @click="closePricesModal" class="close-btn">
+            <Icon name="close" />
+          </button>
+        </div>
       </div>
       <div bx-body class="modal-body">
         <div v-if="selectedProductForPrices?.prices?.length" class="prices-list-view">
@@ -383,18 +385,48 @@
               <Icon name="store" size="sm" class="mr-2" />
               {{ getEstablishmentName(price.establishment_id) }}
             </div>
-            <div class="est-price">
-              <span class="currency">{{ price.currency === 'USD' ? '$' : 'Bs' }}</span>
-              <span class="value">{{ price.price.toFixed(2) }}</span>
-              <div v-if="price.currency === 'USD'" class="text-xs text-muted text-right">
-                Bs {{ (price.price * (dolarBCV?.promedio || 0)).toFixed(2) }}
+            <div class="est-price-container flex-grow-1 flex items-center justify-end gap-2">
+              <!-- Switch -->
+              <div class="currency-switch-mini mr-2">
+                <button type="button" @click="(price as any).ui_currency = 'USD'"
+                  :class="['btn-xxs', (price as any).ui_currency === 'USD' ? 'btn-primary' : 'btn-outline']">$</button>
+                <button type="button" @click="(price as any).ui_currency = 'Bs'"
+                  :class="['btn-xxs', (price as any).ui_currency === 'Bs' ? 'btn-primary' : 'btn-outline']">Bs</button>
+              </div>
+
+              <!-- Display Mode -->
+              <div v-if="!isEditingPrices" class="price-display-dual text-right">
+                <div class="main-price font-bold">
+                  {{ (price as any).ui_currency === 'USD' ? '$' : 'Bs' }}
+                  {{ (price as any).ui_currency === 'USD' ? price.price.toFixed(2) : (price.price * (dolarBCV?.promedio
+                    || 0)).toFixed(2) }}
+                </div>
+                <div class="sub-price text-xs text-muted">
+                  {{ (price as any).ui_currency === 'USD' ? 'Bs' : '$' }}
+                  {{ (price as any).ui_currency === 'USD' ? (price.price * (dolarBCV?.promedio || 0)).toFixed(2) :
+                    price.price.toFixed(2) }}
+                </div>
+              </div>
+
+              <!-- Edit Mode -->
+              <div v-else class="est-price-edit">
+                <input v-if="(price as any).ui_currency === 'USD'" v-model.number="price.price" type="number" min="0"
+                  step="0.01" class="form-input text-right" style="width: 90px" />
+                <input v-else :value="(price.price * (dolarBCV?.promedio || 1)).toFixed(2)"
+                  @input="(e) => updatePriceInBs(price, Number((e.target as HTMLInputElement).value))" type="number"
+                  min="0" step="0.01" class="form-input text-right" style="width: 90px" />
               </div>
             </div>
           </div>
           <div class="average-row mt-3 pt-3 border-t">
             <div class="est-name font-bold">Promedio</div>
-            <div class="est-price font-bold text-primary">
-              ${{ (selectedProductForPrices.average_price || 0).toFixed(2) }}
+            <div class="est-price-dual text-right">
+              <div class="font-bold text-primary">
+                ${{ (selectedProductForPrices.average_price || 0).toFixed(2) }}
+              </div>
+              <div class="text-xs text-muted">
+                Bs {{ ((selectedProductForPrices.average_price || 0) * (dolarBCV?.promedio || 0)).toFixed(2) }}
+              </div>
             </div>
           </div>
         </div>
@@ -407,7 +439,15 @@
         </div>
       </div>
       <div bx-footer class="modal-footer">
-        <button @click="boxyModal.close('pricesModal')" class="btn btn-primary btn-block">
+        <button v-if="!isEditingPrices" @click="togglePriceEditMode" class="btn btn-secondary mr-2">
+          <Icon name="pencil" />
+          Editar
+        </button>
+        <button v-else @click="savePriceChanges" class="btn btn-success mr-2" :disabled="isSavingPrices">
+          <Icon name="content-save" />
+          {{ isSavingPrices ? 'Guardando...' : 'Guardar Cambios' }}
+        </button>
+        <button @click="closePricesModal" class="btn btn-primary">
           Cerrar
         </button>
       </div>
@@ -574,7 +614,7 @@ import { db } from '../firebase.config'
 
 // Interfaces y tipos
 // Product imports
-import type { Product, ProductPrice, DolarBCV, ExtendedProduct } from '../types/producto'
+import type { Product, ProductPrice, DolarBCV, ExtendedProduct, UiProductPrice } from '../types/producto'
 import type { SearchableItem, SearchState } from '../types/search'
 
 // Composables
@@ -801,11 +841,72 @@ async function selectCategory(item: SearchableItem) {
 
 // State for Prices Modal
 const selectedProductForPrices = ref<Product | null>(null)
+const isEditingPrices = ref(false)
+const isSavingPrices = ref(false)
+
+function updatePriceInBs(priceItem: ProductPrice, valueBs: number) {
+  const rate = dolarBCV.value?.promedio || 1
+  priceItem.price = valueBs / rate
+}
 
 async function openPricesModal(product: Product) {
-  selectedProductForPrices.value = product
+  // Clone to avoid direct mutation
+  const cloned = JSON.parse(JSON.stringify(product)) as Product
+  // Init ui_currency for each price
+  if (cloned.prices) {
+    cloned.prices.forEach((p) => {
+      (p as UiProductPrice).ui_currency = 'USD'
+    })
+  }
+  selectedProductForPrices.value = cloned
+  isEditingPrices.value = false
   await boxyModal.open('pricesModal')
 }
+
+function closePricesModal() {
+  boxyModal.close('pricesModal')
+  selectedProductForPrices.value = null
+  isEditingPrices.value = false
+}
+
+function togglePriceEditMode() {
+  isEditingPrices.value = !isEditingPrices.value
+}
+
+async function savePriceChanges() {
+  const prod = selectedProductForPrices.value
+  if (!prod || !prod.id) return
+
+  isSavingPrices.value = true
+  try {
+    // Recalculate average
+    prod.average_price = calculateAveragePrice(prod.prices)
+
+    // Update Firestore
+    const updates: Partial<Product> = {
+      prices: prod.prices,
+      average_price: prod.average_price,
+      updated_at: new Date().toISOString(),
+      marked_to_update: true
+    }
+
+    await updateDoc(doc(db, 'productos', prod.id), updates)
+
+    // Update local list
+    const index = products.value.findIndex(p => p.id === prod.id)
+    if (index !== -1) {
+      products.value[index] = { ...products.value[index], ...updates }
+    }
+
+    isEditingPrices.value = false
+  } catch (err) {
+    console.error('Error updating prices:', err)
+    alert('Error al guardar los precios')
+  } finally {
+    isSavingPrices.value = false
+  }
+}
+
 
 async function createNewCategory(name: string, icon?: string) {
   try {
@@ -2331,5 +2432,58 @@ function getCategoryInfo(categoryId: string): SearchableItem | undefined {
     width: 100%;
     justify-content: flex-start;
   }
+}
+
+.currency-switch {
+  display: inline-flex;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.currency-switch .btn-xs {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: bold;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.currency-switch .btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.currency-switch .btn-outline {
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+
+.currency-switch-mini {
+  display: inline-flex;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-right: 8px;
+}
+
+.currency-switch-mini .btn-xxs {
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: bold;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.currency-switch-mini .btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.currency-switch-mini .btn-outline {
+  background: var(--surface);
+  color: var(--text-secondary);
 }
 </style>

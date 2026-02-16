@@ -7,6 +7,10 @@ export interface ProductPrice {
   updated_at?: string
 }
 
+export interface UiProductPrice extends ProductPrice {
+  ui_currency: 'USD' | 'Bs'
+}
+
 export interface Product {
   id?: string
   name: string
