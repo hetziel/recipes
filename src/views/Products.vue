@@ -258,7 +258,7 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     handleProduct.currency_type === 'USD' ? '$' : 'Bs'
-                    }}</span>
+                  }}</span>
                   <input v-model.number="handleProduct.tempPrice" type="number" min="0" step="0.01" class="form-input"
                     placeholder="0.00" />
                 </div>
@@ -386,47 +386,60 @@
               {{ getEstablishmentName(price.establishment_id) }}
             </div>
             <div class="est-price-container flex-grow-1 flex items-center justify-end gap-2">
-              <!-- Switch -->
-              <div class="currency-switch-mini mr-2">
-                <button type="button" @click="(price as any).ui_currency = 'USD'"
-                  :class="['btn-xxs', (price as any).ui_currency === 'USD' ? 'btn-primary' : 'btn-outline']">$</button>
-                <button type="button" @click="(price as any).ui_currency = 'Bs'"
-                  :class="['btn-xxs', (price as any).ui_currency === 'Bs' ? 'btn-primary' : 'btn-outline']">Bs</button>
-              </div>
-
               <!-- Display Mode -->
               <div v-if="!isEditingPrices" class="price-display-dual text-right">
-                <div class="main-price font-bold">
-                  {{ (price as any).ui_currency === 'USD' ? '$' : 'Bs' }}
-                  {{ (price as any).ui_currency === 'USD' ? price.price.toFixed(2) : (price.price * (dolarBCV?.promedio
-                    || 0)).toFixed(2) }}
+                <div class="currency-switch-mini mr-2">
+                  <button type="button" @click="(price as any).ui_currency = 'USD'"
+                    :class="['btn-xxs', (price as any).ui_currency === 'USD' ? 'btn-primary' : 'btn-outline']">$</button>
+                  <button type="button" @click="(price as any).ui_currency = 'Bs'"
+                    :class="['btn-xxs', (price as any).ui_currency === 'Bs' ? 'btn-primary' : 'btn-outline']">Bs</button>
                 </div>
-                <div class="sub-price text-xs text-muted">
-                  {{ (price as any).ui_currency === 'USD' ? 'Bs' : '$' }}
-                  {{ (price as any).ui_currency === 'USD' ? (price.price * (dolarBCV?.promedio || 0)).toFixed(2) :
-                    price.price.toFixed(2) }}
+                <div>
+                  <div class="main-price font-bold">
+                    {{ (price as any).ui_currency === 'USD' ? '$' : 'Bs' }}
+                    {{ (price as any).ui_currency === 'USD' ? price.price.toFixed(2) : (price.price *
+                      (dolarBCV?.promedio || 0)).toFixed(2) }}
+                  </div>
+                  <div class="sub-price text-xs text-muted">
+                    {{ (price as any).ui_currency === 'USD' ? 'Bs' : '$' }}
+                    {{ (price as any).ui_currency === 'USD' ? (price.price * (dolarBCV?.promedio || 0)).toFixed(2) :
+                      price.price.toFixed(2) }}
+                  </div>
                 </div>
               </div>
 
               <!-- Edit Mode -->
-              <div v-else class="est-price-edit">
-                <input v-if="(price as any).ui_currency === 'USD'" v-model.number="price.price" type="number" min="0"
-                  step="0.01" class="form-input text-right" style="width: 90px" />
-                <input v-else :value="(price.price * (dolarBCV?.promedio || 1)).toFixed(2)"
-                  @input="(e) => updatePriceInBs(price, Number((e.target as HTMLInputElement).value))" type="number"
-                  min="0" step="0.01" class="form-input text-right" style="width: 90px" />
+              <div v-else class="est-price-edit-container flex items-center gap-2">
+                <div class="currency-switch-mini">
+                  <button type="button" @click="(price as any).ui_currency = 'USD'"
+                    :class="['btn-xxs', (price as any).ui_currency === 'USD' ? 'btn-primary' : 'btn-outline']">$</button>
+                  <button type="button" @click="(price as any).ui_currency = 'Bs'"
+                    :class="['btn-xxs', (price as any).ui_currency === 'Bs' ? 'btn-primary' : 'btn-outline']">Bs</button>
+                </div>
+                <div class="price-input-group">
+                  <input v-if="(price as any).ui_currency === 'USD'" v-model.number="price.price" type="number" min="0"
+                    step="0.01" class="form-input text-right" style="width: 90px" />
+                  <input v-else :value="(price.price * (dolarBCV?.promedio || 1)).toFixed(2)"
+                    @input="(e) => updatePriceInBs(price, Number((e.target as HTMLInputElement).value))" type="number"
+                    min="0" step="0.01" class="form-input text-right" style="width: 90px" />
+                  <span class="converted-price-label text-xs text-muted ml-2">
+                    {{ (price as any).ui_currency === 'USD'
+                      ? `Bs ${(price.price * (dolarBCV?.promedio || 0)).toFixed(2)}`
+                      : `$${price.price.toFixed(2)}`
+                    }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
           <div class="average-row mt-3 pt-3 border-t">
             <div class="est-name font-bold">Promedio</div>
-            <div class="est-price-dual text-right">
-              <div class="font-bold text-primary">
-                ${{ (selectedProductForPrices.average_price || 0).toFixed(2) }}
-              </div>
-              <div class="text-xs text-muted">
-                Bs {{ ((selectedProductForPrices.average_price || 0) * (dolarBCV?.promedio || 0)).toFixed(2) }}
-              </div>
+            <div class="average-prices-inline text-right">
+              <span class="font-bold text-primary">${{ (selectedProductForPrices.average_price || 0).toFixed(2)
+              }}</span>
+              <span class="text-muted mx-2">|</span>
+              <span class="text-muted">Bs {{ ((selectedProductForPrices.average_price || 0) * (dolarBCV?.promedio ||
+                0)).toFixed(2) }}</span>
             </div>
           </div>
         </div>
@@ -506,7 +519,7 @@
                     :name="getCategoryInfo(product.category_id)?.icon ?? ''" class="category-list-icon" />
                   <span v-else>{{
                     getMeasurementType(product.measurement_id)?.charAt(0) || 'P'
-                    }}</span>
+                  }}</span>
                 </div>
                 <div class="product-details">
                   <h3 class="product-name">{{ product.name }}</h3>
@@ -2485,5 +2498,29 @@ function getCategoryInfo(categoryId: string): SearchableItem | undefined {
 .currency-switch-mini .btn-outline {
   background: var(--surface);
   color: var(--text-secondary);
+}
+
+.est-price-edit-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.price-input-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.converted-price-label {
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.average-prices-inline {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
 }
 </style>
