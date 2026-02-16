@@ -28,6 +28,8 @@ export interface Product {
   marked_to_create?: boolean
   marked_to_delete?: boolean
   marked_to_update?: boolean
+  is_recipe_product?: boolean  // Flag to identify products created from recipes
+  recipe_id?: string           // Reference to source recipe
 }
 
 export interface ExtendedProduct extends Product {

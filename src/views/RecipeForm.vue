@@ -30,6 +30,17 @@
           <label>Nombre de la Receta</label>
           <input v-model="recipe.name" type="text" class="form-input" placeholder="Ej: Torta de Chocolate" />
         </div>
+
+        <div class="form-group checkbox-group">
+          <label class="checkbox-container">
+            <input type="checkbox" v-model="recipe.save_as_product" />
+            <span class="checkmark"></span>
+            <Icon name="package-variant" />
+            Guardar como Producto (para usar en otras recetas)
+          </label>
+          <p class="form-help">Al activar esta opción, la receta estará disponible como ingrediente en otras recetas.
+          </p>
+        </div>
       </section>
 
       <!-- SECCIÓN 1: PRODUCTOS / INGREDIENTES -->
@@ -193,7 +204,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
-                      }}</span>
+                        }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-success">
@@ -201,7 +212,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                      }}</span>
+                        }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-profit">
@@ -513,7 +524,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, inject, type Ref } from 'vue'
+import { ref, computed, onMounted, inject, watch, type Ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, deleteDoc } from 'firebase/firestore'
 import { db } from '../firebase.config'
@@ -904,8 +915,16 @@ async function loadProducts() {
   if (local) {
     availableProducts.value = JSON.parse(local)
   } else {
+    // Load regular products
     const snap = await getDocs(collection(db, 'productos'))
-    availableProducts.value = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product)
+    const regularProducts = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product)
+
+    // Load recipe products
+    const myProductsSnap = await getDocs(collection(db, 'my_products'))
+    const recipeProducts = myProductsSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product)
+
+    // Combine both lists
+    availableProducts.value = [...regularProducts, ...recipeProducts]
   }
 }
 
@@ -954,14 +973,80 @@ async function saveRecipe() {
     } else {
       const newRef = doc(collection(db, 'recipes'))
       dataToSave.id = newRef.id
+      recipe.value.id = newRef.id
       await setDoc(newRef, dataToSave)
+      isEditing.value = true
     }
+
+    // Sync recipe as product if checkbox is enabled
+    await syncRecipeAsProduct()
   } catch (e) {
     console.error(e)
   } finally {
     isSaving.value = false
   }
 }
+
+// Helper function to calculate average recipe price
+function calculateAverageRecipePrice(): number {
+  if (scenarios.value.length === 0) {
+    return totalIngredientsCost.value
+  }
+  const totalCost = scenarios.value.reduce((sum, sc) =>
+    sum + calculateScenarioUnitCost(sc), 0
+  )
+  return totalCost / scenarios.value.length
+}
+
+// Sync recipe as product in my_products collection
+async function syncRecipeAsProduct() {
+  if (!recipe.value.save_as_product || !recipe.value.id) return
+
+  // Calculate final price (average of all scenarios or base cost)
+  const avgPrice = calculateAverageRecipePrice()
+
+  const productData = {
+    name: recipe.value.name,
+    price: avgPrice,
+    average_price: avgPrice,
+    category_id: 'recipe_products',  // Special category
+    brand_id: null,
+    measurement_id: 'unit',          // Assuming unit-based
+    measurement_value: 1,
+    currency_type: 'USD',
+    is_recipe_product: true,
+    recipe_id: recipe.value.id,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+
+  if (recipe.value.product_id) {
+    // Update existing
+    await updateDoc(doc(db, 'my_products', recipe.value.product_id), productData)
+  } else {
+    // Create new
+    const ref = doc(collection(db, 'my_products'))
+    await setDoc(ref, { ...productData, id: ref.id })
+    recipe.value.product_id = ref.id
+    await updateDoc(doc(db, 'recipes', recipe.value.id), { product_id: ref.id })
+  }
+}
+
+// Watch for checkbox changes to delete product when unchecked
+watch(() => recipe.value.save_as_product, async (newVal, oldVal) => {
+  if (oldVal && !newVal && recipe.value.product_id) {
+    // Delete product from my_products
+    try {
+      await deleteDoc(doc(db, 'my_products', recipe.value.product_id))
+      recipe.value.product_id = undefined
+      if (recipe.value.id) {
+        await updateDoc(doc(db, 'recipes', recipe.value.id), { product_id: null })
+      }
+    } catch (e) {
+      console.error('Error deleting product:', e)
+    }
+  }
+})
 
 onMounted(() => {
   loadProducts()

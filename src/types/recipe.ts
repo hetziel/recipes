@@ -43,6 +43,10 @@ export interface Recipe {
   // Financials
   profit_margin_percent: number // Global profit margin (e.g. 200%)
 
+  // Recipe as Product
+  save_as_product?: boolean    // Checkbox state
+  product_id?: string          // Reference to created product in my_products
+
   created_at: string
   updated_at?: string
 }
