@@ -387,13 +387,7 @@
             </div>
             <div class="est-price-container flex-grow-1 flex items-center justify-end gap-2">
               <!-- Display Mode -->
-              <div v-if="!isEditingPrices" class="price-display-dual text-right">
-                <div class="currency-switch-mini mr-2">
-                  <button type="button" @click="(price as any).ui_currency = 'USD'"
-                    :class="['btn-xxs', (price as any).ui_currency === 'USD' ? 'btn-primary' : 'btn-outline']">$</button>
-                  <button type="button" @click="(price as any).ui_currency = 'Bs'"
-                    :class="['btn-xxs', (price as any).ui_currency === 'Bs' ? 'btn-primary' : 'btn-outline']">Bs</button>
-                </div>
+              <div v-if="!(price as any).isEditing" class="price-display-dual text-right">
                 <div>
                   <div class="main-price font-bold">
                     {{ (price as any).ui_currency === 'USD' ? '$' : 'Bs' }}
@@ -421,7 +415,7 @@
                     step="0.01" class="form-input text-right" style="width: 90px" />
                   <input v-else :value="(price.price * (dolarBCV?.promedio || 1)).toFixed(2)"
                     @input="(e) => updatePriceInBs(price, Number((e.target as HTMLInputElement).value))" type="number"
-                    min="0" step="0.01" class="form-input text-right" style="width: 90px" />
+                    min="0" step="0.01" class="form-input text-right" style="width: 110px" />
                   <span class="converted-price-label text-xs text-muted ml-2">
                     {{ (price as any).ui_currency === 'USD'
                       ? `Bs ${(price.price * (dolarBCV?.promedio || 0)).toFixed(2)}`
@@ -430,6 +424,18 @@
                   </span>
                 </div>
               </div>
+            </div>
+
+            <!-- Per-row Edit/Save Button -->
+            <div class="row-actions ml-2">
+              <button v-if="!(price as any).isEditing" @click="toggleRowEdit(price, true)"
+                class="btn-icon btn-sm btn-edit" title="Editar">
+                <Icon name="pencil" size="sm" />
+              </button>
+              <button v-else @click="saveRowPrice(price)" class="btn-icon btn-sm btn-success" title="Guardar"
+                :disabled="isSavingPrices">
+                <Icon name="content-save" size="sm" />
+              </button>
             </div>
           </div>
           <div class="average-row mt-3 pt-3 border-t">
@@ -452,15 +458,8 @@
         </div>
       </div>
       <div bx-footer class="modal-footer">
-        <button v-if="!isEditingPrices" @click="togglePriceEditMode" class="btn btn-secondary mr-2">
-          <Icon name="pencil" />
-          Editar
-        </button>
-        <button v-else @click="savePriceChanges" class="btn btn-success mr-2" :disabled="isSavingPrices">
-          <Icon name="content-save" />
-          {{ isSavingPrices ? 'Guardando...' : 'Guardar Cambios' }}
-        </button>
-        <button @click="closePricesModal" class="btn btn-primary">
+        <button @click="closePricesModal" class="btn btn-secondary">
+          <Icon name="close" />
           Cerrar
         </button>
       </div>
@@ -865,10 +864,11 @@ function updatePriceInBs(priceItem: ProductPrice, valueBs: number) {
 async function openPricesModal(product: Product) {
   // Clone to avoid direct mutation
   const cloned = JSON.parse(JSON.stringify(product)) as Product
-  // Init ui_currency for each price
+  // Init ui_currency and isEditing for each price
   if (cloned.prices) {
     cloned.prices.forEach((p) => {
-      (p as UiProductPrice).ui_currency = 'USD'
+      (p as UiProductPrice).ui_currency = 'USD';
+      (p as any).isEditing = false
     })
   }
   selectedProductForPrices.value = cloned
@@ -882,8 +882,43 @@ function closePricesModal() {
   isEditingPrices.value = false
 }
 
-function togglePriceEditMode() {
-  isEditingPrices.value = !isEditingPrices.value
+function toggleRowEdit(priceItem: any, editing: boolean) {
+  priceItem.isEditing = editing
+}
+
+async function saveRowPrice(priceItem: any) {
+  const prod = selectedProductForPrices.value
+  if (!prod || !prod.id) return
+
+  isSavingPrices.value = true
+  try {
+    // Recalculate average
+    prod.average_price = calculateAveragePrice(prod.prices)
+
+    // Update Firestore
+    const updates: Partial<Product> = {
+      prices: prod.prices,
+      average_price: prod.average_price,
+      updated_at: new Date().toISOString(),
+      marked_to_update: true
+    }
+
+    await updateDoc(doc(db, 'productos', prod.id), updates)
+
+    // Update local list
+    const index = products.value.findIndex(p => p.id === prod.id)
+    if (index !== -1) {
+      products.value[index] = { ...products.value[index], ...updates }
+    }
+
+    // Exit edit mode for this row
+    priceItem.isEditing = false
+  } catch (err) {
+    console.error('Error updating price:', err)
+    alert('Error al guardar el precio')
+  } finally {
+    isSavingPrices.value = false
+  }
 }
 
 async function savePriceChanges() {
@@ -2522,5 +2557,30 @@ function getCategoryInfo(categoryId: string): SearchableItem | undefined {
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+}
+
+.btn-sm {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.btn-success {
+  background: var(--success, #28a745);
+  color: white;
+  border: none;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: var(--success-dark, #218838);
+}
+
+.btn-success:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>
