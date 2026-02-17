@@ -28,10 +28,22 @@ export interface RecipeScenario {
   utilities: RecipeUtility[] // Scenario-specific utilities
 }
 
+export interface ChickenData {
+  initial_quantity: number
+  live_weight_price_kg: number
+  current_avg_weight_g: number
+  target_weight_g: number
+  current_feed_id?: string
+  starter_feed_per_chicken_g: number
+  fattening_feed_per_chicken_g: number
+}
+
 export interface Recipe {
   id?: string
   name: string
   ingredients: RecipeIngredient[]
+  is_chicken_batch?: boolean
+  chicken_data?: ChickenData
   // Base utilities removed as per user request (moved to scenarios)
   scenarios?: RecipeScenario[] // LEGACY: To be migrated
 
@@ -51,4 +63,5 @@ export interface Recipe {
 
   created_at: string
   updated_at?: string
+  status?: 'active' | 'finished' | 'cancelled'
 }

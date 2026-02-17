@@ -36,20 +36,32 @@ const router = createRouter({
       meta: { title: 'Calculadora Bs/USD' }
     },
     {
-      path: '/recipes',
-      name: 'recipes',
+      path: '/production',
+      name: 'production',
       component: () => import('../views/Recipes.vue'),
     },
     {
-      path: '/recipes/create',
-      name: 'recipes-create',
+      path: '/production/create',
+      name: 'production-create',
       component: () => import('../views/RecipeForm.vue'),
       meta: { requiresAdmin: true }
     },
     {
-      path: '/recipes/:id/edit',
-      name: 'recipes-edit',
+      path: '/production/:id/edit',
+      name: 'production-edit',
       component: () => import('../views/RecipeForm.vue'),
+      meta: { requiresAdmin: true }
+    },
+    {
+      path: '/production/chicken/create',
+      name: 'production-chicken-create',
+      component: () => import('../views/ChickenForm.vue'),
+      meta: { requiresAdmin: true }
+    },
+    {
+      path: '/production/chicken/:id/edit',
+      name: 'production-chicken-edit',
+      component: () => import('../views/ChickenForm.vue'),
       meta: { requiresAdmin: true }
     },
     {
@@ -84,7 +96,7 @@ router.beforeEach(async (to, from, next) => {
   // If route is public, allow access
   if (to.meta.public) {
     if (isAuthenticated && (to.name === 'login' || to.name === 'register')) {
-      return next({ name: userProfile.value?.role === 'admin' ? 'home' : 'recipes' })
+      return next({ name: userProfile.value?.role === 'admin' ? 'home' : 'production' })
     }
     return next()
   }
@@ -98,7 +110,7 @@ router.beforeEach(async (to, from, next) => {
   const role = userProfile.value?.role
 
   if (to.meta.requiresAdmin && role !== 'admin') {
-    return next({ name: 'recipes' })
+    return next({ name: 'production' })
   }
 
   next()

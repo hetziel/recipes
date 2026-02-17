@@ -525,7 +525,12 @@
                   }}</span>
                 </div>
                 <div class="product-details">
-                  <h3 class="product-name">{{ product.name }}</h3>
+                  <h3 class="product-name">
+                    {{ product.name }}
+                    <Icon v-if="product.type === 'alimento'" name="grain" class="type-icon food" title="Alimento" />
+                    <Icon v-if="product.type === 'pollo'" name="bird" class="type-icon chicken"
+                      title="Pollo de Engorde" />
+                  </h3>
                   <div class="product-meta">
                     <span class="product-measurement" v-if="product.measurement_value">
                       <Icon name="ruler" size="sm" />
@@ -692,6 +697,7 @@ const handleProduct = ref<ExtendedProduct>({
   average_price: 0,
   category_id: '',
   brand_id: '',
+  type: 'standard',
   measurement_id: '',
   measurement_value: 0,
   currency_type: 'USD',
@@ -2004,15 +2010,19 @@ function getCategoryInfo(categoryId: string): SearchableItem | undefined {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
-  gap: 20px; /* Space between search and actions */
-  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+  gap: 20px;
+  /* Space between search and actions */
+  flex-wrap: wrap;
+  /* Allow wrapping on smaller screens */
 }
 
 /* Estilos para el buscador */
 .search-input-wrapper {
   position: relative;
-  flex-grow: 1; /* Allow search input to take available space */
-  min-width: 200px; /* Minimum width for search input */
+  flex-grow: 1;
+  /* Allow search input to take available space */
+  min-width: 200px;
+  /* Minimum width for search input */
 }
 
 .search-input {
@@ -2038,13 +2048,15 @@ function getCategoryInfo(categoryId: string): SearchableItem | undefined {
   top: 50%;
   transform: translateY(-50%);
   color: var(--text-secondary);
-  pointer-events: none; /* Make icon unclickable */
+  pointer-events: none;
+  /* Make icon unclickable */
 }
 
 .header-actions {
   display: flex;
   gap: 12px;
-  flex-shrink: 0; /* Prevent action buttons from shrinking */
+  flex-shrink: 0;
+  /* Prevent action buttons from shrinking */
 }
 
 @media (max-width: 768px) {

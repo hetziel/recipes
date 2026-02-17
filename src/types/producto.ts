@@ -19,6 +19,7 @@ export interface Product {
   measurement_id: string
   measurement_value: number
   currency_type: string
+  type?: 'standard' | 'alimento' | 'pollo'
   price: number
   prices?: ProductPrice[]
   average_price?: number

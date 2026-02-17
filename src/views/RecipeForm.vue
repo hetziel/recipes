@@ -31,15 +31,13 @@
           <input v-model="recipe.name" type="text" class="form-input" placeholder="Ej: Torta de Chocolate" />
         </div>
 
-        <div class="form-group checkbox-group">
+        <div class="form-group checkbox-group mt-4">
           <label class="checkbox-container">
             <input type="checkbox" v-model="recipe.save_as_product" />
             <span class="checkmark"></span>
             <Icon name="package-variant" />
-            Guardar como Producto (para usar en otras recetas)
+            Guardar como Producto (para usar en otras producciones)
           </label>
-          <p class="form-help">Al activar esta opción, la receta estará disponible como ingrediente en otras recetas.
-          </p>
         </div>
       </section>
 
@@ -459,92 +457,94 @@
       </div>
     </div>
 
-    <!-- UTILITY SELECTOR MODAL -->
     <div v-if="showUtilityModal" class="modal-overlay">
-      <div class="modal-content">
-        <h3>Seleccionar Insumo / Utilería</h3>
-        <input v-model="utilitySearch" placeholder="Buscar insumo..." class="form-input mb-4" />
-        <div class="product-list">
-          <div v-for="prod in filteredUtilities" :key="prod.id" class="product-item" @click="selectUtility(prod)">
-            <div class="product-info-mini">
-              <span class="product-name-mini">{{ prod.name }}</span>
-              <span v-if="prod.brand_id" class="product-brand-mini">{{ getBrandName(prod.brand_id) }}</span>
+      <div v-if="showUtilityModal" class="modal-overlay">
+        <div class="modal-content">
+          <h3>Seleccionar Insumo / Utilería</h3>
+          <input v-model="utilitySearch" placeholder="Buscar insumo..." class="form-input mb-4" />
+          <div class="product-list">
+            <div v-for="prod in filteredUtilities" :key="prod.id" class="product-item" @click="selectUtility(prod)">
+              <div class="product-info-mini">
+                <span class="product-name-mini">{{ prod.name }}</span>
+                <span v-if="prod.brand_id" class="product-brand-mini">{{ getBrandName(prod.brand_id) }}</span>
+              </div>
+              <span class="price-tag">${{ prod.price }} ({{ prod.measurement_value }}
+                {{ getMeasurementLabel(prod.measurement_id) }})</span>
             </div>
-            <span class="price-tag">${{ prod.price }} ({{ prod.measurement_value }}
-              {{ getMeasurementLabel(prod.measurement_id) }})</span>
+            <div v-if="filteredUtilities.length === 0" class="text-center p-4 text-muted">
+              No hay insumos marcados como utilería.
+            </div>
           </div>
-          <div v-if="filteredUtilities.length === 0" class="text-center p-4 text-muted">
-            No hay insumos marcados como utilería.
-          </div>
-        </div>
-        <button @click="showUtilityModal = false" class="btn btn-secondary mt-4">Cancelar</button>
-      </div>
-    </div>
-
-    <!-- BATCH SUMMARY MODAL -->
-    <div v-if="showBatchSummaryModal" class="modal-overlay">
-      <div class="modal-content large-modal">
-        <header class="modal-header">
-          <h3>
-            <Icon name="chart-pie" /> Resumen de Producción Total (Batch)
-          </h3>
-          <button @click="showBatchSummaryModal = false" class="btn-icon">
-            <Icon name="close" />
-          </button>
-        </header>
-
-        <p class="modal-desc">
-          Este resumen muestra cuánto ganarías si vendieras <strong>toda la producción</strong> del lote bajo cada
-          escenario.
-        </p>
-
-        <div class="table-responsive">
-          <table class="data-table summary-table">
-            <thead>
-              <tr>
-                <th>Escenario</th>
-                <th>Inversión Total</th>
-                <th>Venta Total</th>
-                <th>Ganancia Bruta</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(sc, idx) in scenarios" :key="idx">
-                <td>
-                  <strong>{{ sc.name }}</strong>
-                  <div class="text-xs text-muted">{{ calculateEstimatedUnits(sc).toFixed(1) }} unidades</div>
-                </td>
-                <td>
-                  <div class="val-usd">${{ calculateBatchTotalInvestment(sc).toFixed(2) }}</div>
-                  <div class="val-bs text-xs">Bs {{ (calculateBatchTotalInvestment(sc) * dolarRate).toFixed(2) }}</div>
-                </td>
-                <td>
-                  <div class="val-usd text-success">${{ calculateBatchTotalIncome(sc).toFixed(2) }}</div>
-                  <div class="val-bs text-xs">Bs {{ (calculateBatchTotalIncome(sc) * dolarRate).toFixed(2) }}</div>
-                </td>
-                <td>
-                  <div class="val-usd brand-color">${{ calculateBatchTotalProfit(sc).toFixed(2) }}</div>
-                  <div class="val-bs text-xs">Bs {{ (calculateBatchTotalProfit(sc) * dolarRate).toFixed(2) }}</div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="modal-footer mt-6">
-          <button @click="showBatchSummaryModal = false" class="btn btn-primary btn-block">Entendido</button>
+          <button @click="showUtilityModal = false" class="btn btn-secondary mt-4">Cancelar</button>
         </div>
       </div>
-    </div>
 
-    <!-- DELETE CONFIRMATION MODAL -->
-    <div v-if="showDeleteConfirmModal" class="modal-overlay">
-      <div class="modal-content">
-        <h3>¿Eliminar Paquete?</h3>
-        <p>¿Estás seguro de que deseas eliminar este paquete? Esta acción no se puede deshacer.</p>
-        <div class="modal-actions mt-6">
-          <button @click="showDeleteConfirmModal = false" class="btn btn-outline">Cancelar</button>
-          <button @click="confirmDeleteScenario" class="btn btn-danger">Eliminar</button>
+      <!-- BATCH SUMMARY MODAL -->
+      <div v-if="showBatchSummaryModal" class="modal-overlay">
+        <div class="modal-content large-modal">
+          <header class="modal-header">
+            <h3>
+              <Icon name="chart-pie" /> Resumen de Producción Total (Batch)
+            </h3>
+            <button @click="showBatchSummaryModal = false" class="btn-icon">
+              <Icon name="close" />
+            </button>
+          </header>
+
+          <p class="modal-desc">
+            Este resumen muestra cuánto ganarías si vendieras <strong>toda la producción</strong> del lote bajo cada
+            escenario.
+          </p>
+
+          <div class="table-responsive">
+            <table class="data-table summary-table">
+              <thead>
+                <tr>
+                  <th>Escenario</th>
+                  <th>Inversión Total</th>
+                  <th>Venta Total</th>
+                  <th>Ganancia Bruta</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(sc, idx) in scenarios" :key="idx">
+                  <td>
+                    <strong>{{ sc.name }}</strong>
+                    <div class="text-xs text-muted">{{ calculateEstimatedUnits(sc).toFixed(1) }} unidades</div>
+                  </td>
+                  <td>
+                    <div class="val-usd">${{ calculateBatchTotalInvestment(sc).toFixed(2) }}</div>
+                    <div class="val-bs text-xs">Bs {{ (calculateBatchTotalInvestment(sc) * dolarRate).toFixed(2) }}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="val-usd text-success">${{ calculateBatchTotalIncome(sc).toFixed(2) }}</div>
+                    <div class="val-bs text-xs">Bs {{ (calculateBatchTotalIncome(sc) * dolarRate).toFixed(2) }}</div>
+                  </td>
+                  <td>
+                    <div class="val-usd brand-color">${{ calculateBatchTotalProfit(sc).toFixed(2) }}</div>
+                    <div class="val-bs text-xs">Bs {{ (calculateBatchTotalProfit(sc) * dolarRate).toFixed(2) }}</div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="modal-footer mt-6">
+            <button @click="showBatchSummaryModal = false" class="btn btn-primary btn-block">Entendido</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DELETE CONFIRMATION MODAL -->
+      <div v-if="showDeleteConfirmModal" class="modal-overlay">
+        <div class="modal-content">
+          <h3>¿Eliminar Paquete?</h3>
+          <p>¿Estás seguro de que deseas eliminar este paquete? Esta acción no se puede deshacer.</p>
+          <div class="modal-actions mt-6">
+            <button @click="showDeleteConfirmModal = false" class="btn btn-outline">Cancelar</button>
+            <button @click="confirmDeleteScenario" class="btn btn-danger">Eliminar</button>
+          </div>
         </div>
       </div>
     </div>
@@ -561,10 +561,18 @@ import type { Recipe, RecipeIngredient, RecipeUtility, RecipeScenario } from '..
 import type { Product, DolarBCV } from '../types/producto'
 import { useBrands } from '../composables/useBrands'
 import { useEstablishments } from '../composables/useEstablishments'
+import { useProduction } from '../composables/useProduction'
 
 const route = useRoute()
 const { getBrandName } = useBrands()
 const { loadEstablishments, getEstablishmentName } = useEstablishments()
+const availableProducts = ref<Product[]>([])
+const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
+const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
+
+const {
+  calculateIngredientCost
+} = useProduction(availableProducts, dolarRate)
 
 onMounted(() => {
   loadEstablishments()
@@ -581,7 +589,6 @@ const utilitySearch = ref('')
 const activeScenarioIndex = ref<number | null>(null)
 const editingScenarioIndex = ref<number | null>(null)
 const showBatchSummaryModal = ref(false)
-const availableProducts = ref<Product[]>([])
 const recipeProducts = ref<Product[]>([])
 const scenarios = ref<RecipeScenario[]>([])
 const isSavingScenario = ref(false)
@@ -598,14 +605,9 @@ const recipe = ref<Recipe>({
   weight_loss: 0,
   total_cost_ingredients: 0,
   has_production_units: false,
-  total_production_units: 1,
   profit_margin_percent: 30, // Default 30%
   created_at: new Date().toISOString().split('T')[0],
 })
-
-// INJECTS
-const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
-const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
 
 // HELPERS
 function getProductById(id: string): Product | undefined {
@@ -684,28 +686,6 @@ function getIngredientPackagePrice(ing: RecipeIngredient): number {
   }
 
   return finalPrice;
-}
-
-function calculateIngredientCost(ing: RecipeIngredient): number {
-  const prod = getProductById(ing.product_id)
-  if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
-
-  let finalPrice: number;
-
-  if (ing.price_type === 'unit_price' && ing.selected_price !== undefined) {
-    finalPrice = ing.selected_price;
-  } else if (ing.establishment_id) {
-    const specificPrice = prod.prices?.find(p => p.establishment_id === ing.establishment_id)
-    if (specificPrice) {
-      finalPrice = specificPrice.currency === 'USD' ? specificPrice.price : specificPrice.price / (dolarRate.value || 1)
-    } else {
-      finalPrice = prod.average_price || prod.price
-    }
-  } else {
-    finalPrice = prod.average_price || prod.price // Default to average or product.price
-  }
-
-  return (finalPrice / prod.measurement_value) * (ing.usage_weight || 0)
 }
 
 function calculateEstimatedUnits(scenario: RecipeScenario): number {
@@ -1026,16 +1006,16 @@ function openProductModal() {
   showProductModal.value = true
 }
 
-function openMyProductModal() {
-  showMyProductModal.value = true
-}
-
 function selectProduct(prod: Product) {
   recipe.value.ingredients.push({
     product_id: prod.id || '',
     usage_weight: 0,
   })
   showProductModal.value = false
+}
+
+function openMyProductModal() {
+  showMyProductModal.value = true
 }
 
 function selectMyProduct(prod: Product) {
@@ -1856,5 +1836,31 @@ onMounted(() => {
   white-space: nowrap;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.toggle-group {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.animate-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

@@ -1,10 +1,15 @@
 <template>
   <div class="recipes-container">
     <header class="page-header">
-      <h1>Recetas</h1>
-      <button v-if="userProfile?.role === 'admin'" @click="$router.push('/recipes/create')" class="btn btn-primary">
-        <Icon name="plus" /> Nueva Receta
-      </button>
+      <h1>Producción</h1>
+      <div v-if="userProfile?.role === 'admin'" class="header-buttons">
+        <button @click="$router.push('/production/chicken/create')" class="btn btn-warning">
+          <Icon name="bird" /> Nuevo Lote de Pollos
+        </button>
+        <button @click="$router.push('/production/create')" class="btn btn-primary">
+          <Icon name="plus" /> Nueva Producción
+        </button>
+      </div>
     </header>
 
     <div class="card">
@@ -29,19 +34,34 @@
                 </td>
                 <td>
                   <div class="recipe-name-cell">
-                    <strong>{{ recipe.name }}</strong>
+                    <div class="title-with-icon">
+                      <Icon v-if="recipe.is_chicken_batch" name="bird" class="recipe-type-icon chicken" />
+                      <Icon v-else name="silverware-variant" class="recipe-type-icon" />
+                      <strong>{{ recipe.name }}</strong>
+                    </div>
                     <div class="text-xs text-muted">{{ formatDate(recipe.updated_at) }}</div>
                   </div>
                 </td>
                 <td v-if="userProfile?.role === 'admin'">
-                  <div class="cost-stack">
+                  <div v-if="recipe.is_chicken_batch" class="cost-stack">
+                    <span class="price-usd">${{ (recipe.total_cost_ingredients / (recipe.chicken_data?.initial_quantity
+                      || 1)).toFixed(2) }}<small>/u</small></span>
+                    <span class="price-bs">Total: ${{ recipe.total_cost_ingredients.toFixed(2) }}</span>
+                  </div>
+                  <div v-else class="cost-stack">
                     <span class="price-usd">${{ calculateBaseCost(recipe).toFixed(2) }}</span>
                     <span class="price-bs">Bs {{ (calculateBaseCost(recipe) * dolarRate).toFixed(2) }}</span>
                   </div>
                 </td>
                 <td v-if="userProfile?.role === 'admin'">
                   <div class="actions" @click.stop>
-                    <button @click="$router.push(`/recipes/${recipe.id}/edit`)" class="btn-icon" title="Editar">
+                    <button v-if="recipe.is_chicken_batch"
+                      @click="$router.push(`/production/chicken/${recipe.id}/edit`)" class="btn-icon"
+                      title="Editar Lote">
+                      <Icon name="pencil" />
+                    </button>
+                    <button v-else @click="$router.push(`/production/${recipe.id}/edit`)" class="btn-icon"
+                      title="Editar Receta">
                       <Icon name="pencil" />
                     </button>
                     <button @click="confirmDelete(recipe)" class="btn-icon text-danger" title="Eliminar">
@@ -54,6 +74,25 @@
               <tr v-if="expandedRecipes[recipe.id!]" class="nested-row">
                 <td colspan="5">
                   <div class="tree-children">
+                    <div v-if="recipe.is_chicken_batch && getChickenCalculations(recipe)"
+                      class="chicken-expanded-summary">
+                      <div class="summary-grid-mini">
+                        <div class="summary-item-mini">
+                          <label>Costo por Pollo</label>
+                          <span>${{ getChickenCalculations(recipe)!.costPerChicken.toFixed(2) }}</span>
+                        </div>
+                        <div class="summary-item-mini">
+                          <label>Alimento (kg)</label>
+                          <span>Est. Inicio: {{ getChickenCalculations(recipe)!.totalStarterNeeded.toFixed(1)
+                          }}kg</span>
+                        </div>
+                        <div class="summary-item-mini highlight-profit">
+                          <label>Ganancia Proyectada</label>
+                          <span>${{ getChickenCalculations(recipe)!.projectedProfit.toFixed(2) }}</span>
+                        </div>
+                      </div>
+                    </div>
+
                     <div v-for="(sc, idx) in getRecipesScenarios(recipe.id!)" :key="idx" class="tree-item">
                       <div class="scenario-card-mini">
                         <div class="sc-info">
@@ -112,6 +151,7 @@ import Icon from '@/components/ui/Icon.vue'
 import type { Recipe, RecipeScenario, RecipeUtility } from '../types/recipe'
 import type { DolarBCV, Product } from '../types/producto'
 import { useAuth } from '../composables/useAuth'
+import { useProduction } from '../composables/useProduction'
 
 const { userProfile } = useAuth()
 const recipes = ref<Recipe[]>([])
@@ -122,6 +162,12 @@ const loading = ref(false)
 
 const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
 const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
+
+const {
+  calculateBaseCost,
+  calculateChickenCalculations,
+  getProductById
+} = useProduction(availableProducts, dolarRate)
 
 async function loadRecipes() {
   loading.value = true
@@ -165,17 +211,9 @@ function getRecipesScenarios(recipeId: string): RecipeScenario[] {
   return allScenarios.value.filter(sc => sc.recipe_id === recipeId)
 }
 
-function getProductById(id: string): Product | undefined {
-  return availableProducts.value.find(p => p.id === id)
-}
-
-function calculateBaseCost(recipe: Recipe): number {
-  const dynamicCost = recipe.ingredients.reduce((sum, ing) => {
-    const prod = getProductById(ing.product_id)
-    if (!prod || !prod.measurement_value) return sum
-    return sum + (prod.price / prod.measurement_value) * (ing.usage_weight || 0)
-  }, 0)
-  return dynamicCost || recipe.total_cost_ingredients || 0
+// CALCULATION HELPERS
+function getChickenCalculations(recipe: Recipe) {
+  return calculateChickenCalculations(recipe)
 }
 
 // CALCULATION HELPERS
@@ -246,6 +284,11 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+}
+
+.header-buttons {
+  display: flex;
+  gap: 12px;
 }
 
 .card {
@@ -441,6 +484,26 @@ onMounted(() => {
   border: 1px solid var(--border);
 }
 
+.recipe-name-cell {
+  display: flex;
+  flex-direction: column;
+}
+
+.title-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recipe-type-icon {
+  opacity: 0.6;
+}
+
+.recipe-type-icon.chicken {
+  color: #ff9800;
+  opacity: 1;
+}
+
 .actions {
   display: flex;
   gap: 8px;
@@ -561,5 +624,43 @@ onMounted(() => {
   .fin-item .bs {
     font-size: 0.7rem;
   }
+}
+
+.chicken-expanded-summary {
+  background: rgba(255, 152, 0, 0.05);
+  border: 1px dashed #ff9800;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  margin-left: 44px;
+  /* Align with expansion */
+}
+
+.summary-grid-mini {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.summary-item-mini {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-item-mini label {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.summary-item-mini span {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.summary-item-mini.highlight-profit span {
+  color: var(--primary);
 }
 </style>

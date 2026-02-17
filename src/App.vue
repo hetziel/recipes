@@ -107,7 +107,7 @@ onMounted(() => {
         <span></span>
         <span></span>
       </button>
-      <h1 class="app-title">Recipes</h1>
+      <h1 class="app-title">Producción</h1>
       <div class="tasa-info" :class="{
         'tasa-actual': dolarBCV?.origen === 'api',
         'tasa-local': dolarBCV?.origen === 'local',
@@ -137,9 +137,9 @@ onMounted(() => {
       </template>
 
       <!-- Shared/Common Links -->
-      <RouterLink to="/recipes" class="nav-link" @click="toggleMenu">
-        <span class="icon"><i class="fi fi-rr-utensils"></i></span>
-        <span class="text">Recetas</span>
+      <RouterLink to="/production" class="nav-link" @click="toggleMenu">
+        <span class="icon"><i class="fi fi-rr-boxes"></i></span>
+        <span class="text">Producción</span>
       </RouterLink>
 
       <!-- Admin Only Links -->
