@@ -206,6 +206,13 @@ onMounted(() => {
   left: 0;
   right: 0;
   z-index: 1000;
+  transition: left 0.3s ease;
+}
+
+@media (min-width: 769px) {
+  .app-header {
+    left: 280px;
+  }
 }
 
 .app-title {
@@ -265,6 +272,24 @@ onMounted(() => {
 
 .sidebar-nav.is-open {
   transform: translateX(0);
+}
+
+@media (min-width: 769px) {
+  .sidebar-nav {
+    transform: translateX(0);
+  }
+
+  .hamburger-menu {
+    display: none !important;
+  }
+
+  .close-btn {
+    display: none;
+  }
+
+  .sidebar-overlay {
+    display: none !important;
+  }
 }
 
 .sidebar-header {
@@ -328,6 +353,13 @@ onMounted(() => {
 
 .b-body {
   padding-top: var(--header-height);
+  transition: padding-left 0.3s ease;
+}
+
+@media (min-width: 769px) {
+  .b-body:not(.no-padding) {
+    padding-left: 280px;
+  }
 }
 
 .app-container {
