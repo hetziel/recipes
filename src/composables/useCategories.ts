@@ -5,7 +5,9 @@ import {
   query,
   orderBy,
   setDoc,
-  doc
+  doc,
+  updateDoc,
+  deleteDoc
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from '../firebase.config'
@@ -87,6 +89,32 @@ export function useCategories() {
     }
   }
 
+  async function updateCategory(id: string, updates: Partial<Category>): Promise<boolean> {
+    try {
+      const categoryRef = doc(db, CATEGORIAS_COLLECTION, id)
+      await updateDoc(categoryRef, {
+        ...updates,
+        updated_at: new Date().toISOString().split('T')[0]
+      })
+      return true
+    } catch (err: unknown) {
+      console.error('Error updating category:', err)
+      error.value = err instanceof Error ? err.message : 'Error desconocido'
+      return false
+    }
+  }
+
+  async function deleteCategory(id: string): Promise<boolean> {
+    try {
+      await deleteDoc(doc(db, CATEGORIAS_COLLECTION, id))
+      return true
+    } catch (err: unknown) {
+      console.error('Error deleting category:', err)
+      error.value = err instanceof Error ? err.message : 'Error desconocido'
+      return false
+    }
+  }
+
   // Auto-start
   if (!unsubscribe) {
     subscribeToCategories()
@@ -101,5 +129,7 @@ export function useCategories() {
     getCategoryInfo,
     getSearchableCategories,
     createNewCategory,
+    updateCategory,
+    deleteCategory,
   }
 }

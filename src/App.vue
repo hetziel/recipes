@@ -146,6 +146,10 @@ onMounted(() => {
           <span class="icon"><i class="fi fi-rr-shop"></i></span>
           <span class="text">Establecimientos</span>
         </RouterLink>
+        <RouterLink to="/settings/categories-brands" class="nav-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-settings-sliders"></i></span>
+          <span class="text">Config. Productos</span>
+        </RouterLink>
       </template>
 
       <!-- General Links -->

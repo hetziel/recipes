@@ -5,7 +5,9 @@ import {
   query,
   orderBy,
   doc,
-  setDoc
+  setDoc,
+  updateDoc,
+  deleteDoc
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from '../firebase.config'
@@ -140,6 +142,31 @@ export function useBrands() {
     brandSearch.items = allBrands.value.map(b => ({ id: b.id, name: b.name }))
   }
 
+  async function updateBrand(id: string, updates: Partial<Brand>): Promise<boolean> {
+    try {
+      const brandRef = doc(db, MARCAS_COLLECTION, id)
+      await updateDoc(brandRef, {
+        ...updates
+      })
+      return true
+    } catch (err) {
+      console.error('Error updating brand:', err)
+      error.value = 'Error al actualizar marca'
+      return false
+    }
+  }
+
+  async function deleteBrand(id: string): Promise<boolean> {
+    try {
+      await deleteDoc(doc(db, MARCAS_COLLECTION, id))
+      return true
+    } catch (err) {
+      console.error('Error deleting brand:', err)
+      error.value = 'Error al eliminar marca'
+      return false
+    }
+  }
+
   // Auto-start subscription
   if (!unsubscribe) {
     subscribeToBrands()
@@ -153,5 +180,7 @@ export function useBrands() {
     createNewBrand,
     getBrandName,
     clearBrandSearch,
+    updateBrand,
+    deleteBrand,
   }
 }
