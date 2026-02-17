@@ -2,7 +2,7 @@
   <div class="recipe-form-container chicken-batch-form">
     <header class="page-header">
       <div class="header-left">
-        <button @click="$router.push('/recipes')" class="btn-back">
+        <button @click="$router.push('/production')" class="btn-back">
           <Icon name="arrow-left" />
         </button>
         <h1>{{ isEditing ? 'Editar Lote de Pollos' : 'Nuevo Lote de Pollos' }}</h1>
@@ -164,6 +164,15 @@
 
         <div class="chicken-summary-grid">
           <div class="summary-card investment">
+            <Icon name="bird" />
+            <div class="summary-details">
+              <label>Inversión en Pollos</label>
+              <div class="value">${{ (chickenCalculations?.chickenInvestment || 0).toFixed(2) }}</div>
+              <div class="sub-value">Bs {{ ((chickenCalculations?.chickenInvestment || 0) * dolarRate).toFixed(2) }}
+              </div>
+            </div>
+          </div>
+          <div class="summary-card investment">
             <Icon name="cash-multiple" />
             <div class="summary-details">
               <label>Inversión en Alimento</label>
@@ -223,7 +232,7 @@
             <div class="product-info-mini">
               <span class="product-name-mini font-bold">{{ prod.name }}</span>
               <span v-if="prod.brand_id" class="product-brand-mini text-xs text-muted">{{ getBrandName(prod.brand_id)
-              }}</span>
+                }}</span>
             </div>
             <div class="product-price-mini text-right">
               <div class="font-bold">${{ prod.price }}</div>
@@ -279,7 +288,9 @@ const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
 
 const availableProducts = ref<Product[]>([])
 const {
-  calculateChickenCalculations
+  calculateChickenCalculations,
+  getProductById,
+  getProductPrice
 } = useProduction(availableProducts, dolarRate)
 
 const isEditing = ref(false)
@@ -326,7 +337,7 @@ onMounted(async () => {
     const docRef = doc(db, 'recipes', route.params.id as string)
     const snap = await getDoc(docRef)
     if (snap.exists()) {
-      recipe.value = { ...snap.data(), id: snap.id } as Recipe
+      recipe.value = { ...snap.data(), id: snap.id, is_chicken_batch: true } as Recipe
       // Ensure chicken_data exists for backward compatibility
       if (!recipe.value.chicken_data) {
         recipe.value.chicken_data = {
@@ -343,9 +354,7 @@ onMounted(async () => {
   }
 })
 
-function getProductById(id: string): Product | undefined {
-  return availableProducts.value.find(p => p.id === id)
-}
+// function getProductById removed, using composable version
 
 function getShortUnit(id: string): string {
   if (id === 'mea1') return 'kg'
@@ -392,7 +401,18 @@ function calculateIngredientCostKg(ing: RecipeIngredient): number {
 }
 
 const totalIngredientsCost = computed(() => {
-  return recipe.value.ingredients.reduce((sum, ing) => sum + calculateIngredientCostKg(ing), 0)
+  const inputsCost = recipe.value.ingredients.reduce((sum, ing) => sum + calculateIngredientCostKg(ing), 0)
+
+  let chickenCost = 0
+  if (recipe.value.chicken_data?.batch_product_id) {
+    const prod = getProductById(recipe.value.chicken_data.batch_product_id)
+    if (prod) {
+      const basePrice = getProductPrice(prod)
+      chickenCost = basePrice * (Number(recipe.value.chicken_data.initial_quantity) || 0)
+    }
+  }
+
+  return inputsCost + chickenCost
 })
 
 const chickenCalculations = computed(() => {
@@ -514,7 +534,7 @@ async function saveRecipe() {
     } else {
       await setDoc(doc(collection(db, 'recipes')), data)
     }
-    router.push('/recipes')
+    router.push('/production')
   } catch (e) {
     console.error(e)
     alert('Error al guardar: ' + (e as Error).message)

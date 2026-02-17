@@ -4,8 +4,15 @@ import type { Product } from '../types/producto'
 
 export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<number>) {
 
-    function getProductById(id: string): Product | undefined {
-        return availableProducts.value.find(p => p.id === id)
+    function getProductById(id: string | undefined): Product | undefined {
+        if (!id) return undefined
+        const targetId = String(id).trim()
+        return availableProducts.value.find(p => String(p.id).trim() === targetId)
+    }
+
+    function getProductPrice(prod: Product): number {
+        // Favor average_price if available and not zero, otherwise use base price
+        return prod.average_price && prod.average_price > 0 ? prod.average_price : (prod.price || 0)
     }
 
     function calculateIngredientCost(ing: RecipeIngredient): number {
@@ -34,13 +41,25 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
     }
 
     function calculateChickenCalculations(recipe: Recipe) {
-        if (!recipe.is_chicken_batch || !recipe.chicken_data) return null
+        // Force batch mode if we are in this context, or trust the flag
+        if (!recipe.chicken_data) return null
 
         const d = recipe.chicken_data
-        const qty = d.initial_quantity || 0
-        const totalIngredientsCost = calculateBaseCost(recipe)
+        const qty = Number(d.initial_quantity) || 0
 
-        // 1. Inversión Alimento
+        // 0. Inversión inicial en pollos
+        let chickenInvestment = 0
+        if (d.batch_product_id) {
+            const prod = getProductById(d.batch_product_id)
+            if (prod) {
+                chickenInvestment = getProductPrice(prod) * qty
+            }
+        }
+
+        const ingredientsCost = calculateBaseCost(recipe)
+        const totalIngredientsCost = ingredientsCost + chickenInvestment
+
+        // 1. Inversión Alimento (filtered by type)
         const feedInvestment = recipe.ingredients.reduce((sum, ing) => {
             const prod = getProductById(ing.product_id)
             if (prod?.type === 'alimento') {
@@ -52,16 +71,17 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
         // 2. Costo por Pollo
         const costPerChicken = qty > 0 ? totalIngredientsCost / qty : 0
 
-        // 3. Alimento necesario
-        const totalStarterNeeded = (d.starter_feed_per_chicken_g * qty) / 1000 // kg
-        const totalFatteningNeeded = (d.fattening_feed_per_chicken_g * qty) / 1000 // kg
+        // 3. Alimento necesario (starter/fattening projection)
+        const totalStarterNeeded = ((Number(d.starter_feed_per_chicken_g) || 0) * qty) / 1000 // kg
+        const totalFatteningNeeded = ((Number(d.fattening_feed_per_chicken_g) || 0) * qty) / 1000 // kg
 
         // 4. Proyección de ganancia al peso objetivo
-        const totalTargetWeightKg = (d.target_weight_g * qty) / 1000
-        const projectedIncome = totalTargetWeightKg * d.live_weight_price_kg
+        const totalTargetWeightKg = ((Number(d.target_weight_g) || 0) * qty) / 1000
+        const projectedIncome = totalTargetWeightKg * (Number(d.live_weight_price_kg) || 0)
         const projectedProfit = projectedIncome - totalIngredientsCost
 
         return {
+            chickenInvestment,
             feedInvestment,
             costPerChicken,
             totalStarterNeeded,
@@ -77,6 +97,7 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
         calculateIngredientCost,
         calculateBaseCost,
         calculateChickenCalculations,
-        getProductById
+        getProductById,
+        getProductPrice
     }
 }

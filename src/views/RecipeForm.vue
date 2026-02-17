@@ -2,7 +2,7 @@
   <div class="recipe-form-container">
     <header class="page-header">
       <div class="header-left">
-        <button @click="$router.push('/recipes')" class="btn-back">
+        <button @click="$router.push('/production')" class="btn-back">
           <Icon name="arrow-left" />
         </button>
         <h1>{{ isEditing ? 'Editar Receta' : 'Nueva Receta' }}</h1>
