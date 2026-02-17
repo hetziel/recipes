@@ -522,12 +522,6 @@
               <Icon name="close" size="xs" />
             </button>
           </div>
-
-          <button @click="migrarPrecios" class="btn btn-outline btn-migrate"
-            title="Migrar precios antiguos a establecimientos">
-            <Icon name="database-sync" />
-            <span class="btn-text">Migrar</span>
-          </button>
         </div>
       </div>
 
@@ -679,13 +673,9 @@ import boxyModal from '@js/boxy-modal.esm'
 import Icon from '@/components/ui/Icon.vue' // Import Icon component
 
 import {
-  collection,
   doc,
-  getDocs,
   setDoc,
   deleteDoc,
-  query,
-  where,
   updateDoc,
 } from 'firebase/firestore'
 import { db } from '../firebase.config'
@@ -733,8 +723,7 @@ const {
 } = useEstablishments()
 
 // Map loading state
-const isMigrating = ref(false)
-const cargando = computed(() => loadingProducts.value || isMigrating.value)
+const cargando = computed(() => loadingProducts.value)
 
 const error = ref<string | null>(null)
 const isSavingPrices = ref(false)
@@ -1172,62 +1161,6 @@ function calculateAveragePrice(prices?: ProductPrice[]): number {
   return count > 0 ? totalUSD / count : 0
 }
 
-// MIGRATION TOOL
-async function migrarPrecios() {
-  if (!confirm('¿Estás seguro de migrar los precios antiguos? Esto asignará el precio actual a un establecimiento "General" para todos los productos que no tengan precios detallados.')) return
-
-  isMigrating.value = true
-  try {
-    // 1. Ensure "General" establishment exists
-    let generalId = ''
-    await searchEstablishments()
-
-    const q = query(collection(db, 'establishments'), where('name', '==', 'General'))
-    const snap = await getDocs(q)
-
-    if (!snap.empty) {
-      generalId = snap.docs[0].id
-    } else {
-      const newEst = await createEstablishment('General')
-      if (newEst) generalId = newEst.id
-    }
-
-    if (!generalId) throw new Error('No se pudo crear el establecimiento General')
-
-    let updatedCount = 0
-
-    // 2. Iterate products
-    const productsToUpdate = products.value.filter(p => (!p.prices || p.prices.length === 0) && p.price > 0) as any[]
-
-    for (const prod of productsToUpdate) {
-      const priceEntry: ProductPrice = {
-        establishment_id: generalId,
-        price: prod.price,
-        currency: prod.currency_type as 'USD' | 'Bs',
-        updated_at: new Date().toISOString()
-      }
-
-      const updates: Partial<Product> = {
-        prices: [priceEntry],
-        average_price: prod.currency_type === 'USD' ? prod.price : prod.price / (dolarBCV.value?.promedio || 1)
-      }
-
-      // Update Firestore
-      if (prod.id) {
-        await updateDoc(doc(db, 'productos', prod.id), updates)
-        updatedCount++
-      }
-    }
-
-    alert(`Migración completada. ${updatedCount} productos actualizados.`)
-
-  } catch (err) {
-    console.error('Error en migración:', err)
-    alert('Error durante la migración')
-  } finally {
-    isMigrating.value = false
-  }
-}
 
 // Modify addProduct/editProduct to ensure average_price is saved
 async function addProduct() {
@@ -1890,10 +1823,6 @@ function formatDate(dateString: string | null | undefined): string {
   width: 100%;
 }
 
-.btn-migrate {
-  flex-shrink: 0;
-}
-
 @media (max-width: 768px) {
   .dashboard-header {
     padding: 16px;
@@ -1915,11 +1844,6 @@ function formatDate(dateString: string | null | undefined): string {
 
   .establishment-filter-wrapper {
     width: 100%;
-  }
-
-  .btn-migrate {
-    width: auto;
-    align-self: flex-start;
   }
 }
 
