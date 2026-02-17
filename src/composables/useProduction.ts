@@ -80,6 +80,11 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
         const projectedIncome = totalTargetWeightKg * (Number(d.live_weight_price_kg) || 0)
         const projectedProfit = projectedIncome - totalIngredientsCost
 
+        // 5. Valor/Ganancia actual (basado en peso promedio actual)
+        const totalCurrentWeightKg = ((Number(d.current_avg_weight_g) || 0) * qty) / 1000
+        const currentIncome = totalCurrentWeightKg * (Number(d.live_weight_price_kg) || 0)
+        const currentProfit = currentIncome - totalIngredientsCost
+
         return {
             chickenInvestment,
             feedInvestment,
@@ -89,7 +94,10 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
             projectedIncome,
             projectedProfit,
             totalTargetWeightKg,
-            totalIngredientsCost
+            totalIngredientsCost,
+            currentIncome,
+            currentProfit,
+            totalCurrentWeightKg
         }
     }
 

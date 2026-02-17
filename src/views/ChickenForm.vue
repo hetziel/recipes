@@ -204,10 +204,20 @@
               <div class="sub-value">Bs {{ (totalIngredientsCost * dolarRate).toFixed(2) }}</div>
             </div>
           </div>
+          <div class="summary-card projection info">
+            <Icon name="chart-bar" />
+            <div class="summary-details">
+              <label>Ganancia Actual (Hoy)</label>
+              <div class="value" :class="{ 'text-danger': chickenCalculations.currentProfit < 0 }">
+                ${{ chickenCalculations.currentProfit.toFixed(2) }}
+              </div>
+              <div class="sub-value">Venta Est: ${{ chickenCalculations.currentIncome.toFixed(2) }}</div>
+            </div>
+          </div>
           <div class="summary-card projection success">
             <Icon name="trending-up" />
             <div class="summary-details">
-              <label>Ganancia Proyectada</label>
+              <label>Ganancia Obj. (Final)</label>
               <div class="value">${{ chickenCalculations.projectedProfit.toFixed(2) }}</div>
               <div class="sub-value">Venta Est: ${{ chickenCalculations.projectedIncome.toFixed(2) }}
               </div>
@@ -676,6 +686,11 @@ async function saveRecipe() {
 .summary-card.success {
   border-color: #10b981;
   background: rgba(16, 185, 129, 0.03);
+}
+
+.summary-card.info {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.03);
 }
 
 .summary-details label {
