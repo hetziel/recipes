@@ -274,7 +274,7 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     handleProduct.currency_type === 'USD' ? '$' : 'Bs'
-                    }}</span>
+                  }}</span>
                   <input v-model.number="handleProduct.tempPrice" type="number" min="0" step="0.01" class="form-input"
                     placeholder="0.00" />
                 </div>
@@ -458,7 +458,7 @@
             <div class="est-name font-bold">Promedio</div>
             <div class="average-prices-inline text-right">
               <span class="font-bold text-primary">${{ (selectedProductForPrices.average_price || 0).toFixed(2)
-                }}</span>
+              }}</span>
               <span class="text-muted mx-2">|</span>
               <span class="text-muted">Bs {{ ((selectedProductForPrices.average_price || 0) * (dolarBCV?.promedio ||
                 0)).toFixed(2) }}</span>
@@ -492,6 +492,30 @@
           <span class="search-icon">🔍</span>
         </div>
         <div class="header-actions">
+          <!-- Filtro de Establecimiento -->
+          <div class="establishment-filter-header">
+            <div class="searchable-select">
+              <div class="input-with-icon">
+                <input v-model="establishmentFilter.query" @input="searchEstablishmentFilter"
+                  @focus="() => { establishmentFilter.showDropdown = true; searchEstablishmentFilter(); }"
+                  @blur="onEstablishmentFilterBlur" placeholder="Filtrar por establecimiento..."
+                  class="form-input search-input filter-est-input" />
+                <Icon name="store" class="input-icon" />
+              </div>
+              <div v-if="establishmentFilter.showDropdown && establishmentFilter.items.length" class="dropdown">
+                <div v-for="item in establishmentFilter.items" :key="item.id"
+                  @mousedown="selectEstablishmentFilter(item)" class="dropdown-item">
+                  <Icon name="store" />
+                  {{ item.name }}
+                </div>
+              </div>
+            </div>
+            <button v-if="establishmentFilter.selectedItem" @click="clearEstablishmentFilter" class="btn-clear-filter"
+              title="Limpiar filtro">
+              <Icon name="close" size="xs" />
+            </button>
+          </div>
+
           <button @click="showModal(true)" class="btn btn-primary btn-add" open-modal="formProductModal">
             <Icon name="plus" />
             Agregar Producto
@@ -553,7 +577,7 @@
                     :name="getCategoryInfo(product.category_id)?.icon ?? ''" class="category-list-icon" />
                   <span v-else>{{
                     getMeasurementType(product.measurement_id)?.charAt(0) || 'P'
-                    }}</span>
+                  }}</span>
                 </div>
                 <div class="product-details">
                   <h3 class="product-name">
@@ -699,6 +723,7 @@ const { measurements, getMeasurementType } = useMeasurements()
 const {
   establishmentSearch,
   loadEstablishments,
+  establishments, // Destructure establishments
   searchEstablishments,
   createEstablishment,
   clearEstablishmentSearch,
@@ -723,6 +748,54 @@ const newPriceEntry = reactive({
   currency: 'USD' as 'USD' | 'Bs',
 })
 
+// Filtro de establecimiento en el encabezado
+const establishmentFilter = reactive<SearchState>({
+  query: '',
+  items: [],
+  selectedItem: null,
+  showDropdown: false,
+  isLoading: false,
+})
+
+async function searchEstablishmentFilter() {
+  const queryText = establishmentFilter.query.trim().toLowerCase()
+
+  // Mapear los establecimientos cargados a formato SearchableItem
+  const allEstablishments = establishments.value.map(e => ({
+    id: e.id,
+    name: e.name
+  }))
+
+  if (queryText.length === 0) {
+    establishmentFilter.items = allEstablishments
+    establishmentFilter.showDropdown = true
+    return
+  }
+
+  establishmentFilter.items = allEstablishments.filter(est =>
+    est.name.toLowerCase().includes(queryText)
+  )
+  establishmentFilter.showDropdown = true
+}
+
+function selectEstablishmentFilter(item: SearchableItem) {
+  establishmentFilter.selectedItem = item
+  establishmentFilter.query = item.name
+  establishmentFilter.showDropdown = false
+}
+
+function clearEstablishmentFilter() {
+  establishmentFilter.selectedItem = null
+  establishmentFilter.query = ''
+  establishmentFilter.showDropdown = false
+}
+
+function onEstablishmentFilterBlur() {
+  setTimeout(() => {
+    establishmentFilter.showDropdown = false
+  }, 200)
+}
+
 const handleProduct = ref<ExtendedProduct>({
   name: '',
   price: 0,
@@ -738,7 +811,7 @@ const handleProduct = ref<ExtendedProduct>({
   is_utility: false,
   created_at: new Date().toISOString().split('T')[0],
   updated_at: new Date().toISOString().split('T')[0],
-  marked_to_create: true,
+
 })
 const mostrarFormulario = ref<boolean>(false)
 const productToDelete = ref<string | null>(null)
@@ -760,18 +833,7 @@ watch(() => handleProduct.value.tempPrice, (newVal) => {
   handleProduct.value.price = newVal || 0
 })
 
-async function getProductByData(value: string, field: string = 'id'): Promise<string | null> {
-  try {
-    const q = query(collection(db, PRODUCTOS_COLLECTION), where(field, '==', value))
-    const querySnapshot = await getDocs(q)
-    if (!querySnapshot.empty) {
-      return querySnapshot.docs[0].id
-    }
-  } catch (err) {
-    console.error('Error en getProductByData:', err)
-  }
-  return null
-}
+
 
 // Configurar listener en tiempo real
 onMounted(() => {
@@ -780,10 +842,7 @@ onMounted(() => {
 
   // 2. Cargar datos de Firebase y sincronizar
   cargarDatosIniciales().then(() => {
-    if (onFireStore && navigator.onLine) {
-      // Sincronizar cualquier cambio pendiente
-      syncPendingProducts()
-    }
+
   })
 
   // 3. Configurar sincronización periódica
@@ -807,6 +866,10 @@ async function showModal(show: boolean) {
 
   if (response) {
     mostrarFormulario.value = show
+    // Pre-seleccionar establecimiento si hay un filtro activo al crear
+    if (show && typeAction.value === 'create' && establishmentFilter.selectedItem) {
+      selectEstablishment(establishmentFilter.selectedItem)
+    }
   }
 }
 
@@ -929,7 +992,7 @@ async function saveRowPrice(priceItem: any) {
       prices: prod.prices,
       average_price: prod.average_price,
       updated_at: new Date().toISOString(),
-      marked_to_update: true
+
     }
 
     await updateDoc(doc(db, 'productos', prod.id), updates)
@@ -964,7 +1027,7 @@ async function savePriceChanges() {
       prices: prod.prices,
       average_price: prod.average_price,
       updated_at: new Date().toISOString(),
-      marked_to_update: true
+
     }
 
     await updateDoc(doc(db, 'productos', prod.id), updates)
@@ -1154,22 +1217,20 @@ async function editProduct(id: string) {
     currency_type: 'USD', // Force USD
     is_utility: handleProduct.value.is_utility || false,
     updated_at: new Date().toISOString(),
-    marked_to_update: true
   }
 
   try {
+    if (onFireStore && navigator.onLine) {
+      await updateDoc(doc(db, PRODUCTOS_COLLECTION, id), updates)
+    }
+
     // Update local state
     const index = products.value.findIndex(p => p.id === id)
     if (index !== -1) {
       products.value[index] = { ...products.value[index], ...updates }
     }
 
-    saveProductsInLocal()
     resetearFormulario()
-
-    if (onFireStore && navigator.onLine) {
-      await syncPendingProducts()
-    }
 
   } catch (err) {
     error.value = 'Error al actualizar el producto'
@@ -1361,18 +1422,18 @@ async function addProduct() {
     currency_type: 'USD', // Force USD
     is_utility: handleProduct.value.is_utility || false,
     created_at: handleProduct.value.created_at || new Date().toISOString().split('T')[0],
-    marked_to_create: true,
+
   }
 
   console.log('Producto para agregar:', product)
 
   try {
     products.value.unshift(product)
-    saveProductsInLocal()
+
     resetearFormulario()
 
     if (onFireStore && navigator.onLine) {
-      await syncPendingProducts()
+      await createProductInFireStore(product)
     }
   } catch (err) {
     error.value = 'Error al agregar el producto'
@@ -1397,7 +1458,7 @@ async function resetearFormulario() {
     is_utility: false,
     created_at: new Date().toISOString().split('T')[0],
     updated_at: new Date().toISOString().split('T')[0],
-    marked_to_create: true,
+
   }
 
   // Limpiar buscadores
@@ -1412,11 +1473,7 @@ async function resetearFormulario() {
 }
 
 // Guardar datos en LocalStorage
-function saveProductsInLocal() {
-  const productsToLocal: Product[] = products.value
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(productsToLocal))
-  console.log('Productos guardados en LocalStorage:', productsToLocal.length)
-}
+
 
 async function loadEditProduct(id: string) {
   typeAction.value = 'edit'
@@ -1463,6 +1520,12 @@ async function loadEditProduct(id: string) {
   // Mostrar el formulario con los datos del producto
   handleProduct.value = { ...product, tempPrice: product.price }
   mostrarFormulario.value = true
+
+  // Pre-seleccionar establecimiento si hay un filtro activo al editar
+  if (establishmentFilter.selectedItem) {
+    selectEstablishment(establishmentFilter.selectedItem)
+  }
+
   console.log(mostrarFormulario.value)
   // Aquí podrías agregar lógica para abrir un modal o formulario de edición
   boxyModal.open('formProductModal')
@@ -1500,15 +1563,13 @@ async function confirmDeleteProduct() {
       return
     }
 
-    // Si existe el producto, se le agrega la marca de eliminación
-    products.value[index].marked_to_delete = true
-
     // Si está sincronizado, eliminar de Firestore
     if (onFireStore && navigator.onLine && isOnline.value) {
-      await syncPendingProducts()
-    } else {
-      saveProductsInLocal()
+      await deleteDoc(doc(db, PRODUCTOS_COLLECTION, id))
     }
+
+    // Eliminar del estado local
+    products.value.splice(index, 1)
 
     // Intentar sincronización inmediata si hay conexión
   } catch (err) {
@@ -1522,130 +1583,7 @@ function cancelDeleteProduct() {
   boxyModal.close('actionProductModal')
 }
 
-async function syncPendingProducts() {
-  let pendingCount = 0
-  try {
-    if (!navigator.onLine) {
-      console.log('Sin conexión, omitiendo sincronización')
-      return
-    }
 
-    console.log('Iniciando sincronización de productos pendientes...')
-
-    // Sincronizar productos nuevos
-    const newProducts = products.value.filter((p) => p.marked_to_create)
-    // Sincronizar productos editados
-    const editProducts = products.value.filter((p) => p.marked_to_update)
-
-    // Sincronizar productos eliminados
-    const productsToDelete = products.value
-      .filter((p) => p.marked_to_delete && p.id)
-      .map((p) => p.id!)
-    console.log('Productos pendientes para sincronizar:', newProducts.length)
-
-    // Recorrido para crear nuevos productos
-    for (const newProduct of newProducts) {
-      console.log('Creando producto', newProduct, ' en FireStore')
-      try {
-        // Verificar si el producto ya existe en Firebase
-        if (newProduct.id) {
-          const docRef = doc(db, PRODUCTOS_COLLECTION, newProduct.id)
-          const docSnap = await getDoc(docRef)
-
-          // console.log(docRef);
-          if (docSnap.exists()) {
-            console.log(`Producto ${newProduct.id} ya existe en Firebase.`)
-          } else {
-            console.log(`Producto ${newProduct.id} no existe en Firebase, creando nuevo...`)
-            await createProductInFireStore(newProduct)
-            pendingCount += 1
-          }
-        } else {
-          await createProductInFireStore(newProduct)
-        }
-      } catch (error) {
-        console.error(`Error al sincronizar producto ${newProduct.id}:`, error)
-      }
-    }
-
-    // Sincronizar eliminaciones
-    for (const id of productsToDelete) {
-      if (id) {
-        try {
-          const docRef = doc(db, PRODUCTOS_COLLECTION, id)
-          const docSnap = await getDoc(docRef)
-
-          const productId = await getProductByData(id, 'id')
-
-          if (docSnap.exists()) {
-            console.log(`Eliminando producto ${id} de Firebase...`)
-            await deleteDoc(docRef)
-
-            // Eliminar completamente del estado local
-            products.value = products.value.filter((p) => p.id !== id)
-            pendingCount += 1
-          } else if (productId) {
-            console.log('entra aqui')
-            const docRef2 = doc(db, PRODUCTOS_COLLECTION, productId)
-
-            const docSnap2 = await getDoc(docRef2)
-
-            if (docSnap2.exists()) {
-              console.log(`Eliminando producto ${id} de Firebase...`)
-              await deleteDoc(docRef2)
-            }
-
-            // Eliminar completamente del estado local
-            products.value = products.value.filter((p) => p.id !== id)
-            pendingCount += 1
-          } else {
-            console.log(`Producto ${id} no existe en Firebase, eliminando localmente...`)
-            // Solo eliminar localmente si no existe en Firebase
-            products.value = products.value.filter((p) => p.id !== id)
-          }
-        } catch (error) {
-          console.error(`Error al eliminar producto ${id}:`, error)
-        }
-      }
-    }
-
-    //Sincronizar Actualizaciones
-    for (const editProduct of editProducts) {
-      if (editProduct) {
-        console.log(editProduct)
-        try {
-          if (!editProduct.id) {
-            console.error('editProduct.id is undefined')
-            continue
-          }
-          const docRef = doc(db, PRODUCTOS_COLLECTION, String(editProduct.id))
-          const docSnap = await getDoc(docRef)
-
-          if (docSnap.exists()) {
-            console.log(`Actualizando producto ${editProduct.id} en Firebase...`)
-            const { ...productToUpdate } = editProduct
-            const cleanUpdate = Object.fromEntries(
-              Object.entries({
-                ...productToUpdate,
-                updated_at: new Date().toISOString().split('T')[0],
-              }).filter(([, v]) => v !== undefined)
-            )
-            await updateDoc(docRef, cleanUpdate)
-            pendingCount += 1
-          }
-        } catch (error) {
-          console.error(`Error al actualizar producto ${editProduct.id}:`, error)
-        }
-      }
-    }
-
-    // Actualizar localStorage después de la sincronización
-    saveProductsInLocal()
-    console.log(`Sincronización completa. Productos pendientes sincronizados: ${pendingCount}`)
-  } catch (error) {
-    console.error('Error en la sincronización global:', error)
-  }
-}
 
 async function createProductInFireStore(product: Product) {
   // 1. DEFINE TU ID PERSONALIZADO
@@ -1675,7 +1613,6 @@ async function createProductInFireStore(product: Product) {
   const index = products.value.findIndex((p) => p.id === product.id) // Busca por el ID temporal
   if (index !== -1) {
     products.value[index].id = customId // Actualiza con el ID personalizado final
-    products.value[index].marked_to_create = false
   }
 
   return productToCreate as Product
@@ -1683,7 +1620,7 @@ async function createProductInFireStore(product: Product) {
 
 // Definir filteredProducts como un computed que filtra el array reactivo
 const filteredProducts = computed(() => {
-  let result = products.value;
+  let result = [...products.value];
 
   // Filtrar por categoría si hay una seleccionada
   if (selectedCategoryFilter.value) {
@@ -1717,6 +1654,16 @@ const filteredProducts = computed(() => {
         }
       }
       return false;
+    });
+  }
+
+  // Ordenar por establecimiento seleccionado (los que tienen precio para ese est. primero)
+  if (establishmentFilter.selectedItem) {
+    const estId = establishmentFilter.selectedItem.id;
+    result.sort((a, b) => {
+      const hasA = a.prices?.some(p => p.establishment_id === estId) ? 1 : 0;
+      const hasB = b.prices?.some(p => p.establishment_id === estId) ? 1 : 0;
+      return hasB - hasA;
     });
   }
 
@@ -2396,6 +2343,40 @@ function getCategoryInfo(categoryId: string): SearchableItem | undefined {
   background: var(--background);
   color: var(--text-secondary);
   border: 2px solid var(--border);
+}
+
+.establishment-filter-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.filter-est-input {
+  min-width: 250px;
+}
+
+.btn-clear-filter {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--background);
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 5;
+  color: var(--text-secondary);
+}
+
+.btn-clear-filter:hover {
+  background: var(--danger);
+  color: white;
 }
 
 .btn-secondary:hover {
