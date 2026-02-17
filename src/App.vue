@@ -337,7 +337,7 @@ onMounted(() => {
   }
 
   .content-wrapper {
-    padding: 1rem;
+    padding: 0rem;
   }
 
   .tasa-info {

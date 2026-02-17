@@ -471,6 +471,10 @@
     <div class="products-dashboard">
       <!-- Header -->
       <div class="dashboard-header">
+        <div class="search-input-wrapper">
+          <input v-model="searchQuery" type="text" placeholder="Buscar productos..." class="search-input" />
+          <span class="search-icon">🔍</span>
+        </div>
         <div class="header-actions">
           <button @click="showModal(true)" class="btn btn-primary btn-add" open-modal="formProductModal">
             <Icon name="plus" />
@@ -651,6 +655,8 @@ const products = ref<Product[]>([])
 const error = ref<string | null>(null)
 const cargando = ref<boolean>(false)
 const isOnline = ref<boolean>(true)
+
+const searchQuery = ref(''); // New search query ref
 
 // Use composables
 const { brandSearch, searchBrands, createNewBrand, clearBrandSearch, getBrandName } = useBrands()
@@ -1647,8 +1653,36 @@ async function createProductInFireStore(product: Product) {
 
 // Definir filteredProducts como un computed que filtra el array reactivo
 const filteredProducts = computed(() => {
-  return products.value
-})
+  if (!searchQuery.value) {
+    return products.value;
+  }
+  const queryText = searchQuery.value.toLowerCase();
+  return products.value.filter(product => {
+    // Search in product name
+    if (product.name.toLowerCase().includes(queryText)) {
+      return true;
+    }
+    // Search in brand name (if available)
+    if (product.brand_id && getBrandName(product.brand_id).toLowerCase().includes(queryText)) {
+      return true;
+    }
+    // Search in category name (if available)
+    if (product.category_id) {
+      const categoryInfo = getCategoryInfo(product.category_id);
+      if (categoryInfo && categoryInfo.name.toLowerCase().includes(queryText)) {
+        return true;
+      }
+    }
+    // Search in measurement type (if available)
+    if (product.measurement_id) {
+      const measurementType = getMeasurementType(product.measurement_id);
+      if (measurementType && measurementType.toLowerCase().includes(queryText)) {
+        return true;
+      }
+    }
+    return false;
+  });
+});
 
 function getCategoryColor(categoryId: string): string {
   const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316']
@@ -1963,6 +1997,72 @@ function getCategoryInfo(categoryId: string): SearchableItem | undefined {
 .form-group {
   margin-bottom: 0;
 }
+
+/* Header del dashboard, incluye el buscador */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  gap: 20px; /* Space between search and actions */
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+}
+
+/* Estilos para el buscador */
+.search-input-wrapper {
+  position: relative;
+  flex-grow: 1; /* Allow search input to take available space */
+  min-width: 200px; /* Minimum width for search input */
+}
+
+.search-input {
+  width: 100%;
+  padding: 12px 40px 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  transition: all 0.2s ease;
+  background: var(--background);
+  color: var(--text-primary);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light-alpha);
+}
+
+.search-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  pointer-events: none; /* Make icon unclickable */
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0; /* Prevent action buttons from shrinking */
+}
+
+@media (max-width: 768px) {
+  .dashboard-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .header-actions .btn {
+    flex: 1;
+  }
+}
+
 
 .form-label {
   display: block;
