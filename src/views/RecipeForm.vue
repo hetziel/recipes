@@ -572,12 +572,18 @@ const route = useRoute()
 const { getBrandName } = useBrands()
 const { loadEstablishments, getEstablishmentName } = useEstablishments()
 const availableProducts = ref<Product[]>([])
+const recipeProducts = ref<Product[]>([])
+
+const allAvailableProducts = computed(() => {
+  return [...availableProducts.value, ...recipeProducts.value]
+})
+
 const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
 const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
 
 const {
   calculateIngredientCost
-} = useProduction(availableProducts, dolarRate)
+} = useProduction(allAvailableProducts, dolarRate)
 
 onMounted(() => {
   loadEstablishments()
@@ -594,7 +600,6 @@ const utilitySearch = ref('')
 const activeScenarioIndex = ref<number | null>(null)
 const editingScenarioIndex = ref<number | null>(null)
 const showBatchSummaryModal = ref(false)
-const recipeProducts = ref<Product[]>([])
 const scenarios = ref<RecipeScenario[]>([])
 const isSavingScenario = ref(false)
 const isMigrating = ref(false)

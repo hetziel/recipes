@@ -20,7 +20,10 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
         if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
 
         let finalPrice = getProductPrice(prod)
-        if (ing.establishment_id) {
+
+        if (ing.selected_price !== undefined) {
+            finalPrice = ing.selected_price
+        } else if (ing.establishment_id) {
             const specificPrice = prod.prices?.find(p => p.establishment_id === ing.establishment_id)
             if (specificPrice) {
                 finalPrice = specificPrice.currency === 'USD' ? specificPrice.price : specificPrice.price / (dolarRate.value || 1)
