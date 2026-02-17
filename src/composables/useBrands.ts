@@ -175,6 +175,8 @@ export function useBrands() {
   return {
     brandSearch,
     allBrands: readonly(allBrands),
+    isLoading: readonly(isLoading),
+    error: readonly(error),
     loadBrands,
     searchBrands,
     createNewBrand,
