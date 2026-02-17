@@ -487,18 +487,25 @@
     <div class="products-dashboard">
       <!-- Header -->
       <div class="dashboard-header">
-        <div class="search-input-wrapper">
-          <input v-model="searchQuery" type="text" placeholder="Buscar productos..." class="search-input" />
-          <span class="search-icon">🔍</span>
+        <div class="header-top">
+          <div class="search-input-wrapper">
+            <input v-model="searchQuery" type="text" placeholder="Buscar productos..." class="search-input" />
+            <span class="search-icon">🔍</span>
+          </div>
+          <button @click="showModal(true)" class="btn btn-primary btn-add" open-modal="formProductModal">
+            <Icon name="plus" />
+            <span class="btn-text">Nuevo Producto</span>
+          </button>
         </div>
-        <div class="header-actions">
+
+        <div class="header-filters">
           <!-- Filtro de Establecimiento -->
-          <div class="establishment-filter-header">
+          <div class="establishment-filter-wrapper">
             <div class="searchable-select">
               <div class="input-with-icon">
                 <input v-model="establishmentFilter.query" @input="searchEstablishmentFilter"
                   @focus="() => { establishmentFilter.showDropdown = true; searchEstablishmentFilter(); }"
-                  @blur="onEstablishmentFilterBlur" placeholder="Filtrar por establecimiento..."
+                  @blur="onEstablishmentFilterBlur" placeholder="Filtrar establecimiento..."
                   class="form-input search-input filter-est-input" />
                 <Icon name="store" class="input-icon" />
               </div>
@@ -516,13 +523,10 @@
             </button>
           </div>
 
-          <button @click="showModal(true)" class="btn btn-primary btn-add" open-modal="formProductModal">
-            <Icon name="plus" />
-            Agregar Producto
-          </button>
-          <button @click="migrarPrecios" class="btn btn-outline ml-2"
+          <button @click="migrarPrecios" class="btn btn-outline btn-migrate"
             title="Migrar precios antiguos a establecimientos">
-            <Icon name="database-sync" /> Migrar Precios
+            <Icon name="database-sync" />
+            <span class="btn-text">Migrar</span>
           </button>
         </div>
       </div>
@@ -602,22 +606,6 @@
                     </span>
                   </div>
                 </div>
-                <div class="product-actions">
-                  <div class="action-buttons">
-                    <button @click="loadEditProduct(String(product.id))" class="btn-icon btn-edit" title="Editar">
-                      <Icon name="pencil" />
-                    </button>
-                    <button @click="openPricesModal(product)" class="btn-icon btn-info" title="Ver Precios">
-                      <Icon name="currency-usd" />
-                    </button>
-                    <button @click="loadDeleteProduct(String(product.id))" class="btn-icon btn-delete" title="Eliminar">
-                      <Icon name="trash-can-outline" />
-                    </button>
-                    <button class="btn-icon btn-more" title="Más opciones">
-                      <Icon name="dots-vertical" />
-                    </button>
-                  </div>
-                </div>
               </div>
               <div class="product-category">
                 <span class="category-tag">
@@ -638,6 +626,22 @@
                   <div class="price-info-sub text-xs text-muted" v-if="product.prices && product.prices.length > 1">
                     Promedio ({{ product.prices.length }} est.)
                   </div>
+                </div>
+              </div>
+              <div class="product-actions">
+                <div class="action-buttons">
+                  <button @click="loadEditProduct(String(product.id))" class="btn-icon btn-edit" title="Editar">
+                    <Icon name="pencil" />
+                  </button>
+                  <button @click="openPricesModal(product)" class="btn-icon btn-info" title="Ver Precios">
+                    <Icon name="currency-usd" />
+                  </button>
+                  <button @click="loadDeleteProduct(String(product.id))" class="btn-icon btn-delete" title="Eliminar">
+                    <Icon name="trash-can-outline" />
+                  </button>
+                  <button class="btn-icon btn-more" title="Más opciones">
+                    <Icon name="dots-vertical" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -1822,25 +1826,32 @@ function formatDate(dateString: string | null | undefined): string {
   margin-bottom: 0;
 }
 
-/* Header del dashboard, incluye el buscador */
+/* Header del dashboard mejorado */
 .dashboard-header {
+  padding: 24px;
+  background: var(--surface);
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  gap: 20px;
-  /* Space between search and actions */
-  flex-wrap: wrap;
-  /* Allow wrapping on smaller screens */
+  flex-direction: column;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
 }
 
-/* Estilos para el buscador */
+.header-top {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.header-filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .search-input-wrapper {
   position: relative;
   flex-grow: 1;
-  /* Allow search input to take available space */
-  min-width: 200px;
-  /* Minimum width for search input */
 }
 
 .search-input {
@@ -1867,29 +1878,48 @@ function formatDate(dateString: string | null | undefined): string {
   transform: translateY(-50%);
   color: var(--text-secondary);
   pointer-events: none;
-  /* Make icon unclickable */
 }
 
-.header-actions {
-  display: flex;
-  gap: 12px;
+.establishment-filter-wrapper {
+  flex: 1;
+  min-width: 200px;
+  position: relative;
+}
+
+.establishment-filter-wrapper .filter-est-input {
+  width: 100%;
+}
+
+.btn-migrate {
   flex-shrink: 0;
-  /* Prevent action buttons from shrinking */
 }
 
 @media (max-width: 768px) {
   .dashboard-header {
+    padding: 16px;
+  }
+
+  .header-top {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .header-actions {
+  .btn-add {
     width: 100%;
-    justify-content: stretch;
   }
 
-  .header-actions .btn {
-    flex: 1;
+  .header-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .establishment-filter-wrapper {
+    width: 100%;
+  }
+
+  .btn-migrate {
+    width: auto;
+    align-self: flex-start;
   }
 }
 
@@ -2214,6 +2244,18 @@ function formatDate(dateString: string | null | undefined): string {
   color: var(--text-primary);
 }
 
+.btn-outline {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.btn-outline:hover {
+  background: var(--background);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
 .btn-danger {
   background: var(--danger);
   color: white;
@@ -2358,7 +2400,7 @@ function formatDate(dateString: string | null | undefined): string {
 @media (max-width: 1024px) {
   .product-main {
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 12px;
   }
 
   .products-header {
@@ -2367,16 +2409,28 @@ function formatDate(dateString: string | null | undefined): string {
 
   .product-actions {
     justify-content: flex-start;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
   }
 
   .form-row {
     grid-template-columns: 1fr;
   }
+
+  .product-category,
+  .product-price {
+    padding-left: 56px;
+    /* Align with product details (badge is 40px + 16px gap) */
+  }
 }
 
 @media (max-width: 768px) {
   .container {
-    padding: 16px;
+    padding: 12px;
+  }
+
+  .products-container {
+    padding: 12px 0;
   }
 
   .form-actions {
@@ -2387,8 +2441,16 @@ function formatDate(dateString: string | null | undefined): string {
     width: 100%;
   }
 
+  .btn-migrate {
+    width: 100%;
+  }
+
   .modal-body {
     max-height: 50vh;
+  }
+
+  .category-filters-container {
+    padding: 0 16px 16px;
   }
 }
 
