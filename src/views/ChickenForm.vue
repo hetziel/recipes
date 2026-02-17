@@ -98,6 +98,7 @@
               <tr>
                 <th>Alimento/Insumo</th>
                 <th>Establecimiento</th>
+                <th>Costo Pkg ($)</th>
                 <th>Peso Pkg</th>
                 <th>Utilizado (kg)</th>
                 <th>Consumo (kg/p)</th>
@@ -123,6 +124,10 @@
                     </option>
                   </select>
                 </td>
+                <td>
+                  <input v-model.number="ing.selected_price" type="number" class="form-input input-sm" min="0"
+                    step="0.01" placeholder="Costo" />
+                </td>
                 <td class="text-center">
                   {{ getProductById(ing.product_id)?.measurement_value }} {{
                     getShortUnit(getProductById(ing.product_id)?.measurement_id || '') }}
@@ -144,7 +149,7 @@
             </tbody>
             <tfoot>
               <tr class="table-summary">
-                <td colspan="5" class="text-right"><strong>Inversión Acumulada del Lote:</strong></td>
+                <td colspan="6" class="text-right"><strong>Inversión Acumulada del Lote:</strong></td>
                 <td class="text-right">
                   <strong class="text-primary text-lg">${{ totalIngredientsCost.toFixed(2) }}</strong>
                 </td>
@@ -233,7 +238,7 @@
             <div class="product-info-mini">
               <span class="product-name-mini font-bold">{{ prod.name }}</span>
               <span v-if="prod.brand_id" class="product-brand-mini text-xs text-muted">{{ getBrandName(prod.brand_id)
-                }}</span>
+              }}</span>
             </div>
             <div class="product-price-mini text-right">
               <div class="font-bold">${{ prod.price }}</div>
@@ -385,9 +390,11 @@ function calculateIngredientCostKg(ing: RecipeIngredient): number {
   const prod = getProductById(ing.product_id)
   if (!prod) return 0
 
-  const pkgPrice = ing.establishment_id ?
-    (prod.prices?.find(p => p.establishment_id === ing.establishment_id)?.price || prod.price) :
-    (prod.average_price || prod.price)
+  const pkgPrice = ing.selected_price !== undefined ?
+    ing.selected_price :
+    (ing.establishment_id ?
+      (prod.prices?.find(p => p.establishment_id === ing.establishment_id)?.price || prod.price) :
+      (prod.average_price || prod.price))
 
   let unitPriceValue: number
 
@@ -500,7 +507,7 @@ function handleProductSelection(prod: Product) {
     recipe.value.ingredients.push({
       product_id: prod.id!,
       usage_weight: 0,
-      ideal_weight: 0
+      selected_price: getProductPrice(prod)
     })
   }
   showProductModal.value = false
