@@ -210,7 +210,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
-                      }}</span>
+                        }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-success">
@@ -218,7 +218,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                      }}</span>
+                        }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-profit">
@@ -1132,7 +1132,7 @@ watch(() => recipe.value.save_as_product, async (newVal, oldVal) => {
     // Delete product from my_products
     try {
       await deleteDoc(doc(db, 'my_products', recipe.value.product_id))
-      recipe.value.product_id = null
+      recipe.value.product_id = ''
       if (recipe.value.id) {
         await updateDoc(doc(db, 'recipes', recipe.value.id), { product_id: null })
       }
