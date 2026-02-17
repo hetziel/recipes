@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { RouterLink, RouterView, useRouter } from 'vue-router'
-import { ref, provide, onMounted, computed } from 'vue'
+import { ref, provide, onMounted } from 'vue'
 import { getExchangeRates } from './composables/getTare'
 import { useAuth } from './composables/useAuth'
-import { migrateProductCategories, cleanupOldCategoryField, type MigrationResult } from './utils/migration'
 
 // Interfaces y tipos
 import type { DolarBCV } from './types/producto'
@@ -11,13 +10,6 @@ import type { DolarBCV } from './types/producto'
 const { userProfile, currentUser, logout, isLoading } = useAuth()
 const router = useRouter()
 const isMenuOpen = ref(false)
-
-// Migration state
-const isMigrating = ref(false)
-const isCleaningUp = ref(false)
-
-// Check if user is admin
-const isAdmin = computed(() => userProfile.value?.role === 'admin')
 
 const toggleMenu = () => {
   isMenuOpen.value = !isMenuOpen.value
@@ -27,83 +19,6 @@ const handleLogout = async () => {
   await logout()
   isMenuOpen.value = false
   router.push('/login')
-}
-
-// Migration functions
-async function runMigration() {
-  if (!confirm('¿Estás seguro de que deseas migrar todos los productos de category_id a category_ids?\n\nEsto actualizará todos los productos en Firestore.')) {
-    return
-  }
-
-  isMigrating.value = true
-
-  try {
-    console.log('🚀 Iniciando migración...')
-    const result: MigrationResult = await migrateProductCategories()
-
-    const message = `
-✅ Migración completada!
-
-📊 Resumen:
-- Total de productos: ${result.total}
-- Migrados: ${result.migrated}
-- Omitidos (ya migrados): ${result.skipped}
-- Errores: ${result.errors}
-
-${result.errors > 0 ? '⚠️ Revisa la consola para ver los errores.' : '🎉 ¡Todo salió perfecto!'}
-    `.trim()
-
-    alert(message)
-    console.log('📊 Resultado de migración:', result)
-
-    if (result.errorDetails.length > 0) {
-      console.error('❌ Errores detallados:', result.errorDetails)
-    }
-
-  } catch (error) {
-    console.error('💥 Error fatal:', error)
-    alert(`Error durante la migración: ${error instanceof Error ? error.message : String(error)}`)
-  } finally {
-    isMigrating.value = false
-  }
-}
-
-async function runCleanup() {
-  if (!confirm('⚠️ ADVERTENCIA: Esto eliminará el campo category_id de TODOS los productos.\n\n¿Estás seguro de que:\n1. La migración se completó exitosamente?\n2. La aplicación funciona correctamente con category_ids?\n3. Has probado todas las funcionalidades?\n\n¿Continuar con la limpieza?')) {
-    return
-  }
-
-  isCleaningUp.value = true
-
-  try {
-    console.log('🧹 Iniciando limpieza...')
-    const result: MigrationResult = await cleanupOldCategoryField()
-
-    const message = `
-✅ Limpieza completada!
-
-📊 Resumen:
-- Total de productos: ${result.total}
-- Limpiados: ${result.migrated}
-- Omitidos: ${result.skipped}
-- Errores: ${result.errors}
-
-${result.errors > 0 ? '⚠️ Revisa la consola para ver los errores.' : '🎉 ¡Campo antiguo eliminado exitosamente!'}
-    `.trim()
-
-    alert(message)
-    console.log('📊 Resultado de limpieza:', result)
-
-    if (result.errorDetails.length > 0) {
-      console.error('❌ Errores detallados:', result.errorDetails)
-    }
-
-  } catch (error) {
-    console.error('💥 Error fatal:', error)
-    alert(`Error durante la limpieza: ${error instanceof Error ? error.message : String(error)}`)
-  } finally {
-    isCleaningUp.value = false
-  }
 }
 
 //Datos de configuracion
@@ -244,21 +159,6 @@ onMounted(() => {
       </RouterLink>
 
       <div class="sidebar-footer">
-        <!-- BOTONES TEMPORALES DE MIGRACIÓN (Solo Admin) -->
-        <template v-if="currentUser && isAdmin">
-          <div class="migration-section">
-            <p class="migration-title">🔧 Migración de Categorías</p>
-            <button @click="runMigration" :disabled="isMigrating" class="migration-btn migrate-btn">
-              <span v-if="!isMigrating">▶️ Migrar Productos</span>
-              <span v-else>⏳ Migrando...</span>
-            </button>
-            <button @click="runCleanup" :disabled="isCleaningUp" class="migration-btn cleanup-btn">
-              <span v-if="!isCleaningUp">🧹 Limpiar Campo Antiguo</span>
-              <span v-else>⏳ Limpiando...</span>
-            </button>
-          </div>
-        </template>
-
         <button v-if="currentUser" @click="handleLogout" class="nav-link logout-btn">
           <span class="icon"><i class="fi fi-rr-sign-out-alt"></i></span>
           <span class="text">Cerrar Sesión</span>
@@ -559,71 +459,6 @@ onMounted(() => {
   to {
     transform: rotate(360deg);
   }
-}
-
-/* Migration Section Styles */
-.migration-section {
-  padding: 16px;
-  background: rgba(255, 152, 0, 0.05);
-  border-radius: 12px;
-  border: 2px dashed rgba(255, 152, 0, 0.3);
-  margin-bottom: 16px;
-}
-
-.migration-title {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  margin: 0 0 12px 0;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.migration-btn {
-  width: 100%;
-  padding: 10px 16px;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.migration-btn:last-child {
-  margin-bottom: 0;
-}
-
-.migration-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.migrate-btn {
-  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
-  color: white;
-}
-
-.migrate-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4338ca 0%, #4f46e5 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
-}
-
-.cleanup-btn {
-  background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
-  color: white;
-}
-
-.cleanup-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
 @media (max-width: 768px) {
