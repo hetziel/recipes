@@ -4,6 +4,7 @@ export interface RecipeIngredient {
   establishment_id?: string // Specific establishment selected for this ingredient
   selected_price?: number // The price chosen for this ingredient (e.g., product.price for recipe products)
   price_type?: 'average' | 'unit_price' // 'average' if using product average/establishment price, 'unit_price' if using product.price directly
+  ideal_weight?: number // Target weight for the input (kg)
 }
 
 export interface RecipeUtility {
@@ -36,6 +37,8 @@ export interface ChickenData {
   current_feed_id?: string
   starter_feed_per_chicken_g: number
   fattening_feed_per_chicken_g: number
+  batch_product_id?: string // The "pollo" product selected
+  entry_date?: string // Batch entry date
 }
 
 export interface Recipe {

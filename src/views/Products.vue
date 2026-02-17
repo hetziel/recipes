@@ -103,6 +103,22 @@
               </div>
             </div>
 
+            <!-- Tipo de Producto -->
+            <div class="form-group">
+              <label class="form-label">
+                <Icon name="tag-multiple" />
+                Tipo de Producto
+              </label>
+              <div class="select-wrapper">
+                <select v-model="handleProduct.type" class="form-select">
+                  <option value="standard">📦 Estándar / General</option>
+                  <option value="alimento">🌾 Alimento / Insumo</option>
+                  <option value="pollo">🐥 Lote de Pollos (Materia Prima)</option>
+                </select>
+                <i class="select-arrow"></i>
+              </div>
+            </div>
+
             <!-- Medida y Valor -->
             <div class="form-row">
               <div class="form-group">
@@ -487,6 +503,21 @@
         </div>
       </div>
 
+      <!-- Category Filters Bar -->
+      <div class="category-filters-container" v-if="categories.length">
+        <div class="filters-scroll">
+          <button @click="selectedCategoryFilter = null" :class="['filter-chip', { active: !selectedCategoryFilter }]">
+            Todos
+          </button>
+          <button v-for="cat in categories" :key="cat.id" @click="toggleCategoryFilter(cat.id)"
+            :class="['filter-chip', { active: selectedCategoryFilter === cat.id }]"
+            :style="selectedCategoryFilter === cat.id ? { '--chip-color': getCategoryColor(cat.id) } : {}">
+            <Icon v-if="cat.icon" :name="cat.icon" size="sm" />
+            {{ cat.name }}
+          </button>
+        </div>
+      </div>
+
       <!-- Error Message -->
       <div v-if="error" class="alert alert-error">
         <Icon name="close-circle-outline" />
@@ -629,7 +660,6 @@ import {
   where,
   updateDoc,
   getDoc,
-  orderBy,
 } from 'firebase/firestore'
 import { db } from '../firebase.config'
 
@@ -676,6 +706,9 @@ const {
 } = useEstablishments()
 
 // Estados para búsqueda dinámica (categorySearch remains local, but uses imported types)
+const categories = ref<SearchableItem[]>([])
+const selectedCategoryFilter = ref<string | null>(null)
+
 const categorySearch = reactive<SearchState>({
   query: '',
   items: [],
@@ -791,6 +824,8 @@ async function loadCategories() {
           }) as SearchableItem,
       )
 
+      // Actualizar lista global
+      categories.value = loadedCategories
       // Actualizar items en el buscador
       categorySearch.items = loadedCategories
     }
@@ -802,52 +837,34 @@ async function loadCategories() {
 async function searchCategories() {
   const queryText = categorySearch.query.trim().toLowerCase()
 
+  // Si no hay texto, mostramos todas las categorías existentes
   if (queryText.length === 0) {
-    categorySearch.items = []
+    categorySearch.items = categories.value
+    categorySearch.showDropdown = true
     return
   }
 
-  try {
-    categorySearch.isLoading = true
+  // Filtrar localmente primero
+  const foundCategories = categories.value.filter(cat =>
+    cat.name.toLowerCase().includes(queryText)
+  )
 
-    // Buscar en Firestore
-    const categoriesQuery = query(
-      collection(db, CATEGORIAS_COLLECTION),
-      where('name', '>=', queryText),
-      where('name', '<=', queryText + '\uf8ff'),
-      orderBy('name'),
-    )
+  // Agregar opción para crear nueva categoría si no hay coincidencia exacta
+  const exactMatch = foundCategories.some(
+    (cat) => cat.name.toLowerCase() === queryText,
+  )
 
-    const querySnapshot = await getDocs(categoriesQuery)
-    const foundCategories = querySnapshot.docs.map(
-      (doc) =>
-        ({
-          id: doc.id,
-          name: doc.data().name,
-        }) as SearchableItem,
-    )
-
-    // Agregar opción para crear nueva categoría si no existe
-    const exactMatch = foundCategories.some(
-      (cat) => cat.name.toLowerCase() === queryText.toLowerCase(),
-    )
-
-    if (!exactMatch && queryText.length > 0) {
-      foundCategories.push({
-        id: 'new_' + Date.now(),
-        name: categorySearch.query,
-        isNew: true,
-      })
-    }
-
-    categorySearch.items = foundCategories
-    categorySearch.showDropdown = true
-  } catch (err) {
-    console.error('Error buscando categorías:', err)
-    categorySearch.items = []
-  } finally {
-    categorySearch.isLoading = false
+  if (!exactMatch && queryText.length > 0) {
+    foundCategories.push({
+      id: 'new_' + Date.now(),
+      name: categorySearch.query,
+      isNew: true,
+      icon: 'plus'
+    })
   }
+
+  categorySearch.items = foundCategories
+  categorySearch.showDropdown = true
 }
 
 async function selectCategory(item: SearchableItem) {
@@ -1131,6 +1148,7 @@ async function editProduct(id: string) {
     average_price: avg || basePriceUSD,
     category_id: handleProduct.value.category_id,
     brand_id: handleProduct.value.brand_id || null,
+    type: handleProduct.value.type,
     measurement_id: handleProduct.value.measurement_id,
     measurement_value: handleProduct.value.measurement_value,
     currency_type: 'USD', // Force USD
@@ -1337,6 +1355,7 @@ async function addProduct() {
     average_price: avg || basePriceUSD,
     category_id: handleProduct.value.category_id,
     brand_id: handleProduct.value.brand_id || null,
+    type: handleProduct.value.type,
     measurement_id: handleProduct.value.measurement_id,
     measurement_value: handleProduct.value.measurement_value,
     currency_type: 'USD', // Force USD
@@ -1370,6 +1389,7 @@ async function resetearFormulario() {
     price: 0,
     category_id: '',
     brand_id: '',
+    type: 'standard',
     measurement_id: '',
     measurement_value: 0,
     currency_type: 'USD',
@@ -1634,6 +1654,7 @@ async function createProductInFireStore(product: Product) {
     price: product.price || 0,
     category_id: product.category_id,
     brand_id: product.brand_id || null,
+    type: product.type || 'standard',
     measurement_id: product.measurement_id,
     measurement_value: product.measurement_value,
     currency_type: product.currency_type,
@@ -1659,36 +1680,53 @@ async function createProductInFireStore(product: Product) {
 
 // Definir filteredProducts como un computed que filtra el array reactivo
 const filteredProducts = computed(() => {
-  if (!searchQuery.value) {
-    return products.value;
+  let result = products.value;
+
+  // Filtrar por categoría si hay una seleccionada
+  if (selectedCategoryFilter.value) {
+    result = result.filter(p => p.category_id === selectedCategoryFilter.value);
   }
-  const queryText = searchQuery.value.toLowerCase();
-  return products.value.filter(product => {
-    // Search in product name
-    if (product.name.toLowerCase().includes(queryText)) {
-      return true;
-    }
-    // Search in brand name (if available)
-    if (product.brand_id && getBrandName(product.brand_id).toLowerCase().includes(queryText)) {
-      return true;
-    }
-    // Search in category name (if available)
-    if (product.category_id) {
-      const categoryInfo = getCategoryInfo(product.category_id);
-      if (categoryInfo && categoryInfo.name.toLowerCase().includes(queryText)) {
+
+  // Filtrar por texto de búsqueda
+  if (searchQuery.value) {
+    const queryText = searchQuery.value.toLowerCase();
+    result = result.filter(product => {
+      // Search in product name
+      if (product.name.toLowerCase().includes(queryText)) {
         return true;
       }
-    }
-    // Search in measurement type (if available)
-    if (product.measurement_id) {
-      const measurementType = getMeasurementType(product.measurement_id);
-      if (measurementType && measurementType.toLowerCase().includes(queryText)) {
+      // Search in brand name (if available)
+      if (product.brand_id && getBrandName(product.brand_id).toLowerCase().includes(queryText)) {
         return true;
       }
-    }
-    return false;
-  });
+      // Search in category name (if available)
+      if (product.category_id) {
+        const categoryInfo = getCategoryInfo(product.category_id);
+        if (categoryInfo && categoryInfo.name.toLowerCase().includes(queryText)) {
+          return true;
+        }
+      }
+      // Search in measurement type (if available)
+      if (product.measurement_id) {
+        const measurementType = getMeasurementType(product.measurement_id);
+        if (measurementType && measurementType.toLowerCase().includes(queryText)) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }
+
+  return result;
 });
+
+function toggleCategoryFilter(categoryId: string | null) {
+  if (selectedCategoryFilter.value === categoryId) {
+    selectedCategoryFilter.value = null;
+  } else {
+    selectedCategoryFilter.value = categoryId;
+  }
+}
 
 function getCategoryColor(categoryId: string): string {
   const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316']
@@ -2694,5 +2732,55 @@ function getCategoryInfo(categoryId: string): SearchableItem | undefined {
 .btn-success:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Category Filter Bar Styles */
+.category-filters-container {
+  padding: 0 24px 20px;
+}
+
+.filters-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+}
+
+.filters-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.filters-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.filter-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.filter-chip.active {
+  background: var(--chip-color, var(--primary));
+  border-color: var(--chip-color, var(--primary));
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 </style>
