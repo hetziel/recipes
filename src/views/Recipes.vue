@@ -84,11 +84,17 @@
                         <div class="summary-item-mini">
                           <label>Alimento (kg)</label>
                           <span>Est. Inicio: {{ getChickenCalculations(recipe)!.totalStarterNeeded.toFixed(1)
-                          }}kg</span>
+                            }}kg</span>
                         </div>
                         <div class="summary-item-mini highlight-profit">
                           <label>Ganancia Proyectada</label>
-                          <span>${{ getChickenCalculations(recipe)!.projectedProfit.toFixed(2) }}</span>
+                          <span>
+                            ${{ getChickenCalculations(recipe)!.projectedProfit.toFixed(2) }}
+                            <small v-if="recipe.total_cost_ingredients" style="font-weight: normal;">
+                              ({{ ((getChickenCalculations(recipe)!.projectedProfit / recipe.total_cost_ingredients) *
+                              100).toFixed(1) }}%)
+                            </small>
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -118,7 +124,13 @@
                           <div v-if="userProfile?.role === 'admin'" class="fin-item highlight-profit">
                             <label>Ganancia</label>
                             <div class="price-stack-mini">
-                              <span class="usd">${{ getScenarioProfit(recipe, sc).toFixed(2) }}</span>
+                              <span class="usd">
+                                ${{ getScenarioProfit(recipe, sc).toFixed(2) }}
+                                <small v-if="getScenarioUnitCost(recipe, sc)" style="font-weight: normal;">
+                                  ({{ ((getScenarioProfit(recipe, sc) / (getScenarioUnitCost(recipe, sc) *
+                                    calculateEstimatedUnits(recipe, sc))) * 100).toFixed(1) }}%)
+                                </small>
+                              </span>
                               <span class="bs">Bs {{ (getScenarioProfit(recipe, sc) * dolarRate).toFixed(2) }}</span>
                             </div>
                           </div>

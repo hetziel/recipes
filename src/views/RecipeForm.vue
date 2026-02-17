@@ -208,7 +208,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-success">
@@ -216,14 +216,16 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-profit">
                     <label>Ganancia</label>
                     <div class="price-stack">
-                      <span class="price-usd">${{ (calculateScenarioSalePrice(scenario) -
-                        calculateScenarioUnitCost(scenario)).toFixed(2) }}</span>
+                      <span class="price-usd font-bold">
+                        ${{ (calculateScenarioSalePrice(scenario) - calculateScenarioUnitCost(scenario)).toFixed(2) }}
+                        <span class="text-xs ml-1">({{ calculateScenarioRealMargin(scenario).toFixed(1) }}%)</span>
+                      </span>
                       <span class="price-bs">Bs {{ ((calculateScenarioSalePrice(scenario) -
                         calculateScenarioUnitCost(scenario)) * dolarRate).toFixed(2) }}</span>
                     </div>
@@ -400,8 +402,11 @@
                       <span class="label">Ganancia:</span>
                       <span class="value">
                         ${{ (calculateScenarioSalePrice(scenario) - calculateScenarioUnitCost(scenario)).toFixed(2) }}
-                        / Bs {{ ((calculateScenarioSalePrice(scenario) - calculateScenarioUnitCost(scenario)) *
-                          dolarRate).toFixed(2) }}
+                        <span class="text-xs ml-1">({{ calculateScenarioRealMargin(scenario).toFixed(1) }}%)</span>
+                        <div class="text-xs text-muted">
+                          / Bs {{ ((calculateScenarioSalePrice(scenario) - calculateScenarioUnitCost(scenario)) *
+                            dolarRate).toFixed(2) }}
+                        </div>
                       </span>
                     </div>
                   </div>

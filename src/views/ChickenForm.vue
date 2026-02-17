@@ -210,16 +210,33 @@
               <label>Ganancia Actual (Hoy)</label>
               <div class="value" :class="{ 'text-danger': chickenCalculations.currentProfit < 0 }">
                 ${{ chickenCalculations.currentProfit.toFixed(2) }}
+                <span class="text-xs ml-1" style="font-weight: normal;">
+                  ({{ calculateProfitPercent(chickenCalculations.currentProfit, totalIngredientsCost) }}%)
+                </span>
               </div>
-              <div class="sub-value">Venta Est: ${{ chickenCalculations.currentIncome.toFixed(2) }}</div>
+              <div class="sub-value">
+                Venta Est: ${{ chickenCalculations.currentIncome.toFixed(2) }}
+                <span class="ml-1" :class="chickenCalculations.currentProfit >= 0 ? 'text-success' : 'text-danger'">
+                  ({{ calculateProfitPercent(chickenCalculations.currentProfit, totalIngredientsCost) }}%)
+                </span>
+              </div>
             </div>
           </div>
           <div class="summary-card projection success">
             <Icon name="trending-up" />
             <div class="summary-details">
               <label>Ganancia Obj. (Final)</label>
-              <div class="value">${{ chickenCalculations.projectedProfit.toFixed(2) }}</div>
-              <div class="sub-value">Venta Est: ${{ chickenCalculations.projectedIncome.toFixed(2) }}
+              <div class="value">
+                ${{ chickenCalculations.projectedProfit.toFixed(2) }}
+                <span class="text-xs ml-1 text-success" style="font-weight: normal;">
+                  ({{ calculateProfitPercent(chickenCalculations.projectedProfit, totalIngredientsCost) }}%)
+                </span>
+              </div>
+              <div class="sub-value">
+                Venta Est: ${{ chickenCalculations.projectedIncome.toFixed(2) }}
+                <span class="text-success ml-1">
+                  ({{ calculateProfitPercent(chickenCalculations.projectedProfit, totalIngredientsCost) }}%)
+                </span>
               </div>
             </div>
           </div>
@@ -320,6 +337,9 @@
             <label>Resultado Real (Ganancia Neta)</label>
             <div class="perf-value" :class="chickenCalculations.realProfit >= 0 ? 'text-success' : 'text-danger'">
               ${{ chickenCalculations.realProfit.toFixed(2) }}
+              <small class="text-xs ml-1" style="font-weight: normal;">
+                ({{ calculateProfitPercent(chickenCalculations.realProfit, totalIngredientsCost) }}%)
+              </small>
             </div>
           </div>
         </div>
@@ -347,7 +367,7 @@
             <div class="product-info-mini">
               <span class="product-name-mini font-bold">{{ prod.name }}</span>
               <span v-if="prod.brand_id" class="product-brand-mini text-xs text-muted">{{ getBrandName(prod.brand_id)
-              }}</span>
+                }}</span>
             </div>
             <div class="product-price-mini text-right">
               <div class="font-bold">${{ prod.price }}</div>
@@ -656,6 +676,11 @@ function updateSaleUnitWeight(sale: ChickenSale) {
   if (sale.quantity && sale.total_weight_kg) {
     sale.weight_per_unit_kg = Number((sale.total_weight_kg / sale.quantity).toFixed(2))
   }
+}
+
+function calculateProfitPercent(profit: number, cost: number): string {
+  if (!cost || cost === 0) return '0.0'
+  return ((profit / cost) * 100).toFixed(1)
 }
 
 function removeSale(index: number) {
