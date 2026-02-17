@@ -82,13 +82,19 @@
                 </td>
                 <td>
                   <div class="price-display-cell">
-                    <span class="text-xs text-muted" v-if="!ing.establishment_id">Promedio</span>
-                    ${{ (calculateIngredientCost(ing) / (ing.usage_weight || 1) *
-                      (getProductById(ing.product_id)?.measurement_value || 1)).toFixed(2) }}
+                    <span class="text-xs text-muted" v-if="ing.price_type === 'unit_price'">Precio Fijo</span>
+                    <span class="text-xs text-muted" v-else-if="!ing.establishment_id">Promedio</span>
+                    <span v-if="ing.price_type === 'unit_price'">
+                      ${{ (ing.selected_price || 0).toFixed(2) }}
+                    </span>
+                    <span v-else>
+                      ${{ (calculateIngredientCost(ing) / (ing.usage_weight || 1) *
+                        (getProductById(ing.product_id)?.measurement_value || 1)).toFixed(2) }}
+                    </span>
                   </div>
                 </td>
                 <td>
-                  <select v-model="ing.establishment_id" class="input-xs">
+                  <select v-if="ing.price_type !== 'unit_price'" v-model="ing.establishment_id" class="input-xs">
                     <option :value="undefined">Promedio ({{ getProductById(ing.product_id)?.prices?.length || 0 }} est.)
                     </option>
                     <option v-for="price in getProductById(ing.product_id)?.prices" :key="price.establishment_id"
@@ -97,6 +103,7 @@
                         price.price.toFixed(2) : (price.price / (dolarRate || 1)).toFixed(2) }}
                     </option>
                   </select>
+                  <div v-else class="text-center text-muted">-</div>
                 </td>
                 <td>{{ getProductById(ing.product_id)?.measurement_value || 0 }}</td>
                 <td>
@@ -608,7 +615,7 @@ const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
 
 // HELPERS
 function getProductById(id: string): Product | undefined {
-  return availableProducts.value.find(p => p.id === id)
+  return availableProducts.value.find(p => p.id === id) || recipeProducts.value.find(p => p.id === id)
 }
 
 // COMPUTED
@@ -658,13 +665,19 @@ function calculateIngredientCost(ing: RecipeIngredient): number {
   const prod = getProductById(ing.product_id)
   if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
 
-  let finalPrice = prod.average_price || prod.price // Default to average
+  let finalPrice: number;
 
-  if (ing.establishment_id) {
+  if (ing.price_type === 'unit_price' && ing.selected_price !== undefined) {
+    finalPrice = ing.selected_price;
+  } else if (ing.establishment_id) {
     const specificPrice = prod.prices?.find(p => p.establishment_id === ing.establishment_id)
     if (specificPrice) {
       finalPrice = specificPrice.currency === 'USD' ? specificPrice.price : specificPrice.price / (dolarRate.value || 1)
+    } else {
+      finalPrice = prod.average_price || prod.price
     }
+  } else {
+    finalPrice = prod.average_price || prod.price // Default to average or product.price
   }
 
   return (finalPrice / prod.measurement_value) * (ing.usage_weight || 0)
@@ -1004,6 +1017,8 @@ function selectMyProduct(prod: Product) {
   recipe.value.ingredients.push({
     product_id: prod.id || '',
     usage_weight: 0,
+    selected_price: prod.price, // Store the specific price
+    price_type: 'unit_price'    // Indicate that it's a unit price, not an average
   })
   showMyProductModal.value = false
 }
@@ -1090,7 +1105,7 @@ watch(() => recipe.value.save_as_product, async (newVal, oldVal) => {
     // Delete product from my_products
     try {
       await deleteDoc(doc(db, 'my_products', recipe.value.product_id))
-      recipe.value.product_id = undefined
+      recipe.value.product_id = null
       if (recipe.value.id) {
         await updateDoc(doc(db, 'recipes', recipe.value.id), { product_id: null })
       }
