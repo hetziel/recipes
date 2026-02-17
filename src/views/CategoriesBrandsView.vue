@@ -60,9 +60,14 @@
                             <button @click="openModal('category', cat)" class="btn-icon">
                                 <Icon name="pencil" />
                             </button>
-                            <button @click="confirmDelete('category', cat)" class="btn-icon text-danger">
+                            <button v-if="!isCategoryUsed(cat.id)" @click="confirmDelete('category', cat)"
+                                class="btn-icon text-danger" title="Eliminar categoría">
                                 <Icon name="trash-can-outline" />
                             </button>
+                            <span v-else class="btn-icon text-muted disabled"
+                                title="Categoría en uso por productos (no se puede eliminar)">
+                                <Icon name="trash-can-outline" />
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -99,9 +104,14 @@
                             <button @click="openModal('brand', brand)" class="btn-icon">
                                 <Icon name="pencil" />
                             </button>
-                            <button @click="confirmDelete('brand', brand)" class="btn-icon text-danger">
+                            <button v-if="!isBrandUsed(brand.id)" @click="confirmDelete('brand', brand)"
+                                class="btn-icon text-danger" title="Eliminar marca">
                                 <Icon name="trash-can-outline" />
                             </button>
+                            <span v-else class="btn-icon text-muted disabled"
+                                title="Marca en uso por productos (no se puede eliminar)">
+                                <Icon name="trash-can-outline" />
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -178,6 +188,7 @@
 import { ref, reactive, computed } from 'vue'
 import { useCategories } from '../composables/useCategories'
 import { useBrands } from '../composables/useBrands'
+import { useProducts } from '../composables/useProducts'
 import type { Category, Brand } from '../types/producto'
 import Icon from '@/components/ui/Icon.vue'
 
@@ -198,6 +209,8 @@ const {
     updateBrand,
     deleteBrand
 } = useBrands()
+
+const { products } = useProducts()
 
 // Tabs state
 const activeTab = ref<'categories' | 'brands'>('categories')
@@ -233,6 +246,15 @@ const filteredBrands = computed(() => {
     const q = brandSearchQuery.value.toLowerCase()
     return allBrands.value.filter(b => b.name.toLowerCase().includes(q))
 })
+
+// Usage checking
+function isCategoryUsed(categoryId: string) {
+    return products.value.some(p => p.category_id === categoryId)
+}
+
+function isBrandUsed(brandId: string) {
+    return products.value.some(p => p.brand_id === brandId)
+}
 
 // UI Helpers
 const getCategoryColor = (id: string): string => {
@@ -470,6 +492,11 @@ async function handleDelete() {
 .item-actions {
     display: flex;
     gap: 4px;
+}
+
+.btn-icon.disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
 }
 
 /* Modals */
