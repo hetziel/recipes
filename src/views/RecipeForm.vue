@@ -49,9 +49,14 @@
           <h2>
             <Icon name="basket" /> Productos
           </h2>
-          <button @click="openProductModal" class="btn btn-sm btn-outline">
-            <Icon name="plus" /> Agregar Producto
-          </button>
+          <div class="section-actions-group">
+            <button @click="openProductModal" class="btn btn-sm btn-outline">
+              <Icon name="plus" /> Agregar Producto
+            </button>
+            <button @click="openMyProductModal" class="btn btn-sm btn-outline">
+              <Icon name="chef-hat" /> Agregar Mis Productos
+            </button>
+          </div>
         </div>
 
         <div class="table-responsive">
@@ -204,7 +209,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-success">
@@ -212,7 +217,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-profit">
@@ -431,6 +436,28 @@
       </div>
     </div>
 
+    <!-- MY PRODUCT SELECTOR MODAL -->
+    <div v-if="showMyProductModal" class="modal-overlay">
+      <div class="modal-content">
+        <h3>Seleccionar Producto de Receta</h3>
+        <input v-model="productSearch" placeholder="Buscar mi producto..." class="form-input mb-4" />
+        <div class="product-list">
+          <div v-for="prod in filteredMyProducts" :key="prod.id" class="product-item" @click="selectMyProduct(prod)">
+            <div class="product-info-mini">
+              <span class="product-name-mini">{{ prod.name }}</span>
+              <span v-if="prod.brand_id" class="product-brand-mini">{{ getBrandName(prod.brand_id) }}</span>
+            </div>
+            <span>${{ prod.price }} ({{ prod.measurement_value }}
+              {{ getMeasurementLabel(prod.measurement_id) }})</span>
+          </div>
+          <div v-if="filteredMyProducts.length === 0" class="text-center p-4 text-muted">
+            No tienes productos de receta disponibles.
+          </div>
+        </div>
+        <button @click="showMyProductModal = false" class="btn btn-secondary mt-4">Cancelar</button>
+      </div>
+    </div>
+
     <!-- UTILITY SELECTOR MODAL -->
     <div v-if="showUtilityModal" class="modal-overlay">
       <div class="modal-content">
@@ -547,12 +574,14 @@ const isEditing = ref(false)
 const isSaving = ref(false)
 const showProductModal = ref(false)
 const showUtilityModal = ref(false)
+const showMyProductModal = ref(false)
 const productSearch = ref('')
 const utilitySearch = ref('')
 const activeScenarioIndex = ref<number | null>(null)
 const editingScenarioIndex = ref<number | null>(null)
 const showBatchSummaryModal = ref(false)
 const availableProducts = ref<Product[]>([])
+const recipeProducts = ref<Product[]>([])
 const scenarios = ref<RecipeScenario[]>([])
 const isSavingScenario = ref(false)
 const isMigrating = ref(false)
@@ -596,10 +625,18 @@ const totalIngredientsCost = computed(() => {
 })
 
 const filteredProducts = computed(() => {
-  if (!productSearch.value) return availableProducts.value
+  if (!productSearch.value) return availableProducts.value.filter(p => !p.is_recipe_product)
   const q = productSearch.value.toLowerCase()
-  return availableProducts.value.filter((p) => p.name.toLowerCase().includes(q))
+  return availableProducts.value.filter((p) => p.name.toLowerCase().includes(q) && !p.is_recipe_product)
 })
+
+// Revisado
+const filteredMyProducts = computed(() => {
+  if (!productSearch.value) return recipeProducts.value
+  const q = productSearch.value.toLowerCase()
+  return recipeProducts.value.filter((p) => p.name.toLowerCase().includes(q))
+})
+//
 
 const filteredUtilities = computed(() => {
   const utilities = availableProducts.value.filter(p => p.is_utility)
@@ -912,19 +949,22 @@ async function loadScenarios(recipeId: string) {
 }
 async function loadProducts() {
   const local = localStorage.getItem('productos-app-data')
+
+  // Load recipe products
+  const myProductsSnap = await getDocs(collection(db, 'my_products'))
+  recipeProducts.value = myProductsSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product)
+
+
   if (local) {
     availableProducts.value = JSON.parse(local)
+
   } else {
     // Load regular products
     const snap = await getDocs(collection(db, 'productos'))
     const regularProducts = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product)
 
-    // Load recipe products
-    const myProductsSnap = await getDocs(collection(db, 'my_products'))
-    const recipeProducts = myProductsSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product)
-
     // Combine both lists
-    availableProducts.value = [...regularProducts, ...recipeProducts]
+    availableProducts.value = regularProducts
   }
 }
 
@@ -948,12 +988,24 @@ function openProductModal() {
   showProductModal.value = true
 }
 
+function openMyProductModal() {
+  showMyProductModal.value = true
+}
+
 function selectProduct(prod: Product) {
   recipe.value.ingredients.push({
     product_id: prod.id || '',
     usage_weight: 0,
   })
   showProductModal.value = false
+}
+
+function selectMyProduct(prod: Product) {
+  recipe.value.ingredients.push({
+    product_id: prod.id || '',
+    usage_weight: 0,
+  })
+  showMyProductModal.value = false
 }
 
 async function saveRecipe() {
@@ -1100,6 +1152,16 @@ onMounted(() => {
   margin-bottom: 16px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  /* Allow items to wrap on smaller screens */
+  gap: 10px;
+  /* Space between items when wrapped */
+}
+
+.section-actions-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .section-header h2 {
