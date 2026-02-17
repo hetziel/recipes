@@ -42,20 +42,12 @@ async function cargarTasaDolar() {
   errorTasa.value = null
 
   try {
-    const dolarBCVLocal = localStorage.getItem('dolarBCV')
     const rate = await getExchangeRate
     if (rate && (rate.usdOficial || rate.usdParalelo)) {
-      let datos = null
-      try {
-        datos = dolarBCVLocal ? JSON.parse(dolarBCVLocal) : null
-      } catch (e) {
-        console.error('Error parsing local dolarBCV:', e)
-      }
-
       dolarBCV.value = {
         promedio: rate.usdOficial || rate.usdParalelo || 0,
         fecha: rate.date,
-        origen: datos && datos.origen === 'api' ? 'local' : datos?.origen || 'local',
+        origen: 'api',
       }
     }
   } catch (error) {
@@ -71,7 +63,6 @@ async function cargarTasaDolar() {
         fecha: rate.date,
         origen: 'api',
       }
-      localStorage.setItem('dolarBCV', JSON.stringify(dolarBCV.value))
     } catch (err) {
       console.error('Error al obtener datos del dólar:', err)
       errorTasa.value = 'Error al obtener datos del dólar'
@@ -84,7 +75,6 @@ async function cargarTasaDolar() {
 // Función para actualizar el valor
 function actualizarDolarBCV(nuevoValor: DolarBCV) {
   dolarBCV.value = nuevoValor
-  localStorage.setItem('dolarBCV', JSON.stringify(dolarBCV.value))
 }
 
 // Proveer los datos y función para hijos

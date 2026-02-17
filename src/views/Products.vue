@@ -670,7 +670,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'ProductsView' })
 
-import { ref, onMounted, computed, watch, onUnmounted, inject, reactive, type Ref } from 'vue'
+import { ref, onMounted, computed, watch, inject, reactive, type Ref } from 'vue'
 import boxyModal from '@js/boxy-modal.esm'
 import Icon from '@/components/ui/Icon.vue' // Import Icon component
 
@@ -699,10 +699,8 @@ import { useEstablishments } from '../composables/useEstablishments'
 
 // Datos de configuración
 const onTesting = true
-const onFireStore = true
 const typeAction = ref<'create' | 'edit'>('create')
 
-const STORAGE_KEY = 'productos-app-data'
 const PRODUCTOS_COLLECTION = 'productos'
 const CATEGORIAS_COLLECTION = 'categorias'
 
@@ -713,7 +711,6 @@ const { dolarBCV: dolarBCV } = inject<{
 const products = ref<Product[]>([])
 const error = ref<string | null>(null)
 const cargando = ref<boolean>(false)
-const isOnline = ref<boolean>(true)
 
 const searchQuery = ref(''); // New search query ref
 
@@ -836,26 +833,11 @@ watch(() => handleProduct.value.tempPrice, (newVal) => {
 
 
 // Configurar listener en tiempo real
+// Configurar listener en tiempo real
 onMounted(() => {
-  // 1. Cargar datos locales primero para una respuesta rápida
-  loadProductsFromLocal()
+  // Cargar datos de Firebase y sincronizar
+  cargarDatosIniciales()
 
-  // 2. Cargar datos de Firebase y sincronizar
-  cargarDatosIniciales().then(() => {
-
-  })
-
-  // 3. Configurar sincronización periódica
-  const intervalo = setInterval(() => {
-    if (navigator.onLine && onFireStore) {
-      loadProductsFromFireStore()
-    }
-  }, 30000) // Cada 30 segundos
-
-  // Limpiar intervalo al desmontar
-  onUnmounted(() => clearInterval(intervalo))
-
-  // 4. Cargar categorías iniciales (brands are loaded by useBrands composable)
   // 4. Cargar categorías iniciales (brands are loaded by useBrands composable)
   loadCategories()
   loadEstablishments() // Cargar establecimientos
@@ -876,22 +858,20 @@ async function showModal(show: boolean) {
 // FUNCIONES PARA CATEGORÍAS
 async function loadCategories() {
   try {
-    if (onFireStore) {
-      const querySnapshot = await getDocs(collection(db, CATEGORIAS_COLLECTION))
-      const loadedCategories = querySnapshot.docs.map(
-        (doc) =>
-          ({
-            id: doc.id,
-            name: doc.data().name,
-            icon: doc.data().icon || null, // Include icon field
-          }) as SearchableItem,
-      )
+    const querySnapshot = await getDocs(collection(db, CATEGORIAS_COLLECTION))
+    const loadedCategories = querySnapshot.docs.map(
+      (doc) =>
+        ({
+          id: doc.id,
+          name: doc.data().name,
+          icon: doc.data().icon || null, // Include icon field
+        }) as SearchableItem,
+    )
 
-      // Actualizar lista global
-      categories.value = loadedCategories
-      // Actualizar items en el buscador
-      categorySearch.items = loadedCategories
-    }
+    // Actualizar lista global
+    categories.value = loadedCategories
+    // Actualizar items en el buscador
+    categorySearch.items = loadedCategories
   } catch (err) {
     console.error('Error cargando categorías:', err)
   }
@@ -1110,32 +1090,13 @@ function onBrandBlur() {
 }
 
 // Cargar datos del LocalStorage al iniciar
-function loadProductsFromLocal() {
-  cargando.value = true
-  const localData = localStorage.getItem(STORAGE_KEY)
-  if (localData) {
-    try {
-      const data = JSON.parse(localData)
-      const localProducts: Product[] = data || []
 
-      products.value = localProducts
-
-      console.log('Productos cargados desde LocalStorage:', localProducts.length)
-    } catch (err) {
-      console.error('Error al cargar datos del LocalStorage:', err)
-    } finally {
-      cargando.value = false
-    }
-  }
-}
 
 // Función principal para cargar datos iniciales
 async function cargarDatosIniciales() {
   try {
     // Cargar productos
-    if (onFireStore && isOnline.value) {
-      await loadProductsFromFireStore()
-    }
+    await loadProductsFromFireStore()
   } catch (err) {
     console.error('Error al cargar datos iniciales:', err)
     error.value = 'Error al cargar datos. Intente nuevamente.'
@@ -1144,7 +1105,6 @@ async function cargarDatosIniciales() {
 
 // Función específica para cargar productos
 async function loadProductsFromFireStore(): Promise<void> {
-  console.log('loadProductsFromFireStore')
   try {
     // 1. Obtener productos de FireStore
     const productsQuery = query(
@@ -1164,13 +1124,8 @@ async function loadProductsFromFireStore(): Promise<void> {
     // 3. Actualizar el estado reactivo
     products.value = loadedProducts
 
-    // 4. Guardar en LocalStorage
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(loadedProducts))
-    console.log('Productos guardados en LocalStorage', loadedProducts.length)
   } catch (err) {
-    // Update:
-    // Notificación que se están usando los productos locales
-    console.info('Error al cargar productos de la nube, usando datos locales si existen', err)
+    console.error('Error al cargar productos de la nube', err)
   }
 }
 
@@ -1220,9 +1175,7 @@ async function editProduct(id: string) {
   }
 
   try {
-    if (onFireStore && navigator.onLine) {
-      await updateDoc(doc(db, PRODUCTOS_COLLECTION, id), updates)
-    }
+    await updateDoc(doc(db, PRODUCTOS_COLLECTION, id), updates)
 
     // Update local state
     const index = products.value.findIndex(p => p.id === id)
@@ -1432,9 +1385,7 @@ async function addProduct() {
 
     resetearFormulario()
 
-    if (onFireStore && navigator.onLine) {
-      await createProductInFireStore(product)
-    }
+    await createProductInFireStore(product)
   } catch (err) {
     error.value = 'Error al agregar el producto'
     console.error(err)
@@ -1563,10 +1514,8 @@ async function confirmDeleteProduct() {
       return
     }
 
-    // Si está sincronizado, eliminar de Firestore
-    if (onFireStore && navigator.onLine && isOnline.value) {
-      await deleteDoc(doc(db, PRODUCTOS_COLLECTION, id))
-    }
+    // Eliminar de Firestore
+    await deleteDoc(doc(db, PRODUCTOS_COLLECTION, id))
 
     // Eliminar del estado local
     products.value.splice(index, 1)

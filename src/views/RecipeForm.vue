@@ -208,7 +208,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
-                      }}</span>
+                        }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-success">
@@ -216,7 +216,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                      }}</span>
+                        }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-profit">
@@ -971,24 +971,15 @@ async function loadScenarios(recipeId: string) {
   scenarios.value = snap.docs.map(d => ({ ...d.data() } as RecipeScenario))
 }
 async function loadProducts() {
-  const local = localStorage.getItem('productos-app-data')
-
   // Load recipe products
   const myProductsSnap = await getDocs(collection(db, 'my_products'))
   recipeProducts.value = myProductsSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product)
 
+  // Load regular products
+  const snap = await getDocs(collection(db, 'productos'))
+  const regularProducts = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product)
 
-  if (local) {
-    availableProducts.value = JSON.parse(local)
-
-  } else {
-    // Load regular products
-    const snap = await getDocs(collection(db, 'productos'))
-    const regularProducts = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product)
-
-    // Combine both lists
-    availableProducts.value = regularProducts
-  }
+  availableProducts.value = regularProducts
 }
 
 async function loadRecipe(id: string) {

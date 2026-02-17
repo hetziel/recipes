@@ -123,8 +123,7 @@ const { dolarBCV } = inject<{ dolarBCV: import('vue').Ref<DolarBCV | null> }>('d
 const bolivares = ref<number | null>(null)
 const dolaresBCV = ref<number | null>(null)
 const dolaresInternacional = ref<number | null>(null)
-const tasaInternacional = ref<number | null>(localStorage.getItem('tasaInternacional') ?
-  parseFloat(localStorage.getItem('tasaInternacional')!) : null)
+const tasaInternacional = ref<number | null>(null)
 
 const tasaDolar = computed(() => dolarBCV.value?.promedio ?? 0)
 const tasaDisponible = computed(() => typeof tasaDolar.value === 'number' && tasaDolar.value > 0)
@@ -170,7 +169,6 @@ function convertir(origen: 'bs' | 'bcv' | 'usd') {
 
 function actualizarTasaInternacional() {
   if (tasaInternacional.value && tasaInternacional.value > 0) {
-    localStorage.setItem('tasaInternacional', tasaInternacional.value.toString())
     if (bolivares.value !== null) {
       dolaresInternacional.value = +(bolivares.value / tasaInternacional.value).toFixed(2)
     } else if (dolaresInternacional.value !== null) {

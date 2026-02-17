@@ -10,7 +10,7 @@ import type { Brand } from '../types/producto' // Use Brand interface from produ
 import type { SearchableItem, SearchState } from '../types/search' // Use new SearchableItem/SearchState
 
 const MARCAS_COLLECTION = 'marcas'
-const onFireStore = true // Hardcoded for now, as it's a const in Products.vue
+
 
 export function useBrands() {
   const brandSearch = reactive<SearchState>({
@@ -25,18 +25,16 @@ export function useBrands() {
 
   async function loadBrands() {
     try {
-      if (onFireStore) {
-        const querySnapshot = await getDocs(collection(db, MARCAS_COLLECTION))
-        const loadedBrands = querySnapshot.docs.map(
-          (d) =>
-            ({
-              id: d.id,
-              name: d.data().name,
-            }) as Brand, // Cast to Brand interface
-        )
-        allBrands.value = loadedBrands // Update allBrands
-        brandSearch.items = loadedBrands.map(b => ({ id: b.id, name: b.name })) // Also update search items
-      }
+      const querySnapshot = await getDocs(collection(db, MARCAS_COLLECTION))
+      const loadedBrands = querySnapshot.docs.map(
+        (d) =>
+          ({
+            id: d.id,
+            name: d.data().name,
+          }) as Brand, // Cast to Brand interface
+      )
+      allBrands.value = loadedBrands // Update allBrands
+      brandSearch.items = loadedBrands.map(b => ({ id: b.id, name: b.name })) // Also update search items
     } catch (err) {
       console.error('Error cargando marcas:', err)
     }
