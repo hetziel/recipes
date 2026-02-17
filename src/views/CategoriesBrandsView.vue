@@ -249,7 +249,9 @@ const filteredBrands = computed(() => {
 
 // Usage checking
 function isCategoryUsed(categoryId: string) {
-    return products.value.some(p => p.category_id === categoryId)
+    return products.value.some(p =>
+        p.category_ids && p.category_ids.includes(categoryId)
+    )
 }
 
 function isBrandUsed(brandId: string) {

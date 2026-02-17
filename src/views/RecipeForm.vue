@@ -208,7 +208,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-success">
@@ -216,7 +216,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-profit">
@@ -1077,7 +1077,7 @@ async function syncRecipeAsProduct() {
     name: recipe.value.name,
     price: avgPrice,
     average_price: avgPrice,
-    category_id: 'recipe_products',  // Special category
+    category_ids: ['recipe_products'],  // Special category
     brand_id: null,
     measurement_id: recipe.value.has_production_units ? 'unit' : 'g', // 'unit' if production units, 'g' if weight based
     measurement_value: recipe.value.has_production_units ? (recipe.value.total_production_units || 1) : totalFinalWeight.value,

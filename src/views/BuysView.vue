@@ -85,7 +85,7 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     nuevoProducto.moneda === 'USD' ? '$' : 'Bs'
-                    }}</span>
+                  }}</span>
                   <input id="price" v-model.number="nuevoProducto.price" type="number" min="0" step="0.01"
                     @input="convertirMoneda" class="form-input" />
                 </div>
@@ -791,7 +791,7 @@ const nuevoProducto = ref({
   precioBs: '',
   moneda: 'USD',
   cantidad: 1,
-  category_id: '', // Default to empty for now
+  category_ids: [], // Default to empty array
   brand_id: null as string | null,
   measurement_id: 'mea1', // Default to 'Kg'
   measurement_value: 0,
@@ -827,7 +827,7 @@ function agregarProducto() {
   const producto: BuyProduct = {
     id: Date.now().toString(), // Use toString() for string ID
     name: nuevoProducto.value.name,
-    category_id: nuevoProducto.value.category_id,
+    category_ids: [],
     brand_id: nuevoProducto.value.brand_id,
     measurement_id: nuevoProducto.value.measurement_id,
     measurement_value: nuevoProducto.value.measurement_value,
@@ -854,7 +854,7 @@ function agregarProducto() {
     precioBs: '',
     moneda: 'USD',
     cantidad: 1,
-    category_id: '',
+    category_ids: [],
     brand_id: null,
     measurement_id: 'mea1', // Default to 'Kg'
     measurement_value: 0,

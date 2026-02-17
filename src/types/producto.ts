@@ -14,7 +14,7 @@ export interface UiProductPrice extends ProductPrice {
 export interface Product {
   id?: string
   name: string
-  category_id: string
+  category_ids: string[]  // Changed from category_id to support multiple categories
   brand_id: string | null
   measurement_id: string
   measurement_value: number

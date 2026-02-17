@@ -27,11 +27,11 @@
               </div>
             </div>
 
-            <!-- Categoría -->
+            <!-- Categorías (Múltiples) -->
             <div class="form-group">
               <label class="form-label">
                 <Icon name="shape-outline" />
-                Categoría
+                Categorías
               </label>
               <div class="searchable-select">
                 <div class="input-with-icon">
@@ -47,27 +47,18 @@
                     {{ item.isNew ? `Crear: "${item.name}"` : item.name }}
                   </div>
                 </div>
-                <div v-if="categorySearch.selectedItem" class="selected-item chip">
-                  <Icon v-if="categorySearch.selectedItem.icon" :name="categorySearch.selectedItem.icon"
-                    class="category-icon-display" />
-                  {{ categorySearch.selectedItem.name }}
-                  <button type="button" @click="clearCategory" class="clear-btn">&times;</button>
+                <!-- Selected Categories Chips -->
+                <div v-if="selectedCategories.length > 0" class="selected-categories-chips">
+                  <div v-for="cat in selectedCategories" :key="cat.id" class="category-chip">
+                    <Icon v-if="cat.icon" :name="cat.icon" class="chip-icon" />
+                    <span>{{ cat.name }}</span>
+                    <button type="button" @click="removeCategory(cat.id)" class="chip-remove">&times;</button>
+                  </div>
                 </div>
                 <div v-if="categorySearch.isLoading" class="loading-spinner">
                   <div class="spinner"></div>
                   Buscando...
                 </div>
-              </div>
-            </div>
-            <div class="form-group" v-if="categorySearch.selectedItem">
-              <label class="form-label">
-                <Icon name="svg" />
-                Icono de Categoría (MDI)
-              </label>
-              <div class="input-with-icon">
-                <input v-model="categorySearch.selectedItem.icon" class="form-input" placeholder="Ej: apple" />
-                <Icon v-if="categorySearch.selectedItem.icon" :name="categorySearch.selectedItem.icon"
-                  class="category-icon-preview" />
               </div>
             </div>
 
@@ -274,7 +265,7 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     handleProduct.currency_type === 'USD' ? '$' : 'Bs'
-                    }}</span>
+                  }}</span>
                   <input v-model.number="handleProduct.tempPrice" type="number" min="0" step="0.01" class="form-input"
                     placeholder="0.00" />
                 </div>
@@ -458,7 +449,7 @@
             <div class="est-name font-bold">Promedio</div>
             <div class="average-prices-inline text-right">
               <span class="font-bold text-primary">${{ (selectedProductForPrices.average_price || 0).toFixed(2)
-                }}</span>
+              }}</span>
               <span class="text-muted mx-2">|</span>
               <span class="text-muted">Bs {{ ((selectedProductForPrices.average_price || 0) * (dolarBCV?.promedio ||
                 0)).toFixed(2) }}</span>
@@ -570,12 +561,17 @@
           <div v-for="product in filteredProducts" :key="product.id" class="product-card">
             <div class="product-main">
               <div class="product-info">
-                <div class="product-badge" :style="{ backgroundColor: getCategoryColor(product.category_id) }">
-                  <Icon v-if="getCategoryInfo(product.category_id)?.icon"
-                    :name="getCategoryInfo(product.category_id)?.icon ?? ''" class="category-list-icon" />
-                  <span v-else>{{
+                <div v-if="product.category_ids && product.category_ids.length > 0" class="product-badge"
+                  :style="{ backgroundColor: getCategoryColor(product.category_ids[0]) }">
+                  <Icon v-if="getCategoryInfo(product.category_ids[0])?.icon"
+                    :name="getCategoryInfo(product.category_ids[0])?.icon ?? 'shape-outline'"
+                    class="category-list-icon" />
+                  <span v-else>P</span>
+                </div>
+                <div v-else class="product-badge" style="background-color: #6b7280">
+                  <span>{{
                     getMeasurementType(product.measurement_id)?.charAt(0) || 'P'
-                    }}</span>
+                  }}</span>
                 </div>
                 <div class="product-details">
                   <h3 class="product-name">
@@ -601,12 +597,14 @@
                   </div>
                 </div>
               </div>
-              <div class="product-category">
-                <span class="category-tag">
-                  <Icon v-if="getCategoryInfo(product.category_id)?.icon"
-                    :name="getCategoryInfo(product.category_id)?.icon ?? ''" class="category-tag-icon" />
-                  {{ getCategoryInfo(product.category_id)?.name }}
-                </span>
+              <div class="product-category" v-if="product.category_ids && product.category_ids.length > 0">
+                <div class="category-tags">
+                  <span v-for="catId in product.category_ids" :key="catId" class="category-tag">
+                    <Icon v-if="getCategoryInfo(catId)?.icon" :name="getCategoryInfo(catId)?.icon ?? 'shape-outline'"
+                      class="category-tag-icon" />
+                    {{ getCategoryInfo(catId)?.name }}
+                  </span>
+                </div>
               </div>
               <div class="product-price">
                 <div class="price-display">
@@ -682,7 +680,7 @@ import { db } from '../firebase.config'
 
 // Interfaces y tipos
 // Product imports
-import type { Product, ProductPrice, DolarBCV, UiProductPrice } from '../types/producto'
+import type { Product, ProductPrice, DolarBCV, UiProductPrice, Category } from '../types/producto'
 import type { SearchableItem, SearchState } from '../types/search'
 
 // Composables
@@ -802,12 +800,15 @@ interface MutableProduct extends Omit<Product, 'prices'> {
   average_price?: number;
 }
 
+// Selected categories for the form
+const selectedCategories = ref<Category[]>([])
+
 const handleProduct = ref<MutableProduct>({
   name: '',
   price: 0,
   prices: [],
   average_price: 0,
-  category_id: '',
+  category_ids: [],  // Changed from category_id: ''
   brand_id: null,
   type: 'standard',
   measurement_id: '',
@@ -898,14 +899,29 @@ async function searchCategories() {
 async function selectCategory(item: SearchableItem) {
   if (item.isNew) {
     // Crear nueva categoría
-    await createNewCategory(item.name, item.icon)
+    const newCat = await createNewCategory(item.name, item.icon)
+    if (newCat) {
+      selectedCategories.value.push(newCat)
+      handleProduct.value.category_ids.push(newCat.id)
+    }
   } else {
-    categorySearch.selectedItem = item
-    handleProduct.value.category_id = item.id
+    // Verificar que no esté ya agregada
+    if (!selectedCategories.value.find(c => c.id === item.id)) {
+      const catInfo = getCategoryInfo(item.id)
+      if (catInfo) {
+        selectedCategories.value.push(catInfo)
+        handleProduct.value.category_ids.push(item.id)
+      }
+    }
   }
 
-  categorySearch.query = item.name
+  categorySearch.query = ''
   categorySearch.showDropdown = false
+}
+
+function removeCategory(categoryId: string) {
+  selectedCategories.value = selectedCategories.value.filter(c => c.id !== categoryId)
+  handleProduct.value.category_ids = handleProduct.value.category_ids.filter(id => id !== categoryId)
 }
 
 // State for Prices Modal
@@ -979,7 +995,8 @@ async function saveRowPrice(priceItem: any) {
 function clearCategory() {
   categorySearch.selectedItem = null
   categorySearch.query = ''
-  handleProduct.value.category_id = ''
+  selectedCategories.value = []
+  handleProduct.value.category_ids = []
 }
 
 function onCategoryBlur() {
@@ -1051,7 +1068,7 @@ async function editProduct(id: string) {
     price: basePriceUSD,
     prices: handleProduct.value.prices || [],
     average_price: avg || basePriceUSD,
-    category_id: handleProduct.value.category_id,
+    category_ids: handleProduct.value.category_ids,
     brand_id: handleProduct.value.brand_id || null,
     type: handleProduct.value.type || 'standard',
     measurement_id: handleProduct.value.measurement_id,
@@ -1185,7 +1202,7 @@ async function addProduct() {
     price: basePriceUSD,
     prices: handleProduct.value.prices || [],
     average_price: avg || basePriceUSD,
-    category_id: handleProduct.value.category_id,
+    category_ids: handleProduct.value.category_ids,
     brand_id: handleProduct.value.brand_id || null,
     type: handleProduct.value.type || 'standard',
     measurement_id: handleProduct.value.measurement_id,
@@ -1217,8 +1234,8 @@ async function resetearFormulario() {
   handleProduct.value = {
     name: '',
     price: 0,
-    category_id: '',
-    brand_id: '',
+    category_ids: [],
+    brand_id: null,
     type: 'standard',
     measurement_id: '',
     measurement_value: 0,
@@ -1229,6 +1246,7 @@ async function resetearFormulario() {
     updated_at: new Date().toISOString().split('T')[0],
 
   }
+  selectedCategories.value = []
 
   // Limpiar buscadores
   clearCategory()
@@ -1258,16 +1276,11 @@ async function loadEditProduct(id: string) {
     return
   }
 
-  // Cargar valores de categoría y marca si existen desde el estado local
-  if (product.category_id) {
-    const categoryInfo = getCategoryInfo(product.category_id)
-    if (categoryInfo) {
-      categorySearch.selectedItem = {
-        id: categoryInfo.id,
-        name: categoryInfo.name,
-      }
-      categorySearch.query = categoryInfo.name
-    }
+  // Cargar valores de categorías si existen
+  if (product.category_ids && product.category_ids.length > 0) {
+    selectedCategories.value = product.category_ids
+      .map(catId => getCategoryInfo(catId))
+      .filter(cat => cat !== undefined) as Category[]
   }
 
   if (product.brand_id) {
@@ -1285,6 +1298,7 @@ async function loadEditProduct(id: string) {
   const cloned = JSON.parse(JSON.stringify(product)) as any
   handleProduct.value = {
     ...cloned,
+    category_ids: cloned.category_ids || [],
     tempPrice: cloned.price || 0,
     prices: cloned.prices || [],
     average_price: cloned.average_price || cloned.price || 0
@@ -1361,7 +1375,7 @@ async function createProductInFireStore(product: Product) {
     id: product.id && !product.id.startsWith('temp_') ? product.id : customId,
     name: product.name.trim(),
     price: product.price || 0,
-    category_id: product.category_id,
+    category_ids: product.category_ids || [],
     brand_id: product.brand_id || null,
     type: product.type || 'standard',
     measurement_id: product.measurement_id,
@@ -1394,7 +1408,9 @@ const filteredProducts = computed(() => {
 
   // Filtrar por categoría si hay una seleccionada
   if (selectedCategoryFilter.value) {
-    result = result.filter(p => p.category_id === selectedCategoryFilter.value);
+    result = result.filter(p =>
+      p.category_ids && p.category_ids.includes(selectedCategoryFilter.value!)
+    );
   }
 
   // Filtrar por texto de búsqueda
@@ -1409,12 +1425,13 @@ const filteredProducts = computed(() => {
       if (product.brand_id && getBrandName(product.brand_id).toLowerCase().includes(queryText)) {
         return true;
       }
-      // Search in category name (if available)
-      if (product.category_id) {
-        const categoryInfo = getCategoryInfo(product.category_id);
-        if (categoryInfo && categoryInfo.name.toLowerCase().includes(queryText)) {
-          return true;
-        }
+      // Search in category names (if available)
+      if (product.category_ids && product.category_ids.length > 0) {
+        const hasMatchingCategory = product.category_ids.some(catId => {
+          const categoryInfo = getCategoryInfo(catId);
+          return categoryInfo && categoryInfo.name.toLowerCase().includes(queryText);
+        });
+        if (hasMatchingCategory) return true;
       }
       // Search in measurement type (if available)
       if (product.measurement_id) {
@@ -2582,5 +2599,59 @@ function formatDate(dateString: string | null | undefined): string {
   border-color: var(--chip-color, var(--primary));
   color: white;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Multiple Categories Chips */
+.selected-categories-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--primary);
+  color: white;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.chip-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.chip-remove {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+  margin-left: 4px;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.chip-remove:hover {
+  opacity: 1;
+}
+
+.category-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.category-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 </style>
