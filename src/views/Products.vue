@@ -265,7 +265,7 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     handleProduct.currency_type === 'USD' ? '$' : 'Bs'
-                  }}</span>
+                    }}</span>
                   <input v-model.number="handleProduct.tempPrice" type="number" min="0" step="0.01" class="form-input"
                     placeholder="0.00" />
                 </div>
@@ -435,11 +435,11 @@
 
             <!-- Per-row Edit/Save Button -->
             <div class="row-actions ml-2 flex gap-1">
-              <button v-if="!(price as any).isEditing" @click="toggleRowEdit(price, true)"
+              <button v-if="!(price as any).isEditing" @click="toggleRowEdit(price as any, true)"
                 class="btn-icon btn-sm btn-edit" title="Editar">
                 <Icon name="pencil" size="sm" />
               </button>
-              <button v-else @click="saveRowPrice(price)" class="btn-icon btn-sm btn-success" title="Guardar"
+              <button v-else @click="saveRowPrice(price as any)" class="btn-icon btn-sm btn-success" title="Guardar"
                 :disabled="isSavingPrices">
                 <Icon name="content-save" size="sm" />
               </button>
@@ -453,7 +453,7 @@
             <div class="est-name font-bold">Promedio</div>
             <div class="average-prices-inline text-right">
               <span class="font-bold text-primary">${{ (selectedProductForPrices.average_price || 0).toFixed(2)
-              }}</span>
+                }}</span>
               <span class="text-muted mx-2">|</span>
               <span class="text-muted">Bs {{ ((selectedProductForPrices.average_price || 0) * (dolarBCV?.promedio ||
                 0)).toFixed(2) }}</span>
@@ -632,7 +632,7 @@
                 <div v-else class="product-badge" style="background-color: #6b7280">
                   <span>{{
                     getMeasurementType(product.measurement_id)?.charAt(0) || 'P'
-                  }}</span>
+                    }}</span>
                 </div>
                 <div class="product-details">
                   <h3 class="product-name">
@@ -686,7 +686,7 @@
                   <button @click="loadEditProduct(String(product.id))" class="btn-icon btn-edit" title="Editar">
                     <Icon name="pencil" />
                   </button>
-                  <button @click="openPricesModal(product)" class="btn-icon btn-info" title="Ver Precios">
+                  <button @click="openPricesModal(product as any)" class="btn-icon btn-info" title="Ver Precios">
                     <Icon name="currency-usd" />
                   </button>
                   <button @click="loadDeleteProduct(String(product.id))" class="btn-icon btn-delete" title="Eliminar">
