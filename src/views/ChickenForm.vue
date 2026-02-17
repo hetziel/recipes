@@ -347,7 +347,7 @@
             <div class="product-info-mini">
               <span class="product-name-mini font-bold">{{ prod.name }}</span>
               <span v-if="prod.brand_id" class="product-brand-mini text-xs text-muted">{{ getBrandName(prod.brand_id)
-                }}</span>
+              }}</span>
             </div>
             <div class="product-price-mini text-right">
               <div class="font-bold">${{ prod.price }}</div>
@@ -544,10 +544,11 @@ const chickenCalculations = computed(() => {
   if (calcs) {
     // Override total ingredients cost with our specialized local calculation
     calcs.totalIngredientsCost = totalIngredientsCost.value
-    // Re-calculate projection profit with updated total cost
-    const totalTargetWeightKg = (recipe.value.chicken_data?.target_weight_g || 0) * (recipe.value.chicken_data?.initial_quantity || 0) / 1000
-    calcs.projectedIncome = totalTargetWeightKg * (recipe.value.chicken_data?.live_weight_price_kg || 0)
+    // Re-calculate all profits with the synchronized total cost
     calcs.projectedProfit = calcs.projectedIncome - totalIngredientsCost.value
+    calcs.currentProfit = calcs.currentIncome - totalIngredientsCost.value
+    calcs.realProfit = calcs.totalSoldIncome - totalIngredientsCost.value
+
     calcs.costPerChicken = (recipe.value.chicken_data?.initial_quantity || 0) > 0 ? totalIngredientsCost.value / recipe.value.chicken_data!.initial_quantity : 0
   }
   return calcs
