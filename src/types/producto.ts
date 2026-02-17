@@ -40,7 +40,8 @@ export interface ExtendedProduct extends Product {
 export interface Category {
   id: string
   name: string
-  icon?: string // Add this line
+  icon?: string
+  isNew?: boolean
 }
 
 export interface Brand {
@@ -74,6 +75,7 @@ export interface SearchableItem {
   id: string
   name: string
   isNew?: boolean
+  icon?: string
 }
 
 export interface SearchState {

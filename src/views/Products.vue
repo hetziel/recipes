@@ -717,7 +717,7 @@ const {
   searchEstablishments,
   createEstablishment,
   clearEstablishmentSearch,
-  getEstablishmentName
+  getEstablishmentName: getEstablishmentNameFromComposable
 } = useEstablishments()
 
 // Map loading state
@@ -802,6 +802,9 @@ interface MutableProduct extends Omit<Product, 'prices'> {
 
 // Selected categories for the form
 const selectedCategories = ref<Category[]>([])
+
+// Pending creations tracking
+const pendingEstablishments = ref<SearchableItem[]>([])
 
 const handleProduct = ref<MutableProduct>({
   name: '',
@@ -897,21 +900,28 @@ async function searchCategories() {
 }
 
 async function selectCategory(item: SearchableItem) {
+  // Verificar que no esté ya agregada
+  if (selectedCategories.value.find(c => c.id === item.id)) {
+    categorySearch.query = ''
+    categorySearch.showDropdown = false
+    return
+  }
+
   if (item.isNew) {
-    // Crear nueva categoría
-    const newCat = await createNewCategory(item.name, item.icon)
-    if (newCat) {
-      selectedCategories.value.push(newCat)
-      handleProduct.value.category_ids.push(newCat.id)
+    // Agregar como pendiente (sin crear en Firestore aún)
+    const tempCat: Category = {
+      id: item.id,
+      name: item.name,
+      icon: item.icon || 'plus',
+      isNew: true
     }
+    selectedCategories.value.push(tempCat)
+    handleProduct.value.category_ids.push(item.id)
   } else {
-    // Verificar que no esté ya agregada
-    if (!selectedCategories.value.find(c => c.id === item.id)) {
-      const catInfo = getCategoryInfo(item.id)
-      if (catInfo) {
-        selectedCategories.value.push(catInfo)
-        handleProduct.value.category_ids.push(item.id)
-      }
+    const catInfo = getCategoryInfo(item.id)
+    if (catInfo) {
+      selectedCategories.value.push(catInfo)
+      handleProduct.value.category_ids.push(item.id)
     }
   }
 
@@ -933,7 +943,7 @@ function updatePriceInBs(priceItem: ProductPrice, valueBs: number) {
   priceItem.price = valueBs / rate
 }
 
-async function openPricesModal(product: any) {
+async function openPricesModal(product: Product) {
   // Clone to avoid direct mutation
   const cloned = JSON.parse(JSON.stringify(product)) as Product
   // Init ui_currency and isEditing for each price
@@ -954,11 +964,11 @@ function closePricesModal() {
   isEditingPrices.value = false
 }
 
-function toggleRowEdit(priceItem: any, editing: boolean) {
+function toggleRowEdit(priceItem: UiProductPrice & { isEditing?: boolean }, editing: boolean) {
   priceItem.isEditing = editing
 }
 
-async function saveRowPrice(priceItem: any) {
+async function saveRowPrice(priceItem: UiProductPrice & { isEditing?: boolean }) {
   const prod = selectedProductForPrices.value
   if (!prod || !prod.id) return
 
@@ -1007,16 +1017,8 @@ function onCategoryBlur() {
 
 // Funciones para la interacción con el composable de marcas
 async function selectBrandItem(item: SearchableItem) {
-  if (item.isNew) {
-    const newBrand = await createNewBrand(item.name)
-    if (newBrand) {
-      brandSearch.selectedItem = { id: newBrand.id!, name: newBrand.name }
-      handleProduct.value.brand_id = newBrand.id!
-    }
-  } else {
-    brandSearch.selectedItem = item
-    handleProduct.value.brand_id = item.id
-  }
+  brandSearch.selectedItem = item
+  handleProduct.value.brand_id = item.id
   brandSearch.query = item.name
   brandSearch.showDropdown = false
 }
@@ -1052,6 +1054,9 @@ async function editProduct(id: string) {
     error.value = 'El nombre del producto es requerido'
     return
   }
+
+  // Procesar creaciones pendientes antes de guardar el producto
+  await processPendingCreations()
 
   // Calculate final average if not done
   const avg = calculateAveragePrice(handleProduct.value.prices)
@@ -1089,6 +1094,14 @@ async function editProduct(id: string) {
   }
 }
 
+function getEstablishmentName(id: string): string {
+  if (id.startsWith('new_')) {
+    const pending = pendingEstablishments.value.find(e => e.id === id)
+    return pending ? pending.name + ' (Nuevo)' : 'Nuevo Establecimiento'
+  }
+  return getEstablishmentNameFromComposable(id)
+}
+
 // ESTABLISHMENT FUNCTIONS
 function onEstablishmentBlur() {
   setTimeout(() => {
@@ -1097,14 +1110,7 @@ function onEstablishmentBlur() {
 }
 
 async function selectEstablishment(item: SearchableItem) {
-  if (item.isNew) {
-    const newEst = await createEstablishment(item.name)
-    if (newEst) {
-      establishmentSearch.selectedItem = { id: newEst.id!, name: newEst.name }
-    }
-  } else {
-    establishmentSearch.selectedItem = item
-  }
+  establishmentSearch.selectedItem = item
   establishmentSearch.query = item.name // Show name in input
   establishmentSearch.showDropdown = false
 }
@@ -1116,6 +1122,13 @@ function clearEstablishmentSelection() {
 
 function addPriceToProduct() {
   if (!establishmentSearch.selectedItem || newPriceEntry.price <= 0) return
+
+  // Si el establecimiento es nuevo, guardarlo en la lista pendiente local
+  if (establishmentSearch.selectedItem.isNew) {
+    if (!pendingEstablishments.value.find(e => e.id === establishmentSearch.selectedItem!.id)) {
+      pendingEstablishments.value.push(establishmentSearch.selectedItem)
+    }
+  }
 
   // Check if establishment already exists in prices
   if (!handleProduct.value.prices) handleProduct.value.prices = []
@@ -1179,12 +1192,68 @@ function calculateAveragePrice(prices?: ProductPrice[]): number {
 }
 
 
+async function processPendingCreations() {
+  // 1. Procesar Categorías
+  for (let i = 0; i < selectedCategories.value.length; i++) {
+    const cat = selectedCategories.value[i] as Category & { isNew?: boolean }
+    if (cat.isNew) {
+      const newCat = await createNewCategory(cat.name, cat.icon)
+      if (newCat) {
+        // Actualizar el ID en category_ids
+        const idx = handleProduct.value.category_ids.indexOf(cat.id)
+        if (idx !== -1) {
+          handleProduct.value.category_ids[idx] = newCat.id
+        }
+        // Actualizar el objeto local
+        cat.id = newCat.id
+        cat.isNew = false
+      }
+    }
+  }
+
+  // 2. Procesar Marca
+  if (brandSearch.selectedItem?.isNew) {
+    const newBrand = await createNewBrand(brandSearch.selectedItem.name)
+    if (newBrand) {
+      handleProduct.value.brand_id = newBrand.id
+      brandSearch.selectedItem.id = newBrand.id
+      brandSearch.selectedItem.isNew = false
+    }
+  }
+
+  // 3. Procesar Establecimientos
+  if (handleProduct.value.prices) {
+    for (const price of handleProduct.value.prices) {
+      if (price.establishment_id.startsWith('new_')) {
+        const pending = pendingEstablishments.value.find(e => e.id === price.establishment_id)
+        if (pending) {
+          const newEst = await createEstablishment(pending.name)
+          if (newEst) {
+            // Actualizar este precio y cualquier otro que use el mismo ID temporal
+            const tempId = price.establishment_id
+            handleProduct.value.prices.forEach(p => {
+              if (p.establishment_id === tempId) {
+                p.establishment_id = newEst.id
+              }
+            })
+            // Limpiar de la lista de pendientes
+            pendingEstablishments.value = pendingEstablishments.value.filter(e => e.id !== tempId)
+          }
+        }
+      }
+    }
+  }
+}
+
 // Modify addProduct/editProduct to ensure average_price is saved
 async function addProduct() {
   if (!handleProduct.value.name) {
     error.value = 'El nombre del producto es requerido'
     return
   }
+
+  // Procesar creaciones pendientes antes de guardar el producto
+  await processPendingCreations()
 
   // Calculate final average if not done
   const avg = calculateAveragePrice(handleProduct.value.prices)
@@ -1251,6 +1320,7 @@ async function resetearFormulario() {
   // Limpiar buscadores
   clearCategory()
   clearBrandSearch() // Use composable function
+  pendingEstablishments.value = []
 
   categorySearch.query = ''
 

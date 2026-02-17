@@ -85,7 +85,7 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     nuevoProducto.moneda === 'USD' ? '$' : 'Bs'
-                  }}</span>
+                    }}</span>
                   <input id="price" v-model.number="nuevoProducto.price" type="number" min="0" step="0.01"
                     @input="convertirMoneda" class="form-input" />
                 </div>
@@ -757,16 +757,8 @@ function seleccionarProductoDesdeBusqueda(productoASeleccionar: BuyProduct) {
 }
 
 async function selectBrandItem(item: SearchableItem) {
-  if (item.isNew) {
-    const newBrand = await createNewBrand(item.name)
-    if (newBrand) {
-      brandSearch.selectedItem = { id: newBrand.id!, name: newBrand.name }
-      nuevoProducto.value.brand_id = newBrand.id!
-    }
-  } else {
-    brandSearch.selectedItem = item
-    nuevoProducto.value.brand_id = item.id
-  }
+  brandSearch.selectedItem = item
+  nuevoProducto.value.brand_id = item.id
   brandSearch.query = item.name
   brandSearch.showDropdown = false
 }
@@ -813,15 +805,18 @@ function convertirMoneda() {
   // La conversión se maneja automáticamente con el computed property
 }
 
-function agregarProducto() {
+async function agregarProducto() {
   if (!nuevoProducto.value.name) {
     alert('Por favor ingresa un nombre para el producto')
     return
   }
-  // Validate that a brand is selected if the selected item is new, and no brand_id is set yet
-  if (nuevoProducto.value.selectedBrandItem?.isNew && !nuevoProducto.value.brand_id) {
-    alert('Por favor selecciona una marca existente o crea la nueva marca antes de agregar el producto.')
-    return
+
+  // Handle pending brand creation
+  if (brandSearch.selectedItem?.isNew) {
+    const newBrand = await createNewBrand(brandSearch.selectedItem.name)
+    if (newBrand) {
+      nuevoProducto.value.brand_id = newBrand.id
+    }
   }
 
   const producto: BuyProduct = {
