@@ -98,9 +98,8 @@
               <tr>
                 <th>Alimento/Insumo</th>
                 <th>Establecimiento</th>
+                <th>Peso Pkg</th>
                 <th>Utilizado (kg)</th>
-                <th>Ideal (kg)</th>
-                <th>Ratio (%)</th>
                 <th>Consumo (kg/p)</th>
                 <th>Costo Total</th>
                 <th>Acciones</th>
@@ -124,16 +123,13 @@
                     </option>
                   </select>
                 </td>
+                <td class="text-center">
+                  {{ getProductById(ing.product_id)?.measurement_value }} {{
+                    getShortUnit(getProductById(ing.product_id)?.measurement_id || '') }}
+                </td>
                 <td>
                   <input v-model.number="ing.usage_weight" type="number" class="form-input input-sm" min="0"
                     step="0.1" />
-                </td>
-                <td>
-                  <input v-model.number="ing.ideal_weight" type="number" class="form-input input-sm" min="0"
-                    step="0.1" />
-                </td>
-                <td :class="getUsageRatioClass(ing)">
-                  {{ calculateUsageRatio(ing).toFixed(1) }}%
                 </td>
                 <td class="text-sm">
                   {{ calculateConsumptionPerChicken(ing).toFixed(3) }}
@@ -148,7 +144,7 @@
             </tbody>
             <tfoot>
               <tr class="table-summary">
-                <td colspan="6" class="text-right"><strong>Inversión Acumulada del Lote:</strong></td>
+                <td colspan="5" class="text-right"><strong>Inversión Acumulada del Lote:</strong></td>
                 <td class="text-right">
                   <strong class="text-primary text-lg">${{ totalIngredientsCost.toFixed(2) }}</strong>
                 </td>
@@ -237,7 +233,7 @@
             <div class="product-info-mini">
               <span class="product-name-mini font-bold">{{ prod.name }}</span>
               <span v-if="prod.brand_id" class="product-brand-mini text-xs text-muted">{{ getBrandName(prod.brand_id)
-              }}</span>
+                }}</span>
             </div>
             <div class="product-price-mini text-right">
               <div class="font-bold">${{ prod.price }}</div>
@@ -436,22 +432,11 @@ const chickenCalculations = computed(() => {
   return calcs
 })
 
-function calculateUsageRatio(ing: RecipeIngredient): number {
-  if (!ing.ideal_weight || ing.ideal_weight === 0) return 0
-  return ((ing.usage_weight || 0) / ing.ideal_weight) * 100
-}
-
 function calculateConsumptionPerChicken(ing: RecipeIngredient): number {
-  const qty = recipe.value.chicken_data?.initial_quantity || 1
+  const qty = Number(recipe.value.chicken_data?.initial_quantity) || 1
   return (ing.usage_weight || 0) / qty
 }
 
-function getUsageRatioClass(ing: RecipeIngredient) {
-  const ratio = calculateUsageRatio(ing)
-  if (ratio > 105) return 'text-danger fw-bold'
-  if (ratio < 95) return 'text-warning'
-  return 'text-success'
-}
 
 const filteredProducts = computed(() => {
   let prods = availableProducts.value

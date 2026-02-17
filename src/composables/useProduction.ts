@@ -35,10 +35,12 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
             } else if (prod.measurement_id === 'mea5') { // units
                 pkgWeightInKg = prod.measurement_value // Treat 1 unit as 1 mass unit for simplicity
             }
-            return (finalPrice / (pkgWeightInKg || 1)) * (ing.usage_weight || 0)
+            const pricePerKg = finalPrice / (pkgWeightInKg || 1)
+            return pricePerKg * (ing.usage_weight || 0)
         }
 
-        return (finalPrice / prod.measurement_value) * (ing.usage_weight || 0)
+        const pricePerUnit = finalPrice / (prod.measurement_value || 1)
+        return pricePerUnit * (ing.usage_weight || 0)
     }
 
     function calculateBaseCost(recipe: Recipe): number {

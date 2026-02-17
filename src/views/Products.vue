@@ -274,7 +274,7 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     handleProduct.currency_type === 'USD' ? '$' : 'Bs'
-                  }}</span>
+                    }}</span>
                   <input v-model.number="handleProduct.tempPrice" type="number" min="0" step="0.01" class="form-input"
                     placeholder="0.00" />
                 </div>
@@ -458,7 +458,7 @@
             <div class="est-name font-bold">Promedio</div>
             <div class="average-prices-inline text-right">
               <span class="font-bold text-primary">${{ (selectedProductForPrices.average_price || 0).toFixed(2)
-              }}</span>
+                }}</span>
               <span class="text-muted mx-2">|</span>
               <span class="text-muted">Bs {{ ((selectedProductForPrices.average_price || 0) * (dolarBCV?.promedio ||
                 0)).toFixed(2) }}</span>
@@ -553,7 +553,7 @@
                     :name="getCategoryInfo(product.category_id)?.icon ?? ''" class="category-list-icon" />
                   <span v-else>{{
                     getMeasurementType(product.measurement_id)?.charAt(0) || 'P'
-                  }}</span>
+                    }}</span>
                 </div>
                 <div class="product-details">
                   <h3 class="product-name">
@@ -1148,7 +1148,7 @@ async function editProduct(id: string) {
     average_price: avg || basePriceUSD,
     category_id: handleProduct.value.category_id,
     brand_id: handleProduct.value.brand_id || null,
-    type: handleProduct.value.type,
+    type: handleProduct.value.type || 'standard',
     measurement_id: handleProduct.value.measurement_id,
     measurement_value: handleProduct.value.measurement_value,
     currency_type: 'USD', // Force USD
@@ -1355,7 +1355,7 @@ async function addProduct() {
     average_price: avg || basePriceUSD,
     category_id: handleProduct.value.category_id,
     brand_id: handleProduct.value.brand_id || null,
-    type: handleProduct.value.type,
+    type: handleProduct.value.type || 'standard',
     measurement_id: handleProduct.value.measurement_id,
     measurement_value: handleProduct.value.measurement_value,
     currency_type: 'USD', // Force USD
@@ -1624,10 +1624,13 @@ async function syncPendingProducts() {
           if (docSnap.exists()) {
             console.log(`Actualizando producto ${editProduct.id} en Firebase...`)
             const { ...productToUpdate } = editProduct
-            await updateDoc(docRef, {
-              ...productToUpdate,
-              updated_at: new Date().toISOString().split('T')[0],
-            })
+            const cleanUpdate = Object.fromEntries(
+              Object.entries({
+                ...productToUpdate,
+                updated_at: new Date().toISOString().split('T')[0],
+              }).filter(([, v]) => v !== undefined)
+            )
+            await updateDoc(docRef, cleanUpdate)
             pendingCount += 1
           }
         } catch (error) {
