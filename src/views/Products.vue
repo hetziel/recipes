@@ -434,7 +434,7 @@
             </div>
 
             <!-- Per-row Edit/Save Button -->
-            <div class="row-actions ml-2">
+            <div class="row-actions ml-2 flex gap-1">
               <button v-if="!(price as any).isEditing" @click="toggleRowEdit(price, true)"
                 class="btn-icon btn-sm btn-edit" title="Editar">
                 <Icon name="pencil" size="sm" />
@@ -442,6 +442,10 @@
               <button v-else @click="saveRowPrice(price)" class="btn-icon btn-sm btn-success" title="Guardar"
                 :disabled="isSavingPrices">
                 <Icon name="content-save" size="sm" />
+              </button>
+              <button @click="deletePriceInModal(idx)" class="btn-icon btn-sm text-danger" title="Eliminar"
+                :disabled="isSavingPrices">
+                <Icon name="trash-can-outline" size="sm" />
               </button>
             </div>
           </div>
@@ -461,6 +465,63 @@
           <p class="text-muted">Este producto no tiene precios por establecimiento registrados.</p>
           <div class="mt-2">
             <span class="text-sm font-bold">Precio Base: ${{ (selectedProductForPrices?.price || 0).toFixed(2) }}</span>
+          </div>
+        </div>
+
+        <!-- Nueva sección para agregar precio desde el modal -->
+        <div class="add-price-modal-section mt-4 pt-4 border-t">
+          <h4 class="text-sm font-bold mb-3">Agregar Nuevo Establecimiento / Precio</h4>
+          <div class="bg-light p-3 rounded">
+            <div class="flex flex-col gap-3">
+              <div class="form-group mb-0">
+                <div class="searchable-select">
+                  <div class="input-with-icon">
+                    <input v-model="establishmentSearch.query" @input="searchEstablishments"
+                      @focus="() => { establishmentSearch.showDropdown = true; searchEstablishments(); }"
+                      @blur="onEstablishmentBlur" placeholder="Buscar establecimiento..."
+                      class="form-input search-input w-full" />
+                    <Icon name="store" class="input-icon" />
+                  </div>
+                  <div v-if="establishmentSearch.showDropdown && establishmentSearch.items.length" class="dropdown">
+                    <div v-for="item in establishmentSearch.items" :key="item.id" @mousedown="selectEstablishment(item)"
+                      class="dropdown-item" :class="{ 'new-item': item.isNew }">
+                      <Icon :name="item.isNew ? 'plus' : 'store'" />
+                      {{ item.isNew ? `Crear: "${item.name}"` : item.name }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-end gap-2">
+                <div class="form-group mb-0 flex-grow-1">
+                  <div class="price-input">
+                    <span class="price-prefix">{{ newPriceEntry.currency === 'USD' ? '$' : 'Bs' }}</span>
+                    <input v-model.number="newPriceEntry.price" type="number" min="0" step="0.01" class="form-input"
+                      placeholder="0.00" />
+                  </div>
+                </div>
+
+                <div class="currency-selector small mb-0">
+                  <button type="button" @click="newPriceEntry.currency = 'USD'"
+                    :class="['currency-btn', { active: newPriceEntry.currency === 'USD' }]">$</button>
+                  <button type="button" @click="newPriceEntry.currency = 'Bs'"
+                    :class="['currency-btn', { active: newPriceEntry.currency === 'Bs' }]">Bs</button>
+                </div>
+
+                <button type="button" @click="addPriceInModal" class="btn btn-primary btn-icon"
+                  :disabled="!establishmentSearch.selectedItem || newPriceEntry.price <= 0 || isSavingPrices">
+                  <Icon name="plus" />
+                </button>
+              </div>
+
+              <!-- Selección actual -->
+              <div v-if="establishmentSearch.selectedItem" class="selected-establishment">
+                <span class="chip text-xs">
+                  <Icon name="store" size="xs" /> {{ establishmentSearch.selectedItem.name }}
+                  <button type="button" @click="clearEstablishmentSelection" class="clear-btn">&times;</button>
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -944,6 +1005,10 @@ function updatePriceInBs(priceItem: ProductPrice, valueBs: number) {
 }
 
 async function openPricesModal(product: Product) {
+  // Reset previous search state
+  clearEstablishmentSelection()
+  newPriceEntry.price = 0
+
   // Clone to avoid direct mutation
   const cloned = JSON.parse(JSON.stringify(product)) as Product
   // Init ui_currency and isEditing for each price
@@ -992,6 +1057,104 @@ async function saveRowPrice(priceItem: UiProductPrice & { isEditing?: boolean })
   } catch (err) {
     console.error('Error updating price:', err)
     alert('Error al guardar el precio')
+  } finally {
+    isSavingPrices.value = false
+  }
+}
+
+async function deletePriceInModal(index: number) {
+  const prod = selectedProductForPrices.value
+  if (!prod || !prod.id || !prod.prices) return
+
+  if (!confirm('¿Estás seguro de eliminar este precio?')) return
+
+  isSavingPrices.value = true
+  try {
+    prod.prices.splice(index, 1)
+    prod.average_price = calculateAveragePrice(prod.prices)
+
+    const updates: Partial<Product> = {
+      prices: prod.prices,
+      average_price: prod.average_price,
+      updated_at: new Date().toISOString(),
+    }
+
+    await updateDoc(doc(db, 'productos', prod.id), updates)
+  } catch (err) {
+    console.error('Error deleting price in modal:', err)
+    alert('Error al eliminar el precio')
+  } finally {
+    isSavingPrices.value = false
+  }
+}
+
+async function addPriceInModal() {
+  const prod = selectedProductForPrices.value
+  if (!prod || !prod.id || !establishmentSearch.selectedItem || newPriceEntry.price <= 0) return
+
+  isSavingPrices.value = true
+  try {
+    // 1. Manejar establecimiento nuevo si aplica
+    let estId = establishmentSearch.selectedItem.id
+    if (establishmentSearch.selectedItem.isNew) {
+      const newEst = await createEstablishment(establishmentSearch.selectedItem.name)
+      if (newEst) estId = newEst.id
+    }
+
+    // 2. Preparar el precio
+    let priceToSave = newPriceEntry.price
+    if (newPriceEntry.currency === 'Bs') {
+      const rate = dolarBCV.value?.promedio || 1
+      priceToSave = newPriceEntry.price / rate
+    }
+
+    const newPrice: ProductPrice = {
+      establishment_id: estId,
+      price: priceToSave,
+      currency: 'USD',
+      updated_at: new Date().toISOString()
+    }
+
+    // 3. Actualizar lista local
+    if (!prod.prices) prod.prices = []
+
+    // Evitar duplicados
+    const existingIdx = prod.prices.findIndex(p => p.establishment_id === estId)
+    if (existingIdx >= 0) {
+      if (confirm('Este establecimiento ya tiene un precio. ¿Deseas actualizarlo?')) {
+        prod.prices[existingIdx] = newPrice
+      } else {
+        return
+      }
+    } else {
+      prod.prices.push(newPrice)
+    }
+
+    // 4. Calcular promedio
+    prod.average_price = calculateAveragePrice(prod.prices)
+
+    // 5. Guardar en Firestore
+    const updates: Partial<Product> = {
+      prices: prod.prices,
+      average_price: prod.average_price,
+      updated_at: new Date().toISOString(),
+    }
+
+    await updateDoc(doc(db, 'productos', prod.id), updates)
+
+    // Limpiar campos
+    clearEstablishmentSelection()
+    newPriceEntry.price = 0
+
+    // Asegurar que el nuevo precio tenga las propiedades UI reactivas
+    const lastIdx = prod.prices.length - 1
+    const addedPrice = prod.prices[lastIdx] as UiProductPrice & { isEditing?: boolean }
+    addedPrice.ui_currency = 'USD'
+    addedPrice.isEditing = false
+
+  } catch (err) {
+    console.error('Error adding price in modal:', err)
+    alert('Error al agregar el precio')
   } finally {
     isSavingPrices.value = false
   }
