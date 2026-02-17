@@ -29,6 +29,15 @@ export interface RecipeScenario {
   utilities: RecipeUtility[] // Scenario-specific utilities
 }
 
+export interface ChickenSale {
+  id: string
+  quantity: number
+  weight_per_unit_kg?: number
+  total_weight_kg: number
+  price_per_kg: number
+  date: string
+}
+
 export interface ChickenData {
   initial_quantity: number
   live_weight_price_kg: number
@@ -40,6 +49,7 @@ export interface ChickenData {
   batch_product_id?: string // The "pollo" product selected
   batch_product_price?: number // Fixed price for the batch product
   entry_date?: string // Batch entry date
+  sales?: ChickenSale[] // Track sales of the batch
 }
 
 export interface Recipe {

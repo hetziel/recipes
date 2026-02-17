@@ -85,6 +85,24 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
         const currentIncome = totalCurrentWeightKg * (Number(d.live_weight_price_kg) || 0)
         const currentProfit = currentIncome - totalIngredientsCost
 
+        // 6. Ventas Reales (Acumulado)
+        let totalSoldQuantity = 0
+        let totalSoldWeight = 0
+        let totalSoldIncome = 0
+
+        if (d.sales && d.sales.length > 0) {
+            d.sales.forEach(s => {
+                totalSoldQuantity += Number(s.quantity) || 0
+                totalSoldWeight += Number(s.total_weight_kg) || 0
+                totalSoldIncome += (Number(s.total_weight_kg) || 0) * (Number(s.price_per_kg) || 0)
+            })
+        }
+
+        const avgWeightSold = totalSoldQuantity > 0 ? totalSoldWeight / totalSoldQuantity : 0
+        const avgPriceSold = totalSoldWeight > 0 ? totalSoldIncome / totalSoldWeight : 0
+        const realProfit = totalSoldIncome - totalIngredientsCost
+        const remainingQuantity = qty - totalSoldQuantity
+
         return {
             chickenInvestment,
             feedInvestment,
@@ -97,7 +115,15 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
             totalIngredientsCost,
             currentIncome,
             currentProfit,
-            totalCurrentWeightKg
+            totalCurrentWeightKg,
+            // Real Sales data
+            totalSoldQuantity,
+            totalSoldWeight,
+            totalSoldIncome,
+            avgWeightSold,
+            avgPriceSold,
+            realProfit,
+            remainingQuantity
         }
     }
 
