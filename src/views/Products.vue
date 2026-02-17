@@ -274,7 +274,7 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     handleProduct.currency_type === 'USD' ? '$' : 'Bs'
-                  }}</span>
+                    }}</span>
                   <input v-model.number="handleProduct.tempPrice" type="number" min="0" step="0.01" class="form-input"
                     placeholder="0.00" />
                 </div>
@@ -458,7 +458,7 @@
             <div class="est-name font-bold">Promedio</div>
             <div class="average-prices-inline text-right">
               <span class="font-bold text-primary">${{ (selectedProductForPrices.average_price || 0).toFixed(2)
-              }}</span>
+                }}</span>
               <span class="text-muted mx-2">|</span>
               <span class="text-muted">Bs {{ ((selectedProductForPrices.average_price || 0) * (dolarBCV?.promedio ||
                 0)).toFixed(2) }}</span>
@@ -577,7 +577,7 @@
                     :name="getCategoryInfo(product.category_id)?.icon ?? ''" class="category-list-icon" />
                   <span v-else>{{
                     getMeasurementType(product.measurement_id)?.charAt(0) || 'P'
-                  }}</span>
+                    }}</span>
                 </div>
                 <div class="product-details">
                   <h3 class="product-name">
@@ -683,43 +683,44 @@ import {
   query,
   where,
   updateDoc,
-  getDoc,
 } from 'firebase/firestore'
 import { db } from '../firebase.config'
 
 // Interfaces y tipos
 // Product imports
-import type { Product, ProductPrice, DolarBCV, ExtendedProduct, UiProductPrice } from '../types/producto'
+import type { Product, ProductPrice, DolarBCV, UiProductPrice } from '../types/producto'
 import type { SearchableItem, SearchState } from '../types/search'
 
 // Composables
 import { useBrands } from '../composables/useBrands'
 import { useMeasurements } from '../composables/useMeasurements'
 import { useEstablishments } from '../composables/useEstablishments'
+import { useProducts } from '../composables/useProducts'
+import { useCategories } from '../composables/useCategories'
 
 // Datos de configuración
 const onTesting = true
 const typeAction = ref<'create' | 'edit'>('create')
 
 const PRODUCTOS_COLLECTION = 'productos'
-const CATEGORIAS_COLLECTION = 'categorias'
+// CATEGORIAS_COLLECTION removed
 
 const { dolarBCV: dolarBCV } = inject<{
   dolarBCV: Ref<DolarBCV | null>
 }>('dolarBCV')!
 
-const products = ref<Product[]>([])
-const error = ref<string | null>(null)
-const cargando = ref<boolean>(false)
-
-const searchQuery = ref(''); // New search query ref
-
 // Use composables
+const { products, isLoading: loadingProducts } = useProducts()
+const {
+  categories,
+  getCategoryInfo,
+  createNewCategory
+} = useCategories()
+
 const { brandSearch, searchBrands, createNewBrand, clearBrandSearch, getBrandName } = useBrands()
 const { measurements, getMeasurementType } = useMeasurements()
 const {
   establishmentSearch,
-  loadEstablishments,
   establishments, // Destructure establishments
   searchEstablishments,
   createEstablishment,
@@ -727,8 +728,17 @@ const {
   getEstablishmentName
 } = useEstablishments()
 
-// Estados para búsqueda dinámica (categorySearch remains local, but uses imported types)
-const categories = ref<SearchableItem[]>([])
+// Map loading state
+const isMigrating = ref(false)
+const cargando = computed(() => loadingProducts.value || isMigrating.value)
+
+const error = ref<string | null>(null)
+const isSavingPrices = ref(false)
+const isEditingPrices = ref(false)
+
+const searchQuery = ref(''); // New search query ref
+
+// Estados para búsqueda dinámica
 const selectedCategoryFilter = ref<string | null>(null)
 
 const categorySearch = reactive<SearchState>({
@@ -793,13 +803,19 @@ function onEstablishmentFilterBlur() {
   }, 200)
 }
 
-const handleProduct = ref<ExtendedProduct>({
+interface MutableProduct extends Omit<Product, 'prices'> {
+  prices?: ProductPrice[];
+  tempPrice?: number;
+  average_price?: number;
+}
+
+const handleProduct = ref<MutableProduct>({
   name: '',
   price: 0,
-  prices: [], // Initialize prices array
+  prices: [],
   average_price: 0,
   category_id: '',
-  brand_id: '',
+  brand_id: null,
   type: 'standard',
   measurement_id: '',
   measurement_value: 0,
@@ -808,7 +824,6 @@ const handleProduct = ref<ExtendedProduct>({
   is_utility: false,
   created_at: new Date().toISOString().split('T')[0],
   updated_at: new Date().toISOString().split('T')[0],
-
 })
 const mostrarFormulario = ref<boolean>(false)
 const productToDelete = ref<string | null>(null)
@@ -835,12 +850,7 @@ watch(() => handleProduct.value.tempPrice, (newVal) => {
 // Configurar listener en tiempo real
 // Configurar listener en tiempo real
 onMounted(() => {
-  // Cargar datos de Firebase y sincronizar
-  cargarDatosIniciales()
-
-  // 4. Cargar categorías iniciales (brands are loaded by useBrands composable)
-  loadCategories()
-  loadEstablishments() // Cargar establecimientos
+  // Data loading is handled by composables
 })
 
 async function showModal(show: boolean) {
@@ -856,41 +866,23 @@ async function showModal(show: boolean) {
 }
 
 // FUNCIONES PARA CATEGORÍAS
-async function loadCategories() {
-  try {
-    const querySnapshot = await getDocs(collection(db, CATEGORIAS_COLLECTION))
-    const loadedCategories = querySnapshot.docs.map(
-      (doc) =>
-        ({
-          id: doc.id,
-          name: doc.data().name,
-          icon: doc.data().icon || null, // Include icon field
-        }) as SearchableItem,
-    )
-
-    // Actualizar lista global
-    categories.value = loadedCategories
-    // Actualizar items en el buscador
-    categorySearch.items = loadedCategories
-  } catch (err) {
-    console.error('Error cargando categorías:', err)
-  }
-}
+// loadCategories removed (using composable)
 
 async function searchCategories() {
   const queryText = categorySearch.query.trim().toLowerCase()
 
   // Si no hay texto, mostramos todas las categorías existentes
   if (queryText.length === 0) {
-    categorySearch.items = categories.value
+    // Create mutable copy
+    categorySearch.items = categories.value.map(c => ({ ...c }) as SearchableItem)
     categorySearch.showDropdown = true
     return
   }
 
-  // Filtrar localmente primero
-  const foundCategories = categories.value.filter(cat =>
-    cat.name.toLowerCase().includes(queryText)
-  )
+  // Filtrar localmente primero (create mutable copy)
+  const foundCategories: SearchableItem[] = categories.value
+    .filter(cat => cat.name.toLowerCase().includes(queryText))
+    .map(c => ({ ...c }) as SearchableItem)
 
   // Agregar opción para crear nueva categoría si no hay coincidencia exacta
   const exactMatch = foundCategories.some(
@@ -925,22 +917,21 @@ async function selectCategory(item: SearchableItem) {
 
 // State for Prices Modal
 const selectedProductForPrices = ref<Product | null>(null)
-const isEditingPrices = ref(false)
-const isSavingPrices = ref(false)
+// isEditingPrices and isSavingPrices are defined earlier
 
 function updatePriceInBs(priceItem: ProductPrice, valueBs: number) {
   const rate = dolarBCV.value?.promedio || 1
   priceItem.price = valueBs / rate
 }
 
-async function openPricesModal(product: Product) {
+async function openPricesModal(product: any) {
   // Clone to avoid direct mutation
   const cloned = JSON.parse(JSON.stringify(product)) as Product
   // Init ui_currency and isEditing for each price
   if (cloned.prices) {
     cloned.prices.forEach((p) => {
       (p as UiProductPrice).ui_currency = 'USD';
-      (p as any).isEditing = false
+      (p as UiProductPrice & { isEditing?: boolean }).isEditing = false
     })
   }
   selectedProductForPrices.value = cloned
@@ -977,12 +968,6 @@ async function saveRowPrice(priceItem: any) {
 
     await updateDoc(doc(db, 'productos', prod.id), updates)
 
-    // Update local list
-    const index = products.value.findIndex(p => p.id === prod.id)
-    if (index !== -1) {
-      products.value[index] = { ...products.value[index], ...updates }
-    }
-
     // Exit edit mode for this row
     priceItem.isEditing = false
   } catch (err) {
@@ -993,67 +978,10 @@ async function saveRowPrice(priceItem: any) {
   }
 }
 
-async function savePriceChanges() {
-  const prod = selectedProductForPrices.value
-  if (!prod || !prod.id) return
-
-  isSavingPrices.value = true
-  try {
-    // Recalculate average
-    prod.average_price = calculateAveragePrice(prod.prices)
-
-    // Update Firestore
-    const updates: Partial<Product> = {
-      prices: prod.prices,
-      average_price: prod.average_price,
-      updated_at: new Date().toISOString(),
-
-    }
-
-    await updateDoc(doc(db, 'productos', prod.id), updates)
-
-    // Update local list
-    const index = products.value.findIndex(p => p.id === prod.id)
-    if (index !== -1) {
-      products.value[index] = { ...products.value[index], ...updates }
-    }
-
-    isEditingPrices.value = false
-  } catch (err) {
-    console.error('Error updating prices:', err)
-    alert('Error al guardar los precios')
-  } finally {
-    isSavingPrices.value = false
-  }
-}
+// function savePriceChanges removed as redundant
 
 
-async function createNewCategory(name: string, icon?: string) {
-  try {
-    const newCategoryRef = doc(collection(db, CATEGORIAS_COLLECTION))
-    const newCategory = {
-      id: newCategoryRef.id,
-      name: name,
-      icon: icon || null,
-      created_at: new Date().toISOString().split('T')[0],
-    }
-
-    await setDoc(newCategoryRef, newCategory)
-
-    categorySearch.selectedItem = {
-      id: newCategoryRef.id,
-      name: name,
-      icon: icon || undefined, // ← Cambiar null por undefined
-    }
-    handleProduct.value.category_id = newCategoryRef.id
-
-    // Recargar la lista de categorías
-    await loadCategories()
-  } catch (err) {
-    console.error('Error creando categoría:', err)
-    error.value = 'Error al crear la categoría'
-  }
-}
+// Function createNewCategory removed (using composable)
 
 function clearCategory() {
   categorySearch.selectedItem = null
@@ -1092,42 +1020,8 @@ function onBrandBlur() {
 // Cargar datos del LocalStorage al iniciar
 
 
-// Función principal para cargar datos iniciales
-async function cargarDatosIniciales() {
-  try {
-    // Cargar productos
-    await loadProductsFromFireStore()
-  } catch (err) {
-    console.error('Error al cargar datos iniciales:', err)
-    error.value = 'Error al cargar datos. Intente nuevamente.'
-  }
-}
-
-// Función específica para cargar productos
-async function loadProductsFromFireStore(): Promise<void> {
-  try {
-    // 1. Obtener productos de FireStore
-    const productsQuery = query(
-      collection(db, PRODUCTOS_COLLECTION),
-      // orderBy('fecha', 'desc')
-    )
-    const productosSnapshot = await getDocs(productsQuery)
-
-    // 2. Mapear y validar los datos
-    const loadedProducts = productosSnapshot.docs.map((doc) => {
-      return {
-        id: doc.id,
-        ...(doc.data() as Omit<Product, 'id'>),
-      } as Product
-    })
-
-    // 3. Actualizar el estado reactivo
-    products.value = loadedProducts
-
-  } catch (err) {
-    console.error('Error al cargar productos de la nube', err)
-  }
-}
+// Cargar datos iniciales removed (using composables)
+// Data loading logic removed
 
 
 
@@ -1176,12 +1070,6 @@ async function editProduct(id: string) {
 
   try {
     await updateDoc(doc(db, PRODUCTOS_COLLECTION, id), updates)
-
-    // Update local state
-    const index = products.value.findIndex(p => p.id === id)
-    if (index !== -1) {
-      products.value[index] = { ...products.value[index], ...updates }
-    }
 
     resetearFormulario()
 
@@ -1284,16 +1172,12 @@ function calculateAveragePrice(prices?: ProductPrice[]): number {
 async function migrarPrecios() {
   if (!confirm('¿Estás seguro de migrar los precios antiguos? Esto asignará el precio actual a un establecimiento "General" para todos los productos que no tengan precios detallados.')) return
 
-  cargando.value = true
+  isMigrating.value = true
   try {
     // 1. Ensure "General" establishment exists
     let generalId = ''
-    await searchEstablishments() // load cache
-    // Simple search in existing
-    /* Note: This assumes searchEstablishments loaded something or we rely on firestore.
-       Better to use loadEstablishments for this check or create strictly.
-    */
-    // Let's create it blindly or check
+    await searchEstablishments()
+
     const q = query(collection(db, 'establishments'), where('name', '==', 'General'))
     const snap = await getDocs(q)
 
@@ -1309,7 +1193,7 @@ async function migrarPrecios() {
     let updatedCount = 0
 
     // 2. Iterate products
-    const productsToUpdate = products.value.filter(p => (!p.prices || p.prices.length === 0) && p.price > 0)
+    const productsToUpdate = products.value.filter(p => (!p.prices || p.prices.length === 0) && p.price > 0) as any[]
 
     for (const prod of productsToUpdate) {
       const priceEntry: ProductPrice = {
@@ -1327,9 +1211,6 @@ async function migrarPrecios() {
       // Update Firestore
       if (prod.id) {
         await updateDoc(doc(db, 'productos', prod.id), updates)
-        // Update local
-        prod.prices = [priceEntry]
-        prod.average_price = updates.average_price
         updatedCount++
       }
     }
@@ -1340,7 +1221,7 @@ async function migrarPrecios() {
     console.error('Error en migración:', err)
     alert('Error durante la migración')
   } finally {
-    cargando.value = false
+    isMigrating.value = false
   }
 }
 
@@ -1381,7 +1262,7 @@ async function addProduct() {
   console.log('Producto para agregar:', product)
 
   try {
-    products.value.unshift(product)
+    // products.value.unshift(product) // Removed, onSnapshot handles it
 
     resetearFormulario()
 
@@ -1440,19 +1321,15 @@ async function loadEditProduct(id: string) {
     return
   }
 
-  // Cargar valores de categoría y marca si existen
+  // Cargar valores de categoría y marca si existen desde el estado local
   if (product.category_id) {
-    try {
-      const categoryDoc = await getDoc(doc(db, CATEGORIAS_COLLECTION, product.category_id))
-      if (categoryDoc.exists()) {
-        categorySearch.selectedItem = {
-          id: categoryDoc.id,
-          name: categoryDoc.data().name,
-        }
-        categorySearch.query = categoryDoc.data().name
+    const categoryInfo = getCategoryInfo(product.category_id)
+    if (categoryInfo) {
+      categorySearch.selectedItem = {
+        id: categoryInfo.id,
+        name: categoryInfo.name,
       }
-    } catch (err) {
-      console.error('Error cargando categoría:', err)
+      categorySearch.query = categoryInfo.name
     }
   }
 
@@ -1464,12 +1341,17 @@ async function loadEditProduct(id: string) {
         name: brandName,
       }
       brandSearch.query = brandName
-      handleProduct.value.brand_id = product.brand_id
     }
   }
 
-  // Mostrar el formulario con los datos del producto
-  handleProduct.value = { ...product, tempPrice: product.price }
+  // Deep clone to avoid sharing readonly references
+  const cloned = JSON.parse(JSON.stringify(product)) as any
+  handleProduct.value = {
+    ...cloned,
+    tempPrice: cloned.price || 0,
+    prices: cloned.prices || [],
+    average_price: cloned.average_price || cloned.price || 0
+  }
   mostrarFormulario.value = true
 
   // Pre-seleccionar establecimiento si hay un filtro activo al editar
@@ -1517,8 +1399,8 @@ async function confirmDeleteProduct() {
     // Eliminar de Firestore
     await deleteDoc(doc(db, PRODUCTOS_COLLECTION, id))
 
-    // Eliminar del estado local
-    products.value.splice(index, 1)
+    // Manual cache update REMOVED (handled by onSnapshot)
+    // products.value.splice(index, 1)
 
     // Intentar sincronización inmediata si hay conexión
   } catch (err) {
@@ -1559,15 +1441,17 @@ async function createProductInFireStore(product: Product) {
   // 3. USA setDoc PARA GUARDAR EL DOCUMENTO
   await setDoc(docRef, productToCreate)
 
+  // Manual update removed
+  /*
   const index = products.value.findIndex((p) => p.id === product.id) // Busca por el ID temporal
   if (index !== -1) {
     products.value[index].id = customId // Actualiza con el ID personalizado final
   }
+  */
 
   return productToCreate as Product
 }
 
-// Definir filteredProducts como un computed que filtra el array reactivo
 const filteredProducts = computed(() => {
   let result = [...products.value];
 
@@ -1645,10 +1529,7 @@ function formatDate(dateString: string | null | undefined): string {
   })
 }
 
-// Necesitarás agregar estas funciones para obtener nombres
-function getCategoryInfo(categoryId: string): SearchableItem | undefined {
-  return categorySearch.items.find((cat) => cat.id === categoryId)
-}
+
 </script>
 
 <style scoped>

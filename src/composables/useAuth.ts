@@ -6,7 +6,8 @@ import {
     onAuthStateChanged,
     type User
 } from 'firebase/auth'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, setDoc, onSnapshot } from 'firebase/firestore'
+import type { Unsubscribe } from 'firebase/firestore'
 import { auth, db } from '../firebase.config'
 import type { UserProfile } from '../types/auth'
 
@@ -14,14 +15,18 @@ const currentUser = ref<User | null>(null)
 const userProfile = ref<UserProfile | null>(null)
 const isLoading = ref(true)
 
-async function fetchUserProfile(uid: string) {
-    try {
-        const docRef = doc(db, 'users', uid)
-        const docSnap = await getDoc(docRef)
+let profileUnsubscribe: Unsubscribe | null = null
+
+function subscribeToUserProfile(uid: string) {
+    if (profileUnsubscribe) profileUnsubscribe()
+
+    const docRef = doc(db, 'users', uid)
+    profileUnsubscribe = onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
             userProfile.value = docSnap.data() as UserProfile
         } else {
-            console.warn('No such user profile! Creating a default one...')
+            // Create default profile if it doesn't exist
+            // Note: ideally check if we are already creating it to avoid loop
             const defaultProfile: UserProfile = {
                 uid: uid,
                 email: currentUser.value?.email || '',
@@ -30,13 +35,12 @@ async function fetchUserProfile(uid: string) {
                 role: 'user',
                 createdAt: new Date().toISOString()
             }
-            await setDoc(docRef, defaultProfile)
-            userProfile.value = defaultProfile
+            // We set it but don't await because onSnapshot will fire again
+            setDoc(docRef, defaultProfile).catch(err => console.error("Error creating default profile", err))
         }
-    } catch (error) {
-        console.error('Error fetching user profile:', error)
-        userProfile.value = null
-    }
+    }, (error) => {
+        console.error('Error in user profile snapshot:', error)
+    })
 }
 
 // Initialize Auth Observer ONCE at module level
@@ -46,9 +50,13 @@ onAuthStateChanged(auth, async (user) => {
     try {
         currentUser.value = user
         if (user) {
-            await fetchUserProfile(user.uid)
+            subscribeToUserProfile(user.uid)
         } else {
             userProfile.value = null
+            if (profileUnsubscribe) {
+                profileUnsubscribe()
+                profileUnsubscribe = null
+            }
         }
     } catch (e) {
         console.error('Error in auth observer:', e)
@@ -71,6 +79,7 @@ export function useAuth() {
             }, 100)
         })
     }
+
     async function register(email: string, password: string, extraData: { fullName: string, phone: string }) {
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password)
@@ -86,7 +95,7 @@ export function useAuth() {
             }
 
             await setDoc(doc(db, 'users', user.uid), profile)
-            userProfile.value = profile
+            // No need to set userProfile.value manually, observer will pick it up
             return { user, error: null }
         } catch (error: any) {
             return { user: null, error: error.message }
@@ -96,7 +105,7 @@ export function useAuth() {
     async function login(email: string, password: string) {
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password)
-            await fetchUserProfile(userCredential.user.uid)
+            // Observer handles profile fetching
             return { user: userCredential.user, error: null }
         } catch (error: any) {
             return { user: null, error: error.message }
@@ -106,8 +115,7 @@ export function useAuth() {
     async function logout() {
         try {
             await signOut(auth)
-            userProfile.value = null
-            currentUser.value = null
+            // Observer handles state cleanup
         } catch (error) {
             console.error('Error signing out:', error)
         }

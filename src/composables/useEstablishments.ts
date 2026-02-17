@@ -1,28 +1,29 @@
-import { ref, reactive } from 'vue'
+import { ref, reactive, readonly } from 'vue'
 import {
     collection,
     doc,
-    getDocs,
     setDoc,
     query,
-    where,
     orderBy,
-    limit,
     updateDoc,
-    deleteDoc
+    deleteDoc,
+    onSnapshot
 } from 'firebase/firestore'
+import type { Unsubscribe } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import type { Establishment } from '../types/establishment'
 import type { SearchableItem, SearchState } from '../types/search'
 
 const ESTABLISHMENTS_COLLECTION = 'establishments'
 
-export function useEstablishments() {
-    const establishments = ref<Establishment[]>([])
-    const isLoading = ref(false)
-    const error = ref<string | null>(null)
+// Global State
+const establishments = ref<Establishment[]>([])
+const isLoading = ref(false)
+const error = ref<string | null>(null)
+let unsubscribe: Unsubscribe | null = null
 
-    // Search state similar to brands/categories
+export function useEstablishments() {
+
     const establishmentSearch = reactive<SearchState>({
         query: '',
         items: [],
@@ -31,23 +32,35 @@ export function useEstablishments() {
         isLoading: false,
     })
 
-    // Load all establishments (for caching/initial load)
-    async function loadEstablishments() {
+    function subscribeToEstablishments() {
+        if (unsubscribe) return
+
         isLoading.value = true
+        error.value = null
+
         try {
             const q = query(collection(db, ESTABLISHMENTS_COLLECTION), orderBy('name'))
-            const snapshot = await getDocs(q)
-            establishments.value = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            } as Establishment))
-        } catch (err) {
-            console.error('Error loading establishments:', err)
-            error.value = 'Error al cargar establecimientos'
-        } finally {
+
+            unsubscribe = onSnapshot(q, (snapshot) => {
+                establishments.value = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                } as Establishment))
+                isLoading.value = false
+            }, (err) => {
+                console.error('Error in establishments snapshot:', err)
+                error.value = 'Error al cargar establecimientos'
+                isLoading.value = false
+            })
+
+        } catch (err: any) {
+            console.error('Error setting up establishments subscription:', err)
+            error.value = err.message
             isLoading.value = false
         }
     }
+
+    const loadEstablishments = subscribeToEstablishments
 
     // Search establishments by name
     async function searchEstablishments() {
@@ -61,7 +74,7 @@ export function useEstablishments() {
         try {
             establishmentSearch.isLoading = true
 
-            // Client-side filtering if we have them loaded (optimization)
+            // Client-side filtering (since we have the full list via onSnapshot)
             if (establishments.value.length > 0) {
                 let results = establishments.value
                     .filter(est => est.name.toLowerCase().includes(queryText))
@@ -88,34 +101,8 @@ export function useEstablishments() {
                 return
             }
 
-            // Fallback to Firestore if local list empty (though we try to load all)
-            const q = query(
-                collection(db, ESTABLISHMENTS_COLLECTION),
-                where('name', '>=', queryText),
-                where('name', '<=', queryText + '\uf8ff'),
-                limit(10)
-            )
-
-            const snapshot = await getDocs(q)
-            const found = snapshot.docs.map(doc => ({
-                id: doc.id,
-                name: doc.data().name
-            } as SearchableItem))
-
-            const exactMatch = found.some(
-                item => item.name.toLowerCase() === queryText
-            )
-
-            if (!exactMatch) {
-                found.unshift({
-                    id: 'new_' + Date.now(),
-                    name: establishmentSearch.query,
-                    isNew: true
-                })
-            }
-
-            establishmentSearch.items = found
-            establishmentSearch.showDropdown = true
+            // Fallback if empty (shouldn't happen if subscribed)
+            establishmentSearch.items = []
 
         } catch (err) {
             console.error('Error searching establishments:', err)
@@ -136,10 +123,7 @@ export function useEstablishments() {
             }
 
             await setDoc(newRef, newEstablishment)
-
-            // Add to local list
-            establishments.value.push(newEstablishment)
-
+            // No manual push needed
             return newEstablishment
         } catch (err) {
             console.error('Error creating establishment:', err)
@@ -156,12 +140,6 @@ export function useEstablishments() {
                 ...updates,
                 updated_at: new Date().toISOString()
             })
-
-            // Update local state
-            const index = establishments.value.findIndex(e => e.id === id)
-            if (index !== -1) {
-                establishments.value[index] = { ...establishments.value[index], ...updates }
-            }
             return true
         } catch (err) {
             console.error('Error updating establishment:', err)
@@ -174,9 +152,6 @@ export function useEstablishments() {
     async function deleteEstablishment(id: string): Promise<boolean> {
         try {
             await deleteDoc(doc(db, ESTABLISHMENTS_COLLECTION, id))
-
-            // Update local state
-            establishments.value = establishments.value.filter(e => e.id !== id)
             return true
         } catch (err) {
             console.error('Error deleting establishment:', err)
@@ -197,11 +172,16 @@ export function useEstablishments() {
         establishmentSearch.items = []
     }
 
+    // Auto-start
+    if (!unsubscribe) {
+        subscribeToEstablishments()
+    }
+
     return {
-        establishments,
+        establishments: readonly(establishments),
         establishmentSearch,
-        isLoading,
-        error,
+        isLoading: readonly(isLoading),
+        error: readonly(error),
         loadEstablishments,
         searchEstablishments,
         createEstablishment,
