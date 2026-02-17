@@ -1078,13 +1078,15 @@ async function syncRecipeAsProduct() {
     average_price: avgPrice,
     category_id: 'recipe_products',  // Special category
     brand_id: null,
-    measurement_id: 'unit',          // Assuming unit-based
-    measurement_value: 1,
+    measurement_id: recipe.value.has_production_units ? 'unit' : 'g', // 'unit' if production units, 'g' if weight based
+    measurement_value: recipe.value.has_production_units ? (recipe.value.total_production_units || 1) : totalFinalWeight.value,
     currency_type: 'USD',
     is_recipe_product: true,
     recipe_id: recipe.value.id,
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    final_weight_grams: totalFinalWeight.value, // Add final weight
+    production_units: recipe.value.total_production_units, // Add production units
   }
 
   if (recipe.value.product_id) {
