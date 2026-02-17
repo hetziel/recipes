@@ -102,7 +102,15 @@
                   <input v-model.number="ing.usage_weight" type="number" class="input-sm" min="0" />
                 </td>
                 <td>${{ calculateIngredientCost(ing).toFixed(2) }}</td>
-                <td>
+                <td class="flex gap-1 justify-center">
+                  <button @click="openSwapProductModal(index)" class="btn-icon swap-btn-regular"
+                    title="Cambiar por Producto">
+                    <Icon name="swap-horizontal" />
+                  </button>
+                  <button @click="openSwapMyProductModal(index)" class="btn-icon swap-btn-recipe"
+                    title="Cambiar por Mi Producto">
+                    <Icon name="chef-hat" />
+                  </button>
                   <button @click="removeIngredient(index)" class="btn-icon text-danger">
                     <Icon name="delete" />
                   </button>
@@ -607,6 +615,7 @@ const isCleaning = ref(false)
 const hasLegacyScenarios = ref(false)
 const showDeleteConfirmModal = ref(false)
 const scenarioToDelete = ref<{ id: string, index: number } | null>(null)
+const swappingIndex = ref<number | null>(null)
 
 const recipe = ref<Recipe>({
   name: '',
@@ -1004,29 +1013,64 @@ async function loadRecipe(id: string) {
 }
 
 function openProductModal() {
+  productSearch.value = ''
+  swappingIndex.value = null
+  showProductModal.value = true
+}
+
+function openSwapProductModal(index: number) {
+  productSearch.value = ''
+  swappingIndex.value = index
   showProductModal.value = true
 }
 
 function selectProduct(prod: Product) {
-  recipe.value.ingredients.push({
-    product_id: prod.id || '',
-    usage_weight: 0,
-  })
+  if (swappingIndex.value !== null) {
+    const ing = recipe.value.ingredients[swappingIndex.value]
+    ing.product_id = prod.id || ''
+    // Clear price selections to force re-evaluation
+    delete ing.establishment_id
+    delete ing.selected_price
+    delete ing.price_type
+  } else {
+    recipe.value.ingredients.push({
+      product_id: prod.id || '',
+      usage_weight: 0,
+    })
+  }
   showProductModal.value = false
+  swappingIndex.value = null
 }
 
 function openMyProductModal() {
+  productSearch.value = ''
+  swappingIndex.value = null
+  showMyProductModal.value = true
+}
+
+function openSwapMyProductModal(index: number) {
+  productSearch.value = ''
+  swappingIndex.value = index
   showMyProductModal.value = true
 }
 
 function selectMyProduct(prod: Product) {
-  recipe.value.ingredients.push({
-    product_id: prod.id || '',
-    usage_weight: 0,
-    selected_price: prod.price, // Store the specific price
-    price_type: 'unit_price'    // Indicate that it's a unit price, not an average
-  })
+  if (swappingIndex.value !== null) {
+    const ing = recipe.value.ingredients[swappingIndex.value]
+    ing.product_id = prod.id || ''
+    ing.selected_price = prod.price
+    ing.price_type = 'unit_price'
+    delete ing.establishment_id
+  } else {
+    recipe.value.ingredients.push({
+      product_id: prod.id || '',
+      usage_weight: 0,
+      selected_price: prod.price, // Store the specific price
+      price_type: 'unit_price'    // Indicate that it's a unit price, not an average
+    })
+  }
   showMyProductModal.value = false
+  swappingIndex.value = null
 }
 
 async function saveRecipe() {
@@ -1264,6 +1308,16 @@ onMounted(() => {
 
 .text-success {
   color: #10b981;
+}
+
+.swap-btn-regular {
+  color: #4f46e5;
+  /* Indigo 600 */
+}
+
+.swap-btn-recipe {
+  color: #d97706;
+  /* Amber 600 */
 }
 
 .large-input {
