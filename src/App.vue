@@ -1,15 +1,24 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { ref, provide, onMounted } from 'vue'
 import { getExchangeRates } from './composables/getTare'
+import { useAuth } from './composables/useAuth'
 
 // Interfaces y tipos
 import type { DolarBCV } from './types/producto'
 
+const { userProfile, currentUser, logout, isLoading } = useAuth()
+const router = useRouter()
 const isMenuOpen = ref(false)
 
 const toggleMenu = () => {
   isMenuOpen.value = !isMenuOpen.value
+}
+
+const handleLogout = async () => {
+  await logout()
+  isMenuOpen.value = false
+  router.push('/login')
 }
 
 //Datos de configuracion
@@ -92,7 +101,7 @@ onMounted(() => {
 
 <template>
   <div class="b-main">
-    <header class="app-header">
+    <header v-if="currentUser" class="app-header">
       <button class="hamburger-menu" @click="toggleMenu" :class="{ 'is-active': isMenuOpen }">
         <span></span>
         <span></span>
@@ -108,46 +117,69 @@ onMounted(() => {
       </div>
     </header>
 
-    <nav class="sidebar-nav" :class="{ 'is-open': isMenuOpen }">
+    <nav v-if="currentUser" class="sidebar-nav" :class="{ 'is-open': isMenuOpen }">
       <div class="sidebar-header">
-        <h2 class="sidebar-title">Menu</h2>
+        <div class="user-info-brief">
+          <h2 class="sidebar-title">Menu</h2>
+          <div v-if="userProfile" class="user-badge" :class="userProfile.role">
+            {{ userProfile.role.toUpperCase() }}
+          </div>
+        </div>
         <button class="close-btn" @click="toggleMenu">&times;</button>
       </div>
-      <RouterLink to="/" class="nav-link" @click="toggleMenu">
-        <span class="icon"><i class="fi fi-rr-home"></i></span>
-        <span class="text">Inicio</span>
-      </RouterLink>
-      <!-- Ruta de /recipes -->
+
+      <!-- Admin Only Links -->
+      <template v-if="userProfile?.role === 'admin'">
+        <RouterLink to="/" class="nav-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-home"></i></span>
+          <span class="text">Inicio</span>
+        </RouterLink>
+      </template>
+
+      <!-- Shared/Common Links -->
       <RouterLink to="/recipes" class="nav-link" @click="toggleMenu">
         <span class="icon"><i class="fi fi-rr-utensils"></i></span>
         <span class="text">Recetas</span>
       </RouterLink>
-      <RouterLink to="/sales" class="nav-link" @click="toggleMenu">
-        <span class="icon"><i class="fi fi-rr-diploma"></i></span>
-        <span class="text">Ventas</span>
-      </RouterLink>
-      <RouterLink to="/customers" class="nav-link" @click="toggleMenu">
-        <span class="icon"><i class="fi fi-rr-users"></i></span>
-        <span class="text">Clientes</span>
-      </RouterLink>
-      <RouterLink to="/drive" class="nav-link" @click="toggleMenu">
-        <span class="icon"><i class="fi fi-rr-cloud"></i></span>
-        <span class="text">Google Drive</span>
-      </RouterLink>
+
+      <!-- Admin Only Links -->
+      <template v-if="userProfile?.role === 'admin'">
+        <RouterLink to="/sales" class="nav-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-diploma"></i></span>
+          <span class="text">Ventas</span>
+        </RouterLink>
+        <RouterLink to="/customers" class="nav-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-users"></i></span>
+          <span class="text">Clientes</span>
+        </RouterLink>
+        <RouterLink to="/establishments" class="nav-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-shop"></i></span>
+          <span class="text">Establecimientos</span>
+        </RouterLink>
+      </template>
+
+      <!-- General Links -->
       <RouterLink to="/calculator" class="nav-link" @click="toggleMenu">
         <span class="icon"><i class="fi fi-rr-calculator"></i></span>
         <span class="text">Calculadora</span>
       </RouterLink>
-      <RouterLink to="/establishments" class="nav-link" @click="toggleMenu">
-        <span class="icon"><i class="fi fi-rr-shop"></i></span>
-        <span class="text">Establecimientos</span>
-      </RouterLink>
+
+      <div class="sidebar-footer">
+        <button v-if="currentUser" @click="handleLogout" class="nav-link logout-btn">
+          <span class="icon"><i class="fi fi-rr-sign-out-alt"></i></span>
+          <span class="text">Cerrar Sesión</span>
+        </button>
+      </div>
     </nav>
     <div class="sidebar-overlay" @click="toggleMenu" v-if="isMenuOpen"></div>
 
-    <div class="b-body">
+    <div class="b-body" :class="{ 'no-padding': !currentUser }">
       <div class="app-container">
-        <main class="content-wrapper">
+        <div v-if="isLoading" class="app-loading">
+          <div class="spinner"></div>
+          <p>Cargando...</p>
+        </div>
+        <main v-else class="content-wrapper">
           <RouterView />
         </main>
       </div>
@@ -329,6 +361,78 @@ onMounted(() => {
 
 .tasa-info.tasa-importado {
   background-color: #5bc0de;
+}
+
+/* Auth Specific Styles */
+.no-padding {
+  padding-top: 0 !important;
+}
+
+.user-info-brief {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-badge {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 700;
+  width: fit-content;
+}
+
+.user-badge.admin {
+  background-color: #ef4444;
+  color: white;
+}
+
+.user-badge.user {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 1rem 0;
+}
+
+.logout-btn {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.logout-btn:hover {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+  color: #ef4444 !important;
+}
+
+.app-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 80vh;
+  gap: 16px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-left-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 768px) {

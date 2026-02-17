@@ -2,7 +2,7 @@
   <div class="recipes-container">
     <header class="page-header">
       <h1>Recetas</h1>
-      <button @click="$router.push('/recipes/create')" class="btn btn-primary">
+      <button v-if="userProfile?.role === 'admin'" @click="$router.push('/recipes/create')" class="btn btn-primary">
         <Icon name="plus" /> Nueva Receta
       </button>
     </header>
@@ -14,8 +14,8 @@
             <tr>
               <th width="40"></th>
               <th>Nombre de la Receta</th>
-              <th>Inversión Base</th>
-              <th>Acciones</th>
+              <th v-if="userProfile?.role === 'admin'">Inversión Base</th>
+              <th v-if="userProfile?.role === 'admin'">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -33,13 +33,13 @@
                     <div class="text-xs text-muted">{{ formatDate(recipe.updated_at) }}</div>
                   </div>
                 </td>
-                <td>
+                <td v-if="userProfile?.role === 'admin'">
                   <div class="cost-stack">
                     <span class="price-usd">${{ calculateBaseCost(recipe).toFixed(2) }}</span>
                     <span class="price-bs">Bs {{ (calculateBaseCost(recipe) * dolarRate).toFixed(2) }}</span>
                   </div>
                 </td>
-                <td>
+                <td v-if="userProfile?.role === 'admin'">
                   <div class="actions" @click.stop>
                     <button @click="$router.push(`/recipes/${recipe.id}/edit`)" class="btn-icon" title="Editar">
                       <Icon name="pencil" />
@@ -62,7 +62,7 @@
                           <span class="sc-meta">{{ sc.value }}{{ sc.mode === 'weight' ? 'g' : 'und' }}</span>
                         </div>
                         <div class="sc-finances">
-                          <div class="fin-item">
+                          <div v-if="userProfile?.role === 'admin'" class="fin-item">
                             <label>Inversión</label>
                             <div class="price-stack-mini">
                               <span class="usd">${{ getScenarioUnitCost(recipe, sc).toFixed(2) }}</span>
@@ -76,7 +76,7 @@
                               <span class="bs">Bs {{ (getScenarioPrice(recipe, sc) * dolarRate).toFixed(2) }}</span>
                             </div>
                           </div>
-                          <div class="fin-item highlight-profit">
+                          <div v-if="userProfile?.role === 'admin'" class="fin-item highlight-profit">
                             <label>Ganancia</label>
                             <div class="price-stack-mini">
                               <span class="usd">${{ getScenarioProfit(recipe, sc).toFixed(2) }}</span>
@@ -91,7 +91,7 @@
               </tr>
             </template>
             <tr v-if="recipes.length === 0">
-              <td colspan="5" class="text-center py-8">
+              <td :colspan="userProfile?.role === 'admin' ? 4 : 2" class="text-center py-8">
                 <Icon name="chef-hat" size="xl" class="mb-2" />
                 <p>No hay recetas creadas aún.</p>
               </td>
@@ -111,7 +111,9 @@ import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
 import type { Recipe, RecipeScenario, RecipeUtility } from '../types/recipe'
 import type { DolarBCV, Product } from '../types/producto'
+import { useAuth } from '../composables/useAuth'
 
+const { userProfile } = useAuth()
 const recipes = ref<Recipe[]>([])
 const availableProducts = ref<Product[]>([])
 const expandedRecipes = ref<Record<string, boolean>>({})

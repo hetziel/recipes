@@ -2,63 +2,73 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Colección de Productos
+    // Función para verificar si el usuario es administrador
+    function isAdmin() {
+      return request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Función para verificar si el usuario está autenticado
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Colección de Usuarios
+    match /users/{userId} {
+      allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAuth() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Colecciones de administración (Solo Admin)
     match /productos/{producto} {
-      allow read, write: if request.auth == null;
+      allow read: if isAuth();
+      allow write: if isAdmin();
     }
-    // Colección de Establecimientos
     match /establishments/{establishment} {
-      allow read, write: if request.auth == null;
+      allow read: if isAuth();
+      allow write: if isAdmin();
     }
-
-    // Colección de Marcas
     match /marcas/{marca} {
-      allow read, write: if request.auth == null;
+      allow read: if isAuth();
+      allow write: if isAdmin();
     }
-
-    // Colección de Medidas
     match /medidas/{medida} {
-      allow read, write: if request.auth == null;
+      allow read: if isAuth();
+      allow write: if isAdmin();
     }
-
-    // Colección de Categorías
     match /categorias/{categoria} {
-      allow read, write: if request.auth == null;
+      allow read: if isAuth();
+      allow write: if isAdmin();
     }
-
-    // Colección de Recetas
-    match /recipes/{recipe} {
-      allow read, write: if request.auth == null;
-    }
-    
-    // NUEVA: Colección de Escenarios (Paquetes)
-    match /scenarios/{scenario} {
-      allow read, write: if request.auth == null;
-    }
-
-    // Colección de Clientes
     match /customers/{customer} {
-      allow read, write: if request.auth == null;
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    match /sales/{sale} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    match /settings/{setting} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+    match /config/{document} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+    match /my_products/{productId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
     }
 
-    // Colección de Ventas
-    match /sales/{sale} {
-      allow read, write: if request.auth == null;
+    // Colección de Recetas y Escenarios
+    match /recipes/{recipe} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
     }
-    
-    // Configuración y correlativos
-    match /settings/{setting} {
-      allow read, write: if request.auth == null;
-    }
-    
-    // Configuración general
-    match /config/{document} {
-      allow read, write: if request.auth == null;
-    }
-    
-    // Productos de recetas
-    match /my_products/{productId} {
-      allow read, write: if request.auth == null;
+    match /scenarios/{scenario} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
     }
   }
 }
