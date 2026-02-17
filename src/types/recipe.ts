@@ -38,6 +38,7 @@ export interface ChickenData {
   starter_feed_per_chicken_g: number
   fattening_feed_per_chicken_g: number
   batch_product_id?: string // The "pollo" product selected
+  batch_product_price?: number // Fixed price for the batch product
   entry_date?: string // Batch entry date
 }
 

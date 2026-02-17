@@ -56,9 +56,8 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
         let chickenInvestment = 0
         if (d.batch_product_id) {
             const prod = getProductById(d.batch_product_id)
-            if (prod) {
-                chickenInvestment = getProductPrice(prod) * qty
-            }
+            const basePrice = d.batch_product_price !== undefined ? d.batch_product_price : (prod ? getProductPrice(prod) : 0)
+            chickenInvestment = basePrice * qty
         }
 
         const ingredientsCost = calculateBaseCost(recipe)

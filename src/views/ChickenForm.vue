@@ -44,6 +44,11 @@
             <input v-model.number="recipe.chicken_data!.initial_quantity" type="number" class="form-input" min="1" />
           </div>
           <div class="form-group">
+            <label>Precio Unitario ($)</label>
+            <input v-model.number="recipe.chicken_data!.batch_product_price" type="number" class="form-input"
+              step="0.01" min="0" placeholder="0.00" />
+          </div>
+          <div class="form-group">
             <label>Fecha de Ingreso</label>
             <input v-model="recipe.chicken_data!.entry_date" type="date" class="form-input" />
           </div>
@@ -232,7 +237,7 @@
             <div class="product-info-mini">
               <span class="product-name-mini font-bold">{{ prod.name }}</span>
               <span v-if="prod.brand_id" class="product-brand-mini text-xs text-muted">{{ getBrandName(prod.brand_id)
-                }}</span>
+              }}</span>
             </div>
             <div class="product-price-mini text-right">
               <div class="font-bold">${{ prod.price }}</div>
@@ -314,6 +319,7 @@ const recipe = ref<Recipe>({
   is_chicken_batch: true,
   chicken_data: {
     initial_quantity: 1,
+    batch_product_price: 0,
     live_weight_price_kg: 0,
     current_avg_weight_g: 0,
     target_weight_g: 0,
@@ -342,6 +348,7 @@ onMounted(async () => {
       if (!recipe.value.chicken_data) {
         recipe.value.chicken_data = {
           initial_quantity: 1,
+          batch_product_price: 0,
           live_weight_price_kg: 0,
           current_avg_weight_g: 0,
           target_weight_g: 0,
@@ -406,10 +413,10 @@ const totalIngredientsCost = computed(() => {
   let chickenCost = 0
   if (recipe.value.chicken_data?.batch_product_id) {
     const prod = getProductById(recipe.value.chicken_data.batch_product_id)
-    if (prod) {
-      const basePrice = getProductPrice(prod)
-      chickenCost = basePrice * (Number(recipe.value.chicken_data.initial_quantity) || 0)
-    }
+    const basePrice = recipe.value.chicken_data.batch_product_price !== undefined ?
+      recipe.value.chicken_data.batch_product_price :
+      (prod ? getProductPrice(prod) : 0)
+    chickenCost = basePrice * (Number(recipe.value.chicken_data.initial_quantity) || 0)
   }
 
   return inputsCost + chickenCost
@@ -500,6 +507,7 @@ function handleProductSelection(prod: Product) {
   if (modalType.value === 'batch_product') {
     if (!recipe.value.chicken_data) return
     recipe.value.chicken_data.batch_product_id = prod.id
+    recipe.value.chicken_data.batch_product_price = getProductPrice(prod)
     if (!recipe.value.name) {
       recipe.value.name = `Lote de ${prod.name} - ${new Date().toLocaleDateString()}`
     }
