@@ -84,13 +84,7 @@
                   <div class="price-display-cell">
                     <span class="text-xs text-muted" v-if="ing.price_type === 'unit_price'">Precio Fijo</span>
                     <span class="text-xs text-muted" v-else-if="!ing.establishment_id">Promedio</span>
-                    <span v-if="ing.price_type === 'unit_price'">
-                      ${{ (ing.selected_price || 0).toFixed(2) }}
-                    </span>
-                    <span v-else>
-                      ${{ (calculateIngredientCost(ing) / (ing.usage_weight || 1) *
-                        (getProductById(ing.product_id)?.measurement_value || 1)).toFixed(2) }}
-                    </span>
+                    ${{ getIngredientPackagePrice(ing).toFixed(2) }}
                   </div>
                 </td>
                 <td>
@@ -661,6 +655,37 @@ const canCleanUtilities = computed(() => {
 })
 
 // METHODS
+function getIngredientPackagePrice(ing: RecipeIngredient): number {
+  const prod = getProductById(ing.product_id);
+  if (!prod) return 0;
+
+  if (ing.price_type === 'unit_price' && ing.selected_price !== undefined) {
+    return ing.selected_price;
+  }
+
+  // Determine the base price from the product itself
+  let basePrice: number = 0; // Initialize with 0
+  if (prod.average_price !== undefined) {
+    basePrice = prod.average_price;
+  } else if (prod.price !== undefined) {
+    basePrice = prod.price;
+  }
+
+
+  let finalPrice = basePrice; // Start with the base product price
+
+  // If a specific establishment is selected, try to find that price
+  if (ing.establishment_id) {
+    const specificPriceEntry = prod.prices?.find(p => p.establishment_id === ing.establishment_id);
+    if (specificPriceEntry) {
+      finalPrice = specificPriceEntry.currency === 'USD' ? specificPriceEntry.price : specificPriceEntry.price / (dolarRate.value || 1);
+    }
+    // If specificPriceEntry is not found, finalPrice remains basePrice. This is the desired behavior.
+  }
+
+  return finalPrice;
+}
+
 function calculateIngredientCost(ing: RecipeIngredient): number {
   const prod = getProductById(ing.product_id)
   if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
