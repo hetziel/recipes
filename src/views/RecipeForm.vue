@@ -1145,32 +1145,39 @@ async function syncRecipeAsProduct() {
   // Calculate final price (average of all scenarios or base cost)
   const avgPrice = calculateAverageRecipePrice()
 
-  const productData = {
-    name: recipe.value.name,
-    price: avgPrice,
-    average_price: avgPrice,
-    category_ids: ['recipe_products'],  // Special category
-    brand_id: null,
-    measurement_id: recipe.value.has_production_units ? 'unit' : 'g', // 'unit' if production units, 'g' if weight based
-    measurement_value: recipe.value.has_production_units ? (recipe.value.total_production_units || 1) : totalFinalWeight.value,
+  const productData: Partial<Product> & { [key: string]: any } = {
     currency_type: 'USD',
-    is_recipe_product: true,
+    price: avgPrice,
+    final_weight_grams: totalFinalWeight.value,
+    measurement_id: recipe.value.has_production_units ? 'unit' : 'g',
+    measurement_value: recipe.value.has_production_units ? (recipe.value.total_production_units || 1) : totalFinalWeight.value,
+    name: recipe.value.name,
     recipe_id: recipe.value.id,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    final_weight_grams: totalFinalWeight.value, // Add final weight
-    production_units: recipe.value.total_production_units, // Add production units
+    updated_at: new Date().toISOString()
   }
 
-  if (recipe.value.product_id) {
-    // Update existing
-    await updateDoc(doc(db, 'my_products', recipe.value.product_id), productData)
-  } else {
-    // Create new
-    const ref = doc(collection(db, 'my_products'))
-    await setDoc(ref, { ...productData, id: ref.id })
-    recipe.value.product_id = ref.id
-    await updateDoc(doc(db, 'recipes', recipe.value.id), { product_id: ref.id })
+  try {
+    if (recipe.value.product_id) {
+      // Update existing
+      const docRef = doc(db, 'my_products', recipe.value.product_id)
+      const snap = await getDoc(docRef)
+      if (snap.exists()) {
+        productData.created_at = snap.data().created_at || new Date().toISOString()
+        productData.id = recipe.value.product_id
+      }
+      await updateDoc(docRef, productData)
+    } else {
+      // Create new
+      const ref = doc(collection(db, 'my_products'))
+      productData.id = ref.id
+      productData.created_at = new Date().toISOString()
+
+      await setDoc(ref, productData)
+      recipe.value.product_id = ref.id
+      await updateDoc(doc(db, 'recipes', recipe.value.id), { product_id: ref.id })
+    }
+  } catch (e) {
+    console.error('Error syncing recipe as product:', e)
   }
 }
 
