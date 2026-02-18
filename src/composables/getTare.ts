@@ -1,5 +1,5 @@
 const apiDolarApi = 'https://ve.dolarapi.com/v1/dolares';
-
+const LOCAL_STORAGE_KEY = 'exchangeRates';
 
 export interface ExchangeRates {
   usdOficial: number | null;
@@ -43,13 +43,19 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
       console.error(`Error fetching dolar rates: HTTP ${response.status}`);
     }
 
-
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(result));
     return result;
 
   } catch (error) {
     console.error('Error fetching exchange rates:', error);
 
+    const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (storedData) {
+      console.log('Returning stale data from localStorage');
+      return JSON.parse(storedData);
+    } else {
     console.warn('No cached exchange rates available.');
     return result;
+    }
   }
 }
