@@ -60,7 +60,7 @@ async function initCamera() {
   try {
     // Primero intentamos escanear sin seleccionar dispositivo específico para pedir permisos
     // y ver si arranca
-    await startScan();
+    // await startScan();
 
     // Luego listamos dispositivos para que el usuario pueda cambiar
     const videoInputDevices = await codeReader.listVideoInputDevices();
