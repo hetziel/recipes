@@ -279,7 +279,7 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     handleProduct.currency_type === 'USD' ? '$' : 'Bs'
-                    }}</span>
+                  }}</span>
                   <input v-model.number="handleProduct.tempPrice" type="number" min="0" step="0.01" class="form-input"
                     placeholder="0.00" />
                 </div>
@@ -467,7 +467,7 @@
             <div class="est-name font-bold">Promedio</div>
             <div class="average-prices-inline text-right">
               <span class="font-bold text-primary">${{ (selectedProductForPrices.average_price || 0).toFixed(2)
-                }}</span>
+              }}</span>
               <span class="text-muted mx-2">|</span>
               <span class="text-muted">Bs {{ ((selectedProductForPrices.average_price || 0) * (dolarBCV?.promedio ||
                 0)).toFixed(2) }}</span>
@@ -649,7 +649,7 @@
                 <div v-else class="product-badge" style="background-color: #6b7280">
                   <span>{{
                     getMeasurementType(product.measurement_id)?.charAt(0) || 'P'
-                    }}</span>
+                  }}</span>
                 </div>
                 <div class="product-details">
                   <h3 class="product-name">
@@ -1264,6 +1264,7 @@ async function editProduct(id: string) {
     average_price: avg || basePriceUSD,
     category_ids: handleProduct.value.category_ids,
     brand_id: handleProduct.value.brand_id || null,
+    barcode: handleProduct.value.barcode || '',
     type: handleProduct.value.type || 'standard',
     measurement_id: handleProduct.value.measurement_id,
     measurement_value: handleProduct.value.measurement_value,
