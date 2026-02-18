@@ -85,7 +85,7 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     nuevoProducto.moneda === 'USD' ? '$' : 'Bs'
-                    }}</span>
+                  }}</span>
                   <input id="price" v-model.number="nuevoProducto.price" type="number" min="0" step="0.01"
                     @input="convertirMoneda" class="form-input" />
                 </div>
@@ -182,8 +182,34 @@
         </button>
       </div>
 
+      <!-- Resultado de Escaneo (Confirmación) -->
+      <div v-if="scannedProduct" class="search-results-selector scanned-preview">
+        <div class="search-result-item">
+          <div class="item-info">
+            <div class="scanned-tag">
+              <Icon name="barcode" size="xs" />
+              ¡Escaneado!
+            </div>
+            <strong class="item-name">{{ getFormattedProductName(scannedProduct) }}</strong>
+            <div class="item-details">
+              <span>Precio: ${{ scannedProduct.price?.toFixed(2) ?? '0.00' }}</span>
+              <span>Peso: {{ scannedProduct.measurement_value ?? '0.00' }} kg</span>
+            </div>
+          </div>
+          <div class="item-actions">
+            <input v-model.number="scannedProduct.cantidad" type="number" min="1" class="quantity-input short" />
+            <button @click="confirmarEscaneado" class="btn btn-primary btn-confirm">
+              <span class="btn-icon">✓</span> Agregar
+            </button>
+            <button @click="scannedProduct = null" class="btn btn-secondary btn-cancel" title="Cancelar">
+              &times;
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Resultados de la búsqueda para selección rápida -->
-      <div v-if="searchResults.length" class="search-results-selector">
+      <div v-if="searchResults.length && !scannedProduct" class="search-results-selector">
         <div v-for="producto in searchResults" :key="`search-${producto.id}`" class="search-result-item">
           <div class="item-info">
             <strong class="item-name">{{ getFormattedProductName(producto) }}</strong>
@@ -542,6 +568,7 @@ const itemsPerPage = 10
 const maxPagesToShow = 5
 const activeSection = ref<'selector' | 'table' | 'selected' | 'budget'>('selector')
 const showScanner = ref(false)
+const scannedProduct = ref<BuyProduct | null>(null)
 
 // Nuevos resultados de búsqueda para el selector rápido
 const searchResults = computed(() => {
@@ -772,15 +799,25 @@ function seleccionarProductoDesdeBusqueda(productoASeleccionar: BuyProduct) {
 }
 
 function handleBarcodeScanned(barcode: string) {
-  const product = productos.value.find(p => p.barcode === barcode)
+  const product = productos.value.find((p) => p.barcode === barcode)
   if (product) {
-    product.seleccionado = true
-    product.cantidad = (product.cantidad || 0) + 1
-    guardarSelecciones()
+    scannedProduct.value = { ...product, cantidad: 1 }
     showScanner.value = false
-    // Opcional: Notificar éxito
+    searchQuery.value = '' // Limpiar búsqueda para resaltar el escaneado
   } else {
     alert('Producto no encontrado con el código: ' + barcode)
+  }
+}
+
+function confirmarEscaneado() {
+  if (scannedProduct.value) {
+    const productoEnListaPrincipal = productos.value.find((p) => p.id === scannedProduct.value!.id)
+    if (productoEnListaPrincipal) {
+      productoEnListaPrincipal.seleccionado = true
+      productoEnListaPrincipal.cantidad = scannedProduct.value.cantidad
+      guardarSelecciones()
+    }
+    scannedProduct.value = null
   }
 }
 
@@ -1040,6 +1077,32 @@ onMounted(() => {
   gap: 16px;
   font-size: 14px;
   color: #6b7280;
+}
+
+/* Estilos para el preview de escaneo */
+.scanned-preview {
+  border: 2px solid #4f46e5 !important;
+  background: #f5f3ff !important;
+  margin-bottom: 12px;
+}
+
+.scanned-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #4f46e5;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.btn-cancel {
+  padding: 8px 12px !important;
+  min-width: auto !important;
 }
 
 .stats-item {
