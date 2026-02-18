@@ -592,6 +592,7 @@ import type { Product, DolarBCV } from '../types/producto'
 import { useBrands } from '../composables/useBrands'
 import { useEstablishments } from '../composables/useEstablishments'
 import { useProduction } from '../composables/useProduction'
+import { sanitizeForFirestore } from '@/utils/firestore-utils' // Import the new utility
 
 const route = useRoute()
 const { getBrandName } = useBrands()
@@ -852,28 +853,6 @@ async function saveScenario(scenario: RecipeScenario) {
   if (!recipe.value.id) return
   isSavingScenario.value = true
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function sanitizeForFirestore(obj: any): any {
-    if (obj === undefined) return undefined
-    if (obj === null) return null
-    if (Array.isArray(obj)) {
-      return obj
-        .map((v) => sanitizeForFirestore(v))
-        .filter((v) => v !== undefined)
-    }
-    if (typeof obj === 'object') {
-      const out: any = {}
-      for (const k of Object.keys(obj)) {
-        const v = obj[k]
-        if (v === undefined) continue
-        const sv = sanitizeForFirestore(v)
-        if (sv !== undefined) out[k] = sv
-      }
-      return out
-    }
-    return obj
-  }
-
   try {
     if (scenario.id) {
       const payload = sanitizeForFirestore({ ...scenario })
@@ -927,11 +906,12 @@ async function migrateScenarios() {
     const legacyScenarios = recipe.value.scenarios || []
     for (const sc of legacyScenarios) {
       const newRef = doc(collection(db, 'scenarios'))
-      await setDoc(newRef, {
+      const sanitizedSc = sanitizeForFirestore({
         ...sc,
         id: newRef.id,
         recipe_id: recipe.value.id
       })
+      await setDoc(newRef, sanitizedSc)
     }
 
     // Remove from recipe and update
@@ -1167,7 +1147,7 @@ async function syncRecipeAsProduct() {
   // Calculate final price (average of all scenarios or base cost)
   const avgPrice = calculateAverageRecipePrice()
 
-  const productData: Record<string, unknown> = {
+  const productData: Partial<Product> = { // Explicitly type as Partial<Product>
     currency_type: 'USD',
     price: avgPrice,
     final_weight_grams: totalFinalWeight.value,
@@ -1187,14 +1167,16 @@ async function syncRecipeAsProduct() {
         productData.created_at = snap.data().created_at || new Date().toISOString()
         productData.id = recipe.value.product_id
       }
-      await updateDoc(docRef, productData)
+      const sanitizedProductData = sanitizeForFirestore(productData)
+      await updateDoc(docRef, sanitizedProductData)
     } else {
       // Create new
       const ref = doc(collection(db, 'my_products'))
       productData.id = ref.id
       productData.created_at = new Date().toISOString()
 
-      await setDoc(ref, productData)
+      const sanitizedProductData = sanitizeForFirestore(productData)
+      await setDoc(ref, sanitizedProductData)
       recipe.value.product_id = ref.id
       await updateDoc(doc(db, 'recipes', recipe.value.id), { product_id: ref.id })
     }
