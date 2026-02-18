@@ -97,9 +97,26 @@
                   </select>
                   <div v-else class="text-center text-muted">-</div>
                 </td>
-                <td>{{ getProductById(ing.product_id)?.measurement_value || 0 }}</td>
                 <td>
-                  <input v-model.number="ing.usage_weight" type="number" class="input-sm" min="0" />
+                  <div
+                    v-if="getProductById(ing.product_id)?.final_weight_grams && getProductById(ing.product_id)?.measurement_id === 'unit'">
+                    <select v-model="ing.measurement_id" class="input-xs-wide">
+                      <option value="unit">{{ getProductById(ing.product_id)?.measurement_value }} und</option>
+                      <option value="g">{{ getProductById(ing.product_id)?.final_weight_grams }} g</option>
+                    </select>
+                  </div>
+                  <div v-else>
+                    {{ getProductById(ing.product_id)?.measurement_value || 0 }}
+                    <span class="text-xs text-muted">{{
+                      getMeasurementLabel(getProductById(ing.product_id)?.measurement_id || '') }}</span>
+                  </div>
+                </td>
+                <td>
+                  <div class="usage-input-container">
+                    <input v-model.number="ing.usage_weight" type="number" class="input-sm" min="0" />
+                    <span class="usage-unit">{{ ing.measurement_id === 'g' ? 'g' :
+                      (getProductById(ing.product_id)?.measurement_id === 'unit' ? 'und' : '') }}</span>
+                  </div>
                 </td>
                 <td>${{ calculateIngredientCost(ing).toFixed(2) }}</td>
                 <td class="flex gap-1 justify-center">
@@ -216,7 +233,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-success">
@@ -224,7 +241,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                        }}</span>
+                      }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-profit">
@@ -835,6 +852,7 @@ async function saveScenario(scenario: RecipeScenario) {
   if (!recipe.value.id) return
   isSavingScenario.value = true
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function sanitizeForFirestore(obj: any): any {
     if (obj === undefined) return undefined
     if (obj === null) return null
@@ -1051,6 +1069,7 @@ function selectProduct(prod: Product) {
   if (swappingIndex.value !== null) {
     const ing = recipe.value.ingredients[swappingIndex.value]
     ing.product_id = prod.id || ''
+    ing.measurement_id = prod.measurement_id
     // Clear price selections to force re-evaluation
     delete ing.establishment_id
     delete ing.selected_price
@@ -1059,6 +1078,7 @@ function selectProduct(prod: Product) {
     recipe.value.ingredients.push({
       product_id: prod.id || '',
       usage_weight: 0,
+      measurement_id: prod.measurement_id
     })
   }
   showProductModal.value = false
@@ -1081,6 +1101,7 @@ function selectMyProduct(prod: Product) {
   if (swappingIndex.value !== null) {
     const ing = recipe.value.ingredients[swappingIndex.value]
     ing.product_id = prod.id || ''
+    ing.measurement_id = prod.measurement_id
     ing.selected_price = prod.price
     ing.price_type = 'unit_price'
     delete ing.establishment_id
@@ -1088,6 +1109,7 @@ function selectMyProduct(prod: Product) {
     recipe.value.ingredients.push({
       product_id: prod.id || '',
       usage_weight: 0,
+      measurement_id: prod.measurement_id,
       selected_price: prod.price, // Store the specific price
       price_type: 'unit_price'    // Indicate that it's a unit price, not an average
     })
@@ -1145,7 +1167,7 @@ async function syncRecipeAsProduct() {
   // Calculate final price (average of all scenarios or base cost)
   const avgPrice = calculateAverageRecipePrice()
 
-  const productData: Partial<Product> & { [key: string]: any } = {
+  const productData: Record<string, unknown> = {
     currency_type: 'USD',
     price: avgPrice,
     final_weight_grams: totalFinalWeight.value,
@@ -1683,6 +1705,19 @@ onMounted(() => {
 .product-info-mini {
   display: flex;
   flex-direction: column;
+}
+
+.usage-input-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.usage-unit {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .product-name-mini {

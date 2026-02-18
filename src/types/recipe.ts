@@ -5,6 +5,7 @@ export interface RecipeIngredient {
   selected_price?: number // The price chosen for this ingredient (e.g., product.price for recipe products)
   price_type?: 'average' | 'unit_price' // 'average' if using product average/establishment price, 'unit_price' if using product.price directly
   ideal_weight?: number // Target weight for the input (kg)
+  measurement_id?: string // Selected measurement unit for recipe products (e.g., 'unit' or 'g')
 }
 
 export interface RecipeUtility {

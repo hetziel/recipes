@@ -42,7 +42,13 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
             return pricePerKg * (ing.usage_weight || 0)
         }
 
-        const pricePerUnit = finalPrice / (prod.measurement_value || 1)
+        // Determine the measurement value based on the chosen measurement unit for recipe products
+        let effectiveMeasurementValue = prod.measurement_value
+        if (ing.measurement_id === 'g' && prod.final_weight_grams) {
+            effectiveMeasurementValue = prod.final_weight_grams
+        }
+
+        const pricePerUnit = finalPrice / (effectiveMeasurementValue || 1)
         return pricePerUnit * (ing.usage_weight || 0)
     }
 
