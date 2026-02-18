@@ -216,7 +216,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioUnitCost(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioUnitCost(scenario) * dolarRate).toFixed(2)
-                      }}</span>
+                        }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-success">
@@ -224,7 +224,7 @@
                     <div class="price-stack">
                       <span class="price-usd">${{ calculateScenarioSalePrice(scenario).toFixed(2) }}</span>
                       <span class="price-bs">Bs {{ (calculateScenarioSalePrice(scenario) * dolarRate).toFixed(2)
-                      }}</span>
+                        }}</span>
                     </div>
                   </div>
                   <div class="sc-value-item highlight-profit">
@@ -835,13 +835,36 @@ async function saveScenario(scenario: RecipeScenario) {
   if (!recipe.value.id) return
   isSavingScenario.value = true
 
+  function sanitizeForFirestore(obj: any): any {
+    if (obj === undefined) return undefined
+    if (obj === null) return null
+    if (Array.isArray(obj)) {
+      return obj
+        .map((v) => sanitizeForFirestore(v))
+        .filter((v) => v !== undefined)
+    }
+    if (typeof obj === 'object') {
+      const out: any = {}
+      for (const k of Object.keys(obj)) {
+        const v = obj[k]
+        if (v === undefined) continue
+        const sv = sanitizeForFirestore(v)
+        if (sv !== undefined) out[k] = sv
+      }
+      return out
+    }
+    return obj
+  }
+
   try {
     if (scenario.id) {
-      await updateDoc(doc(db, 'scenarios', scenario.id), { ...scenario })
+      const payload = sanitizeForFirestore({ ...scenario })
+      await updateDoc(doc(db, 'scenarios', scenario.id), payload)
     } else {
       const newRef = doc(collection(db, 'scenarios'))
       scenario.id = newRef.id
-      await setDoc(newRef, scenario)
+      const payload = sanitizeForFirestore({ ...scenario, id: newRef.id })
+      await setDoc(newRef, payload)
     }
     editingScenarioIndex.value = null
   } catch (e) {
