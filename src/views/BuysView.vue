@@ -85,7 +85,7 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     nuevoProducto.moneda === 'USD' ? '$' : 'Bs'
-                  }}</span>
+                    }}</span>
                   <input id="price" v-model.number="nuevoProducto.price" type="number" min="0" step="0.01"
                     @input="convertirMoneda" class="form-input" />
                 </div>
@@ -479,16 +479,40 @@ import { useBrands } from '../composables/useBrands'
 import { useMeasurements } from '../composables/useMeasurements'
 import Icon from '@/components/ui/Icon.vue'
 import BarcodeScanner from '@/components/BarcodeScanner.vue'
+import { useProducts } from '../composables/useProducts'
+import { db } from '../firebase.config'
+import { collection, doc, setDoc } from 'firebase/firestore'
 
 interface BuyProduct extends Product {
   seleccionado?: boolean
   cantidad?: number
 }
 
-const STORAGE_KEY = 'productos-app-data'
 const SELECTION_KEY = 'productos-seleccionados'
 const productos = ref<BuyProduct[]>([])
 const productosSeleccionados = ref<BuyProduct[]>([])
+const isInitialized = ref(false)
+const { products, isLoading: loadingProducts } = useProducts()
+
+watch(products, (newProducts) => {
+  const currentMap = new Map()
+  productos.value.forEach(p => {
+    if (p.id) currentMap.set(p.id, { sel: p.seleccionado, cant: p.cantidad })
+  })
+
+  productos.value = newProducts.map(p => ({
+    ...p,
+    seleccionado: currentMap.get(p.id)?.sel ?? false,
+    cantidad: currentMap.get(p.id)?.cant ?? 1
+  }))
+
+  if (!loadingProducts.value && !isInitialized.value) {
+    cargarSeleccionesGuardadas()
+    isInitialized.value = true
+  } else {
+    actualizarProductosSeleccionados()
+  }
+}, { immediate: true })
 
 const { dolarBCV: dolarBCV } = inject<{
   dolarBCV: Ref<DolarBCV>
@@ -687,25 +711,6 @@ function getFormattedProductName(product: BuyProduct): string {
   return parts.join(' - ')
 }
 
-function cargarProductos() {
-  const datosGuardados = localStorage.getItem(STORAGE_KEY)
-  if (datosGuardados) {
-    try {
-      const parsed = JSON.parse(datosGuardados)
-      // The data is stored as { productos: [...], tasaCambio: ... }
-      const list = Array.isArray(parsed) ? parsed : (parsed.productos || [])
-
-      productos.value = list.map((p: BuyProduct) => ({
-        ...p,
-        cantidad: p.cantidad || 1,
-      }))
-      cargarSeleccionesGuardadas()
-    } catch (err) {
-      console.error('Error al cargar productos:', err)
-      productos.value = []
-    }
-  }
-}
 
 function cargarSeleccionesGuardadas() {
   const seleccionesGuardadas = localStorage.getItem(SELECTION_KEY)
@@ -840,28 +845,26 @@ async function agregarProducto() {
     }
   }
 
-  const producto: BuyProduct = {
-    id: Date.now().toString(), // Use toString() for string ID
+  const productRef = doc(collection(db, 'productos'))
+
+  const data: Product = {
     name: nuevoProducto.value.name,
     category_ids: [],
     brand_id: nuevoProducto.value.brand_id,
     measurement_id: nuevoProducto.value.measurement_id,
     measurement_value: nuevoProducto.value.measurement_value,
-    currency_type: nuevoProducto.value.moneda, // Use moneda for currency_type
-    price: 0, // Will be set below based on moneda
-    cantidad: nuevoProducto.value.cantidad || 1,
-    seleccionado: false,
+    currency_type: nuevoProducto.value.moneda,
+    price: nuevoProducto.value.moneda === 'USD' ? nuevoProducto.value.price : nuevoProducto.value.price / dolarBCV.value.promedio,
+    created_at: new Date().toISOString().split('T')[0],
+    updated_at: new Date().toISOString().split('T')[0]
   }
 
-  // Asignar precios según la moneda seleccionada
-  if (nuevoProducto.value.moneda === 'USD') {
-    producto.price = nuevoProducto.value.price
-  } else {
-    producto.price = nuevoProducto.value.price / dolarBCV.value.promedio // Convert to USD for storage
+  try {
+    await setDoc(productRef, data)
+  } catch (err) {
+    console.error('Error al guardar producto:', err)
+    alert('Error al guardar producto en la base de datos')
   }
-
-  productos.value.push(producto)
-  guardarEnLocalStorage()
 
   // Resetear el formulario
   nuevoProducto.value = {
@@ -881,15 +884,6 @@ async function agregarProducto() {
   currentPage.value = 1
 }
 
-function guardarEnLocalStorage() {
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      productos: productos.value,
-      tasaCambio: dolarBCV.value.promedio,
-    }),
-  )
-}
 
 // Watchers
 watch(
@@ -904,7 +898,12 @@ watch(searchQuery, () => {
   currentPage.value = 1
 })
 
-onMounted(cargarProductos)
+onMounted(() => {
+  if (!loadingProducts.value && !isInitialized.value) {
+    cargarSeleccionesGuardadas()
+    isInitialized.value = true
+  }
+})
 </script>
 
 <style scoped>
