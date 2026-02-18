@@ -502,9 +502,11 @@ watch(products, (newProducts) => {
 
   productos.value = newProducts.map(p => ({
     ...p,
+    category_ids: [...p.category_ids],
+    prices: p.prices ? [...p.prices] : undefined,
     seleccionado: currentMap.get(p.id)?.sel ?? false,
     cantidad: currentMap.get(p.id)?.cant ?? 1
-  }))
+  }) as BuyProduct)
 
   if (!loadingProducts.value && !isInitialized.value) {
     cargarSeleccionesGuardadas()
