@@ -27,6 +27,20 @@
               </div>
             </div>
 
+            <!-- Código de Barras -->
+            <div class="form-group">
+              <label class="form-label">
+                <Icon name="barcode" />
+                Código de Barras
+              </label>
+              <div class="input-with-icon">
+                <input v-model="handleProduct.barcode" class="form-input" placeholder="Escanear o escribir..." />
+                <button type="button" @click="openScanner('register')" class="input-action-btn" title="Escanear">
+                  <Icon name="barcode-scan" />
+                </button>
+              </div>
+            </div>
+
             <!-- Categorías (Múltiples) -->
             <div class="form-group">
               <label class="form-label">
@@ -544,6 +558,9 @@
             <input v-model="searchQuery" type="text" placeholder="Buscar productos..." class="search-input" />
             <span class="search-icon">🔍</span>
           </div>
+          <button @click="openScanner('search')" class="btn btn-icon btn-secondary" title="Buscar por código de barras">
+            <Icon name="barcode-scan" />
+          </button>
           <button @click="showModal(true)" class="btn btn-primary btn-add" open-modal="formProductModal">
             <Icon name="plus" />
             <span class="btn-text">Nuevo Producto</span>
@@ -726,6 +743,9 @@
       </div>
     </div>
   </main>
+
+  <!-- Barcode Scanner Overlay -->
+  <BarcodeScanner v-if="showScanner" @decode="onBarcodeDecoded" @close="showScanner = false" />
 </template>
 
 <script setup lang="ts">
@@ -734,6 +754,7 @@ defineOptions({ name: 'ProductsView' })
 import { ref, onMounted, computed, watch, inject, reactive, type Ref } from 'vue'
 import boxyModal from '@js/boxy-modal.esm'
 import Icon from '@/components/ui/Icon.vue' // Import Icon component
+import BarcodeScanner from '@/components/BarcodeScanner.vue'
 
 import {
   doc,
@@ -878,6 +899,7 @@ const handleProduct = ref<MutableProduct>({
   average_price: 0,
   category_ids: [],  // Changed from category_id: ''
   brand_id: null,
+  barcode: '',
   type: 'standard',
   measurement_id: '',
   measurement_value: 0,
@@ -1472,6 +1494,7 @@ async function resetearFormulario() {
     price: 0,
     category_ids: [],
     brand_id: null,
+    barcode: '',
     type: 'standard',
     measurement_id: '',
     measurement_value: 0,
@@ -1538,7 +1561,8 @@ async function loadEditProduct(id: string) {
     category_ids: cloned.category_ids || [],
     tempPrice: cloned.price || 0,
     prices: cloned.prices || [],
-    average_price: cloned.average_price || cloned.price || 0
+    average_price: cloned.average_price || cloned.price || 0,
+    barcode: cloned.barcode || ''
   }
   mostrarFormulario.value = true
 
@@ -1678,6 +1702,10 @@ const filteredProducts = computed(() => {
           return true;
         }
       }
+      // Search in barcode (if available)
+      if (product.barcode && product.barcode.toLowerCase().includes(queryText)) {
+        return true;
+      }
       return false;
     });
   }
@@ -1720,6 +1748,26 @@ function formatDate(dateString: string | null | undefined): string {
     year: 'numeric',
   })
 }
+
+// Barcode Scanner Logic
+const showScanner = ref(false)
+const scannerMode = ref<'search' | 'register'>('search')
+
+function openScanner(mode: 'search' | 'register') {
+  scannerMode.value = mode
+  showScanner.value = true
+}
+
+function onBarcodeDecoded(code: string) {
+  if (scannerMode.value === 'search') {
+    searchQuery.value = code
+    showScanner.value = false
+  } else if (scannerMode.value === 'register') {
+    handleProduct.value.barcode = code
+    showScanner.value = false
+  }
+}
+
 
 
 </script>
@@ -2139,6 +2187,26 @@ function formatDate(dateString: string | null | undefined): string {
   transform: translateY(-50%);
   color: var(--text-secondary);
   pointer-events: none;
+}
+
+.input-action-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.input-action-btn:hover {
+  background-color: var(--background);
 }
 
 /* Searchable select mejorado */

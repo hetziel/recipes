@@ -23,6 +23,7 @@ export interface Product {
   price: number
   prices?: ProductPrice[]
   average_price?: number
+  barcode?: string
   is_utility?: boolean
   created_at?: string
   updated_at?: string | null
