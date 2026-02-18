@@ -85,7 +85,7 @@
                 <div class="price-input">
                   <span class="price-prefix">{{
                     nuevoProducto.moneda === 'USD' ? '$' : 'Bs'
-                    }}</span>
+                  }}</span>
                   <input id="price" v-model.number="nuevoProducto.price" type="number" min="0" step="0.01"
                     @input="convertirMoneda" class="form-input" />
                 </div>
@@ -177,6 +177,9 @@
       <div class="search-input-wrapper">
         <input v-model="searchQuery" type="text" placeholder="Buscar productos para agregar..." class="search-input" />
         <span class="search-icon">🔍</span>
+        <button @click="showScanner = true" class="btn-scan" title="Escanear código de barras">
+          <Icon name="barcode-scan" />
+        </button>
       </div>
 
       <!-- Resultados de la búsqueda para selección rápida -->
@@ -462,6 +465,9 @@
         </div>
       </div>
     </div>
+
+    <!-- Escáner de Código de Barras -->
+    <BarcodeScanner v-if="showScanner" @decode="handleBarcodeScanned" @close="showScanner = false" />
   </main>
 </template>
 
@@ -472,6 +478,7 @@ import type { SearchableItem } from '../types/search'
 import { useBrands } from '../composables/useBrands'
 import { useMeasurements } from '../composables/useMeasurements'
 import Icon from '@/components/ui/Icon.vue'
+import BarcodeScanner from '@/components/BarcodeScanner.vue'
 
 interface BuyProduct extends Product {
   seleccionado?: boolean
@@ -508,6 +515,7 @@ const currentPage = ref(1)
 const itemsPerPage = 10
 const maxPagesToShow = 5
 const activeSection = ref<'selector' | 'table' | 'selected' | 'budget'>('selector')
+const showScanner = ref(false)
 
 // Nuevos resultados de búsqueda para el selector rápido
 const searchResults = computed(() => {
@@ -522,9 +530,9 @@ const searchResults = computed(() => {
     .map((p) => ({ ...p, cantidad: p.cantidad || 1 }))
 })
 
-// Productos para la tabla (sin filtrar por búsqueda)
+// Productos para la tabla (mostrando solo los seleccionados por petición del usuario)
 const productosFiltrados = computed(() => {
-  return productos.value
+  return productos.value.filter(p => p.seleccionado)
 })
 
 // Paginación
@@ -756,6 +764,19 @@ function seleccionarProductoDesdeBusqueda(productoASeleccionar: BuyProduct) {
   }
 }
 
+function handleBarcodeScanned(barcode: string) {
+  const product = productos.value.find(p => p.barcode === barcode)
+  if (product) {
+    product.seleccionado = true
+    product.cantidad = (product.cantidad || 0) + 1
+    guardarSelecciones()
+    showScanner.value = false
+    // Opcional: Notificar éxito
+  } else {
+    alert('Producto no encontrado con el código: ' + barcode)
+  }
+}
+
 async function selectBrandItem(item: SearchableItem) {
   brandSearch.selectedItem = item
   nuevoProducto.value.brand_id = item.id
@@ -984,10 +1005,33 @@ onMounted(cargarProductos)
 
 .search-icon {
   position: absolute;
-  right: 16px;
+  right: 64px;
   top: 50%;
   transform: translateY(-50%);
   color: #6b7280;
+}
+
+.btn-scan {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-scan:hover {
+  background: #4338ca;
+  transform: translateY(-50%) scale(1.05);
 }
 
 .search-stats {
