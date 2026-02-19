@@ -210,6 +210,22 @@
               <div class="sub-value">Bs {{ (totalIngredientsCost * dolarRate).toFixed(2) }}</div>
             </div>
           </div>
+          <div class="summary-card starter info">
+            <Icon name="basket-outline" />
+            <div class="summary-details">
+              <label>Alimento Inicio</label>
+              <div class="value">{{ totalStarterKg.toFixed(1) }} kg</div>
+              <div class="sub-value">Consumo total inicial</div>
+            </div>
+          </div>
+          <div class="summary-card fattening info">
+            <Icon name="basket-fill" />
+            <div class="summary-details">
+              <label>Alimento Engorde</label>
+              <div class="value">{{ totalFatteningKg.toFixed(1) }} kg</div>
+              <div class="sub-value">Consumo total engorde</div>
+            </div>
+          </div>
           <div class="summary-card projection info">
             <Icon name="chart-bar" />
             <div class="summary-details">
@@ -366,7 +382,7 @@ import { collection, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/fi
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
 import ChickenBatchSales from '@/components/productions/chicken_batches/ChickenBatchSales.vue'
-import type { Recipe, RecipeIngredient, ChickenSale } from '../types/recipe'
+import type { Recipe, RecipeIngredient } from '../types/recipe'
 import type { Product, DolarBCV, Category } from '../types/producto'
 import { useBrands } from '../composables/useBrands'
 import { useEstablishments } from '../composables/useEstablishments'
@@ -535,6 +551,28 @@ const chickenCalculations = computed(() => {
   return calcs
 })
 
+const totalStarterKg = computed(() => {
+  return recipe.value.ingredients
+    .filter(ing => getFeedType(ing) === 'starter')
+    .reduce((sum, ing) => sum + (ing.usage_weight || 0), 0)
+})
+
+const totalFatteningKg = computed(() => {
+  return recipe.value.ingredients
+    .filter(ing => getFeedType(ing) === 'fattening')
+    .reduce((sum, ing) => sum + (ing.usage_weight || 0), 0)
+})
+
+function getFeedType(ing: RecipeIngredient): 'starter' | 'fattening' | 'other' {
+  if (ing.feed_type && ing.feed_type !== 'other') return ing.feed_type
+  const prod = getProductById(ing.product_id)
+  if (!prod) return 'other'
+  const name = prod.name.toLowerCase()
+  if (name.includes('inicio')) return 'starter'
+  if (name.includes('engorde')) return 'fattening'
+  return 'other'
+}
+
 function calculateConsumptionPerChicken(ing: RecipeIngredient): number {
   const qty = Number(recipe.value.chicken_data?.initial_quantity) || 1
   return (ing.usage_weight || 0) / qty
@@ -604,10 +642,16 @@ function handleProductSelection(prod: Product) {
       recipe.value.name = `Lote de ${prod.name} - ${new Date().toLocaleDateString()}`
     }
   } else {
+    const name = prod.name.toLowerCase()
+    let feedType: 'starter' | 'fattening' | 'other' = 'other'
+    if (name.includes('inicio')) feedType = 'starter'
+    else if (name.includes('engorde')) feedType = 'fattening'
+
     recipe.value.ingredients.push({
       product_id: prod.id!,
       usage_weight: 0,
-      selected_price: getProductPrice(prod)
+      selected_price: getProductPrice(prod),
+      feed_type: feedType
     })
   }
   showProductModal.value = false
