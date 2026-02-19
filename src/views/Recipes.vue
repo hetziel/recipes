@@ -57,6 +57,9 @@
                   </td>
                   <td v-if="userProfile?.role === 'admin'">
                     <div class="actions" @click.stop>
+                      <button @click="openSalesModal(recipe)" class="btn-icon text-primary" title="Ventas Registradas">
+                        <Icon name="cash-check" />
+                      </button>
                       <button @click="$router.push(`/production/chicken/${recipe.id}/edit`)" class="btn-icon"
                         title="Editar Lote">
                         <Icon name="pencil" />
@@ -215,6 +218,30 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal de Ventas Registradas -->
+    <div v-if="showSalesModal && selectedBatch" class="modal-overlay">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h3>
+            <Icon name="bird" class="mr-2 chicken" />
+            Ventas de: {{ selectedBatch.name }}
+          </h3>
+          <button @click="showSalesModal = false" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <ChickenBatchSales 
+            v-model="selectedBatch.chicken_data!" 
+            :readonly="true"
+            :totalIngredientsCost="selectedBatch.total_cost_ingredients"
+            :dolarRate="dolarRate"
+          />
+        </div>
+        <div class="modal-footer">
+          <button @click="showSalesModal = false" class="btn btn-secondary btn-block">Cerrar</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -224,7 +251,8 @@ import { ref, onMounted, inject, computed, type Ref } from 'vue'
 import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
-import type { Recipe, RecipeScenario, RecipeUtility } from '../types/recipe'
+import ChickenBatchSales from '@/components/productions/chicken_batches/ChickenBatchSales.vue'
+import type { Recipe, RecipeScenario, RecipeUtility, ChickenData } from '../types/recipe'
 import type { DolarBCV, Product } from '../types/producto'
 import { useAuth } from '../composables/useAuth'
 import { useProduction } from '../composables/useProduction'
@@ -235,6 +263,8 @@ const availableProducts = ref<Product[]>([])
 const expandedRecipes = ref<Record<string, boolean>>({})
 const allScenarios = ref<RecipeScenario[]>([])
 const loading = ref(false)
+const showSalesModal = ref(false)
+const selectedBatch = ref<Recipe | null>(null)
 
 const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
 const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
@@ -279,6 +309,11 @@ async function confirmDelete(recipe: Recipe) {
 function toggleExpanded(recipeId?: string) {
   if (!recipeId) return
   expandedRecipes.value[recipeId] = !expandedRecipes.value[recipeId]
+}
+
+function openSalesModal(batch: Recipe) {
+  selectedBatch.value = batch
+  showSalesModal.value = true
 }
 
 function formatDate(dateStr?: string) {
@@ -744,6 +779,75 @@ onMounted(() => {
   .fin-item .bs {
     font-size: 0.7rem;
   }
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 20px;
+}
+
+.modal-content {
+  background: var(--surface);
+  padding: 24px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.modal-large {
+  max-width: 900px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-header .chicken {
+  color: #ff9800;
+}
+
+.modal-footer {
+  margin-top: 24px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.mr-2 {
+  margin-right: 8px;
+}
+
+.btn-block {
+  width: 100%;
 }
 
 .chicken-expanded-summary {
