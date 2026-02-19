@@ -252,18 +252,15 @@
             </div>
             <div class="header-tools">
               <div v-if="dateFilter" class="date-filter-tag fade-in">
-                <Icon name="calendar-search" /> Filtro: {{ dateFilter }}
+                <Icon name="calendar-search" /> {{ dateFilter }}
                 <button @click="dateFilter = null" class="btn-clear">
                   <Icon name="close" />
                 </button>
               </div>
-              <div class="pill-filters status-pills">
-                <button @click="statusFilter = 'all'" :class="{ active: statusFilter === 'all' }">Todos</button>
-                <button @click="statusFilter = 'pendiente'"
-                  :class="{ active: statusFilter === 'pendiente' }">Pendientes</button>
-                <button @click="statusFilter = 'pagado'" :class="{ active: statusFilter === 'pagado' }">Pagados</button>
-                <button @click="statusFilter = 'por pagar'" :class="{ active: statusFilter === 'por pagar' }">Por
-                  Pagar</button>
+              <div class="date-input-wrapper">
+                <Icon name="calendar-filter" class="input-icon" />
+                <input type="date" @change="handleManualDateFilter" class="date-input"
+                  placeholder="Filtrar por fecha" />
               </div>
               <div class="search-premium">
                 <Icon name="search" class="search-icon" />
@@ -564,7 +561,7 @@
                 <div class="meta-item">
                   <span class="label">Fecha:</span>
                   <span class="value">{{ selectedSaleForInvoice ? formatDate(selectedSaleForInvoice.created_at) : ''
-                    }}</span>
+                  }}</span>
                 </div>
               </div>
             </div>
@@ -1329,6 +1326,18 @@ async function deleteSale(id: string) {
   }
 }
 
+function handleManualDateFilter(event: Event) {
+  const val = (event.target as HTMLInputElement).value
+  if (!val) {
+    dateFilter.value = null
+    return
+  }
+  // Convertir YYYY-MM-DD a Local Date String para ser consistente con el filtro de clicks
+  const date = new Date(val.replace(/-/g, '/'))
+  dateFilter.value = date.toLocaleDateString()
+  timeFilter.value = 'day' // Forzamos vista de día para que el filtrado sea exacto
+}
+
 onMounted(() => {
   loadData()
 })
@@ -1780,6 +1789,14 @@ onMounted(() => {
   gap: 16px;
 }
 
+.header-tools {
+  flex: auto;
+  display: flex;
+  gap: 10px;
+  justify-content: end;
+  align-items: center;
+}
+
 .title-with-subtitle h2 {
   font-size: 1.25rem;
   font-weight: 800;
@@ -1852,6 +1869,37 @@ onMounted(() => {
 
 .date-filter-tag .btn-clear:hover {
   background: rgba(79, 70, 229, 0.1);
+}
+
+.date-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.date-input-wrapper .input-icon {
+  position: absolute;
+  left: 12px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.date-input {
+  padding: 10px 12px 10px 38px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 0.9375rem;
+  color: #1e293b;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.date-input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.05);
 }
 
 .sales-modern-list {
