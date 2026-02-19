@@ -25,7 +25,8 @@ function addSale() {
   if (props.readonly) return
   if (!chickenData.value.sales) chickenData.value.sales = []
 
-  chickenData.value.sales.push({
+  const newSales = [...chickenData.value.sales]
+  newSales.push({
     id: 'sale-' + Date.now(),
     date: new Date().toISOString().split('T')[0],
     quantity: 1,
@@ -33,11 +34,15 @@ function addSale() {
     total_weight_kg: 0,
     price_per_kg: chickenData.value.live_weight_price_kg || 0
   })
+
+  chickenData.value = { ...chickenData.value, sales: newSales }
 }
 
 function removeSale(index: number) {
   if (props.readonly) return
-  chickenData.value.sales?.splice(index, 1)
+  const newSales = [...(chickenData.value.sales || [])]
+  newSales.splice(index, 1)
+  chickenData.value = { ...chickenData.value, sales: newSales }
 }
 
 function updateSaleWeight(sale: ChickenSale) {
@@ -118,18 +123,18 @@ function calculateProfitPercent(profit: number, cost: number): string {
               <span v-else>{{ sale.quantity }}</span>
             </td>
             <td>
-              <input v-if="!readonly" v-model.number="sale.weight_per_unit_kg" type="number" class="form-input input-sm" step="0.1"
-                min="0" placeholder="0.0" @input="updateSaleWeight(sale)" />
+              <input v-if="!readonly" v-model.number="sale.weight_per_unit_kg" type="number" class="form-input input-sm"
+                step="0.1" min="0" placeholder="0.0" @input="updateSaleWeight(sale)" />
               <span v-else>{{ sale.weight_per_unit_kg }}</span>
             </td>
             <td>
-              <input v-if="!readonly" v-model.number="sale.total_weight_kg" type="number" class="form-input input-sm" step="0.1"
-                min="0" @input="updateSaleUnitWeight(sale)" />
+              <input v-if="!readonly" v-model.number="sale.total_weight_kg" type="number" class="form-input input-sm"
+                step="0.1" min="0" @input="updateSaleUnitWeight(sale)" />
               <span v-else>{{ sale.total_weight_kg }}</span>
             </td>
             <td>
-              <input v-if="!readonly" v-model.number="sale.price_per_kg" type="number" class="form-input input-sm" step="0.01"
-                min="0" />
+              <input v-if="!readonly" v-model.number="sale.price_per_kg" type="number" class="form-input input-sm"
+                step="0.01" min="0" />
               <span v-else>${{ sale.price_per_kg?.toFixed(2) }}</span>
             </td>
             <td class="font-bold">
@@ -159,8 +164,7 @@ function calculateProfitPercent(profit: number, cost: number): string {
       </table>
     </div>
 
-    <div v-if="salesCalculations.totalSoldQuantity > 0"
-      class="sales-performance-grid mt-8">
+    <div v-if="salesCalculations.totalSoldQuantity > 0" class="sales-performance-grid mt-8">
       <div class="performance-card">
         <label>Promedio Peso Vendido</label>
         <div class="perf-value">{{ salesCalculations.avgWeightSold.toFixed(2) }} kg</div>

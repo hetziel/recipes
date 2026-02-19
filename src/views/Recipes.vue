@@ -50,13 +50,18 @@
                   </td>
                   <td v-if="userProfile?.role === 'admin'">
                     <div class="cost-stack">
-                      <span class="price-usd">${{ (recipe.total_cost_ingredients / (recipe.chicken_data?.initial_quantity
-                        || 1)).toFixed(2) }}<small>/u</small></span>
+                      <span class="price-usd">${{ (recipe.total_cost_ingredients /
+                        (recipe.chicken_data?.initial_quantity
+                          || 1)).toFixed(2) }}<small>/u</small></span>
                       <span class="price-bs">Total: ${{ recipe.total_cost_ingredients.toFixed(2) }}</span>
                     </div>
                   </td>
                   <td v-if="userProfile?.role === 'admin'">
                     <div class="actions" @click.stop>
+                      <button @click="openCalculationModal(recipe)" class="btn-icon text-warning"
+                        title="Cálculos de Venta">
+                        <Icon name="calculator" />
+                      </button>
                       <button @click="openSalesModal(recipe)" class="btn-icon text-primary" title="Ventas Registradas">
                         <Icon name="cash-check" />
                       </button>
@@ -177,7 +182,8 @@
                               <label>Inversión</label>
                               <div class="price-stack-mini">
                                 <span class="usd">${{ getScenarioUnitCost(recipe, sc).toFixed(2) }}</span>
-                                <span class="bs">Bs {{ (getScenarioUnitCost(recipe, sc) * dolarRate).toFixed(2) }}</span>
+                                <span class="bs">Bs {{ (getScenarioUnitCost(recipe, sc) * dolarRate).toFixed(2)
+                                }}</span>
                               </div>
                             </div>
                             <div class="fin-item highlight-success">
@@ -230,15 +236,60 @@
           <button @click="showSalesModal = false" class="close-btn">&times;</button>
         </div>
         <div class="modal-body">
-          <ChickenBatchSales 
-            v-model="selectedBatch.chicken_data!" 
-            :readonly="true"
-            :totalIngredientsCost="selectedBatch.total_cost_ingredients"
-            :dolarRate="dolarRate"
-          />
+          <ChickenBatchSales v-if="selectedBatch.chicken_data" v-model="selectedBatch.chicken_data" :readonly="false"
+            :totalIngredientsCost="selectedBatch.total_cost_ingredients" :dolarRate="dolarRate" />
+        </div>
+        <div class="modal-footer footer-actions">
+          <button @click="showSalesModal = false" class="btn btn-secondary">Cerrar</button>
+          <button @click="saveSales" class="btn btn-primary" :disabled="isSavingSales">
+            <Icon name="content-save" />
+            {{ isSavingSales ? 'Guardando...' : 'Guardar Cambios' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Cálculos de Venta -->
+    <div v-if="showCalculationModal && selectedBatch" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>
+            <Icon name="calculator" class="mr-2" />
+            Cálculos: {{ selectedBatch.name }}
+          </h3>
+          <button @click="showCalculationModal = false" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="calculation-form">
+            <div class="form-group mb-4">
+              <label class="text-xs font-bold text-muted">Precio de Venta ($/kg)</label>
+              <input v-model.number="calculationData.salePrice" type="number" class="form-input" step="0.01"
+                @input="updateCalculationAmount" />
+            </div>
+            <div class="form-group mb-4">
+              <label class="text-xs font-bold text-muted">Monto en Dólares ($)</label>
+              <input v-model.number="calculationData.amount" type="number" class="form-input" step="0.01"
+                @input="updateCalculationAmount" />
+            </div>
+            <div class="form-group mb-4">
+              <label class="text-xs font-bold text-muted">Cantidad en Kilos (kg)</label>
+              <input v-model.number="calculationData.kilograms" type="number" class="form-input" step="0.1"
+                @input="updateCalculationKilos" />
+            </div>
+          </div>
+
+          <div class="calculation-summary mt-6 p-4 bg-primary-light rounded-lg border-primary">
+            <div class="summary-item text-center">
+              <label class="text-xs text-secondary uppercase font-bold">Resumen de Cálculo</label>
+              <div class="value text-primary text-xl font-bold mt-1">
+                {{ calculationData.kilograms.toFixed(2) }} kg de pollo
+              </div>
+              <div class="text-xs text-muted">equivalen a ${{ calculationData.amount.toFixed(2) }}</div>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
-          <button @click="showSalesModal = false" class="btn btn-secondary btn-block">Cerrar</button>
+          <button @click="showCalculationModal = false" class="btn btn-secondary btn-block">Cerrar</button>
         </div>
       </div>
     </div>
@@ -248,11 +299,11 @@
 <script setup lang="ts">
 defineOptions({ name: 'RecipesView' })
 import { ref, onMounted, inject, computed, type Ref } from 'vue'
-import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore'
+import { collection, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
 import ChickenBatchSales from '@/components/productions/chicken_batches/ChickenBatchSales.vue'
-import type { Recipe, RecipeScenario, RecipeUtility, ChickenData } from '../types/recipe'
+import type { Recipe, RecipeScenario, RecipeUtility } from '../types/recipe'
 import type { DolarBCV, Product } from '../types/producto'
 import { useAuth } from '../composables/useAuth'
 import { useProduction } from '../composables/useProduction'
@@ -264,7 +315,14 @@ const expandedRecipes = ref<Record<string, boolean>>({})
 const allScenarios = ref<RecipeScenario[]>([])
 const loading = ref(false)
 const showSalesModal = ref(false)
+const showCalculationModal = ref(false)
+const isSavingSales = ref(false)
 const selectedBatch = ref<Recipe | null>(null)
+const calculationData = ref({
+  salePrice: 0,
+  amount: 0,
+  kilograms: 0
+})
 
 const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
 const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
@@ -312,8 +370,52 @@ function toggleExpanded(recipeId?: string) {
 }
 
 function openSalesModal(batch: Recipe) {
-  selectedBatch.value = batch
+  selectedBatch.value = JSON.parse(JSON.stringify(batch)) // Clone to avoid direct mutation
   showSalesModal.value = true
+}
+
+async function saveSales() {
+  if (!selectedBatch.value || !selectedBatch.value.id) return
+  isSavingSales.value = true
+  try {
+    const docRef = doc(db, 'recipes', selectedBatch.value.id)
+    await updateDoc(docRef, {
+      chicken_data: selectedBatch.value.chicken_data,
+      updated_at: new Date().toISOString()
+    })
+    // Update local recipes list
+    const index = recipes.value.findIndex(r => r.id === selectedBatch.value?.id)
+    if (index !== -1) {
+      recipes.value[index] = { ...selectedBatch.value }
+    }
+    showSalesModal.value = false
+    alert('Ventas actualizadas correctamente')
+  } catch (e) {
+    console.error(e)
+    alert('Error al guardar ventas: ' + (e as Error).message)
+  } finally {
+    isSavingSales.value = false
+  }
+}
+
+function openCalculationModal(batch: Recipe) {
+  selectedBatch.value = batch
+  calculationData.value = {
+    salePrice: batch.chicken_data?.live_weight_price_kg || 0,
+    amount: 0,
+    kilograms: 0
+  }
+  showCalculationModal.value = true
+}
+
+function updateCalculationAmount() {
+  if (calculationData.value.salePrice > 0) {
+    calculationData.value.kilograms = Number((calculationData.value.amount / calculationData.value.salePrice).toFixed(2))
+  }
+}
+
+function updateCalculationKilos() {
+  calculationData.value.amount = Number((calculationData.value.kilograms * calculationData.value.salePrice).toFixed(2))
 }
 
 function formatDate(dateStr?: string) {
@@ -832,6 +934,17 @@ onMounted(() => {
 
 .modal-footer {
   margin-top: 24px;
+}
+
+.footer-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.footer-actions .btn {
+  flex: 1;
+  max-width: 200px;
 }
 
 .close-btn {
