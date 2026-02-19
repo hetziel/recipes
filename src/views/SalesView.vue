@@ -561,7 +561,7 @@
                 <div class="meta-item">
                   <span class="label">Fecha:</span>
                   <span class="value">{{ selectedSaleForInvoice ? formatDate(selectedSaleForInvoice.created_at) : ''
-                  }}</span>
+                    }}</span>
                 </div>
               </div>
             </div>
@@ -922,7 +922,7 @@ function initCharts() {
       labels: sortedKeys,
       datasets: [{
         label: 'Ventas ($)',
-        data: sortedKeys.map(k => periodData.get(k)),
+        data: sortedKeys.map(k => periodData.get(k) ?? 0),
         borderColor: '#4f46e5',
         borderWidth: 3,
         backgroundColor: salesGradient,
@@ -947,7 +947,7 @@ function initCharts() {
           titleFont: { size: 14, weight: 'bold' },
           bodyFont: { size: 13 },
           callbacks: {
-            label: (context) => ` Total: $${context.parsed.y.toFixed(2)}`
+            label: (context) => ` Total: $${(context.parsed.y ?? 0).toFixed(2)}`
           }
         }
       },
