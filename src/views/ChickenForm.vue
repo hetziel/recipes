@@ -226,6 +226,24 @@
               <div class="sub-value">Consumo total engorde</div>
             </div>
           </div>
+          <div class="summary-card starter info">
+            <Icon name="egg-outline" />
+            <div class="summary-details">
+              <label>Inicio por Pollo</label>
+              <div class="value">{{ (totalStarterKg / (recipe.chicken_data?.initial_quantity || 1)).toFixed(2) }} kg/ave
+              </div>
+              <div class="sub-value">Promedio inicial</div>
+            </div>
+          </div>
+          <div class="summary-card fattening info">
+            <Icon name="egg" />
+            <div class="summary-details">
+              <label>Engorde por Pollo</label>
+              <div class="value">{{ (totalFatteningKg / (recipe.chicken_data?.initial_quantity || 1)).toFixed(2) }}
+                kg/ave</div>
+              <div class="sub-value">Promedio engorde</div>
+            </div>
+          </div>
           <div class="summary-card projection info">
             <Icon name="chart-bar" />
             <div class="summary-details">
@@ -342,7 +360,7 @@
             <div class="product-info-mini">
               <span class="product-name-mini font-bold">{{ prod.name }}</span>
               <span v-if="prod.brand_id" class="product-brand-mini text-xs text-muted">{{ getBrandName(prod.brand_id)
-              }}</span>
+                }}</span>
             </div>
             <div class="product-price-mini text-right">
               <div class="font-bold">${{ prod.price }}</div>
