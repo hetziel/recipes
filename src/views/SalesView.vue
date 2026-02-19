@@ -527,6 +527,10 @@
         <header class="modal-header">
           <h3>Previsualización de Factura</h3>
           <div class="header-actions">
+            <div class="invoice-view-toggle">
+              <button @click="invoiceViewMode = 'dynamic'" :class="['btn', invoiceViewMode === 'dynamic' ? 'btn-outline' : 'btn']">Vista dinámica</button>
+              <button @click="invoiceViewMode = 'printable'" :class="['btn', invoiceViewMode === 'printable' ? 'btn-primary' : 'btn-outline']">Formato imprimir</button>
+            </div>
             <button @click="exportarFacturaJPG" class="btn btn-primary" :disabled="isExporting">
               <Icon :name="isExporting ? 'loading' : 'download'" />
               {{ isExporting ? 'Generando...' : 'Descargar JPG' }}
@@ -537,8 +541,8 @@
           </div>
         </header>
 
-        <div class="modal-body scrollable">
-          <div id="seccion-factura" class="invoice-container">
+          <div class="modal-body scrollable">
+          <div id="seccion-factura" :class="['invoice-container', invoiceViewMode]">
             <div class="invoice-header">
               <div class="biz-info">
                 <h1 class="biz-name">BOXY RECIPES</h1>
@@ -632,7 +636,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, inject, watch, type Ref, shallowRef } from 'vue'
+import { ref, computed, onMounted, inject, watch, type Ref, shallowRef, nextTick } from 'vue'
 import { collection, query, getDocs, addDoc, updateDoc, doc, orderBy, deleteDoc, runTransaction } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
@@ -684,6 +688,7 @@ const isEditingSale = ref(false)
 const showInvoiceModal = ref(false)
 const isExporting = ref(false)
 const selectedSaleForInvoice = ref<Sale | null>(null)
+const invoiceViewMode = ref<'dynamic' | 'printable'>('dynamic')
 
 // CHART REFS
 const salesChartCanvas = ref<HTMLCanvasElement | null>(null)
@@ -1227,9 +1232,11 @@ function openInvoiceModal(sale: Sale) {
 async function exportarFacturaJPG() {
   const node = document.getElementById('seccion-factura')
   if (!node || isExporting.value) return
-
   isExporting.value = true
+  const prevMode = invoiceViewMode.value
   try {
+    invoiceViewMode.value = 'printable'
+    await nextTick()
     const dataUrl = await toJpeg(node, {
       quality: 0.95,
       backgroundColor: '#ffffff',
@@ -1243,6 +1250,7 @@ async function exportarFacturaJPG() {
   } catch (error) {
     console.error('Error al exportar factura:', error)
   } finally {
+    invoiceViewMode.value = prevMode
     isExporting.value = false
   }
 }
