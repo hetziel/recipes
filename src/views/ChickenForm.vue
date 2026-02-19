@@ -69,8 +69,14 @@
           </div>
           <div class="form-group">
             <label>Peso Promedio Actual (g)</label>
-            <input v-model.number="recipe.chicken_data!.current_avg_weight_g" type="number" class="form-input"
-              min="0" />
+            <div class="input-with-action">
+              <input v-model.number="recipe.chicken_data!.current_avg_weight_g" type="number" class="form-input"
+                min="0" />
+              <button type="button" @click="addControlRecord" class="btn-icon-circular btn-success"
+                title="Añadir a Control">
+                <Icon name="plus" />
+              </button>
+            </div>
           </div>
           <div class="form-group">
             <label>Peso Objetivo (g)</label>
@@ -245,11 +251,55 @@
 
       <!-- VENTAS DEL LOTE -->
       <section v-if="recipe.chicken_data" class="card sales-section">
-        <ChickenBatchSales 
-          v-model="recipe.chicken_data" 
-          :totalIngredientsCost="totalIngredientsCost"
-          :dolarRate="dolarRate"
-        />
+        <ChickenBatchSales v-model="recipe.chicken_data" :totalIngredientsCost="totalIngredientsCost"
+          :dolarRate="dolarRate" />
+      </section>
+
+      <!-- HISTORIAL DE CONTROL Y RENTABILIDAD -->
+      <section v-if="recipe.chicken_data" class="card control-history-section">
+        <div class="section-header">
+          <h2>
+            <Icon name="history" /> Historial de Control y Rentabilidad
+          </h2>
+        </div>
+
+        <div v-if="recipe.chicken_data.control_records && recipe.chicken_data.control_records.length > 0"
+          class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Peso (g)</th>
+                <th>Inv. Alimento</th>
+                <th>Inv. Total</th>
+                <th>Venta Est.</th>
+                <th>Ganancia %</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(record, idx) in [...recipe.chicken_data.control_records].reverse()" :key="record.id">
+                <td>{{ formatDateShort(record.date) }}</td>
+                <td class="font-bold">{{ record.avg_weight_g }}g</td>
+                <td>${{ record.feed_investment.toFixed(2) }}</td>
+                <td>${{ record.total_investment.toFixed(2) }}</td>
+                <td>${{ record.estimated_income.toFixed(2) }}</td>
+                <td :class="record.profit_percent >= 0 ? 'text-success' : 'text-danger'">
+                  {{ record.profit_percent.toFixed(1) }}%
+                </td>
+                <td>
+                  <button @click="removeControlRecord(recipe.chicken_data!.control_records!.length - 1 - idx)"
+                    class="btn-icon text-danger">
+                    <Icon name="delete" />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="empty-state-mini">
+          <p class="text-muted">No hay registros de control capturados aún.</p>
+        </div>
       </section>
     </div>
 
@@ -274,7 +324,7 @@
             <div class="product-info-mini">
               <span class="product-name-mini font-bold">{{ prod.name }}</span>
               <span v-if="prod.brand_id" class="product-brand-mini text-xs text-muted">{{ getBrandName(prod.brand_id)
-              }}</span>
+                }}</span>
             </div>
             <div class="product-price-mini text-right">
               <div class="font-bold">${{ prod.price }}</div>
@@ -399,6 +449,9 @@ onMounted(async () => {
       }
       if (!recipe.value.chicken_data.sales) {
         recipe.value.chicken_data.sales = []
+      }
+      if (!recipe.value.chicken_data.control_records) {
+        recipe.value.chicken_data.control_records = []
       }
     }
   }
@@ -569,6 +622,45 @@ function calculateProfitPercent(profit: number, cost: number): string {
   return ((profit / cost) * 100).toFixed(1)
 }
 
+function formatDateShort(dateStr: string): string {
+  const date = new Date(dateStr)
+  return date.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' +
+    date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+}
+
+function addControlRecord() {
+  if (!recipe.value.chicken_data) return
+
+  const calcs = chickenCalculations.value
+  if (!calcs) return
+
+  const profitPercent = totalIngredientsCost.value > 0
+    ? (calcs.currentProfit / totalIngredientsCost.value) * 100
+    : 0
+
+  const newRecord = {
+    id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+    date: new Date().toISOString(),
+    avg_weight_g: recipe.value.chicken_data.current_avg_weight_g,
+    feed_investment: calcs.feedInvestment,
+    total_investment: totalIngredientsCost.value,
+    estimated_income: calcs.currentIncome,
+    profit_percent: profitPercent
+  }
+
+  if (!recipe.value.chicken_data.control_records) {
+    recipe.value.chicken_data.control_records = []
+  }
+
+  recipe.value.chicken_data.control_records.push(newRecord)
+}
+
+function removeControlRecord(index: number) {
+  if (recipe.value.chicken_data?.control_records) {
+    recipe.value.chicken_data.control_records.splice(index, 1)
+  }
+}
+
 async function saveRecipe() {
   if (!recipe.value.name) {
     alert('Por favor ingrese un nombre para el lote')
@@ -701,6 +793,43 @@ async function saveRecipe() {
   max-width: 130px;
   background: var(--background);
   color: var(--text-primary);
+}
+
+.input-with-action {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-icon-circular {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-icon-circular:hover {
+  transform: scale(1.1);
+  filter: brightness(1.1);
+}
+
+.btn-success {
+  background: #10b981;
+  color: white;
+}
+
+.empty-state-mini {
+  padding: 20px;
+  text-align: center;
+  background: var(--background);
+  border-radius: 8px;
+  border: 1px dashed var(--border);
 }
 
 .selection-info {
