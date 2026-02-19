@@ -88,7 +88,7 @@
                           <div class="summary-item-mini">
                             <label>Alimento (kg)</label>
                             <span>Est. Inicio: {{ getChickenCalculations(recipe)!.totalStarterNeeded.toFixed(1)
-                            }}kg</span>
+                              }}kg</span>
                           </div>
                           <div class="summary-item-mini highlight-profit">
                             <label>Ganancia Proyectada</label>
@@ -183,7 +183,7 @@
                               <div class="price-stack-mini">
                                 <span class="usd">${{ getScenarioUnitCost(recipe, sc).toFixed(2) }}</span>
                                 <span class="bs">Bs {{ (getScenarioUnitCost(recipe, sc) * dolarRate).toFixed(2)
-                                  }}</span>
+                                }}</span>
                               </div>
                             </div>
                             <div class="fin-item highlight-success">
@@ -344,7 +344,7 @@ import { collection, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firesto
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
 import ChickenBatchSales from '@/components/productions/chicken_batches/ChickenBatchSales.vue'
-import type { Recipe, RecipeScenario, RecipeUtility } from '../types/recipe'
+import type { Recipe, RecipeScenario } from '../types/recipe'
 import type { DolarBCV, Product } from '../types/producto'
 import { useAuth } from '../composables/useAuth'
 import { useProduction } from '../composables/useProduction'
@@ -376,7 +376,9 @@ const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
 const {
   calculateBaseCost,
   calculateChickenCalculations,
-  getProductById
+  calculateScenarioUnitCost,
+  calculateScenarioSalePrice,
+  calculateEstimatedUnitsForRecipe,
 } = useProduction(availableProducts, dolarRate)
 
 const standardRecipes = computed(() => recipes.value.filter(r => !r.is_chicken_batch))
@@ -385,9 +387,15 @@ const chickenBatches = computed(() => recipes.value.filter(r => r.is_chicken_bat
 async function loadRecipes() {
   loading.value = true
   try {
-    // Load products first for calculations
-    const prodSnap = await getDocs(collection(db, 'productos'))
-    availableProducts.value = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
+    // Load both regular products AND recipe products (my_products),
+    // exactly as RecipeForm does, so ingredients linked to my_products are found.
+    const [prodSnap, myProdSnap] = await Promise.all([
+      getDocs(collection(db, 'productos')),
+      getDocs(collection(db, 'my_products')),
+    ])
+    const regularProducts = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
+    const myProducts = myProdSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
+    availableProducts.value = [...regularProducts, ...myProducts]
 
     const snap = await getDocs(collection(db, 'recipes'))
     recipes.value = snap.docs.map(d => ({ id: d.id, ...d.data() } as Recipe))
@@ -534,56 +542,21 @@ function getChickenCalculations(recipe: Recipe) {
   return calculateChickenCalculations(recipe)
 }
 
-// CALCULATION HELPERS
+// Wrappers delegating to composable
 function calculateEstimatedUnits(recipe: Recipe, scenario: RecipeScenario): number {
-  const totalFinalWeight = Math.max(0, (recipe.total_weight || 0) - (recipe.weight_loss || 0))
-  if (scenario.mode === 'unit') {
-    if (recipe.has_production_units && recipe.total_production_units) {
-      return recipe.total_production_units / (scenario.value || 1)
-    }
-    return scenario.value || 1
-  } else {
-    if (totalFinalWeight === 0) return 0
-    return totalFinalWeight / (scenario.value || 1)
-  }
-}
-
-// CALCULATION HELPERS
-function getScenarioUtilitiesCost(scenario: RecipeScenario): number {
-  return (scenario.utilities || []).reduce((sum: number, u: RecipeUtility) => {
-    if (u.product_id) {
-      const prod = getProductById(u.product_id)
-      if (prod && prod.measurement_value) {
-        return sum + (prod.price / prod.measurement_value) * (u.usage_quantity || 0)
-      }
-    }
-    const cost = u.cost || 0
-    const qty = u.quantity || 0
-    if (qty === 0) return sum
-    return sum + (cost / qty) * (u.usage_quantity || 0)
-  }, 0)
+  return calculateEstimatedUnitsForRecipe(recipe, scenario)
 }
 
 function getScenarioUnitCost(recipe: Recipe, scenario: RecipeScenario): number {
-  const units = calculateEstimatedUnits(recipe, scenario)
-  if (units <= 0) return 0
-  const baseCost = calculateBaseCost(recipe)
-  return (baseCost / units) + getScenarioUtilitiesCost(scenario)
+  return calculateScenarioUnitCost(recipe, scenario)
 }
 
-function getScenarioPrice(recipe: Recipe, scenario: RecipeScenario) {
-  if (scenario.fixed_sale_price && scenario.fixed_sale_price > 0) {
-    if (scenario.fixed_sale_price_currency === 'Bs') {
-      return scenario.fixed_sale_price / (dolarRate.value || 1)
-    }
-    return scenario.fixed_sale_price
-  }
-  const unitCost = getScenarioUnitCost(recipe, scenario)
-  return unitCost * (1 + (recipe.profit_margin_percent || 0) / 100)
+function getScenarioPrice(recipe: Recipe, scenario: RecipeScenario): number {
+  return calculateScenarioSalePrice(recipe, scenario)
 }
 
 function getScenarioProfit(recipe: Recipe, scenario: RecipeScenario): number {
-  return getScenarioPrice(recipe, scenario) - getScenarioUnitCost(recipe, scenario)
+  return calculateScenarioSalePrice(recipe, scenario) - calculateScenarioUnitCost(recipe, scenario)
 }
 
 onMounted(() => {
