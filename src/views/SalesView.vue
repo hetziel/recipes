@@ -513,7 +513,7 @@
                 <div class="meta-item">
                   <span class="label">Fecha:</span>
                   <span class="value">{{ selectedSaleForInvoice ? formatDate(selectedSaleForInvoice.created_at) : ''
-                  }}</span>
+                    }}</span>
                 </div>
               </div>
             </div>
@@ -1953,7 +1953,7 @@ onMounted(() => {
 .modal-overlay {
   position: fixed;
   top: 0;
-  left: 0;
+  left: 280px;
   right: 0;
   bottom: 0;
   background: rgba(15, 23, 42, 0.6);
@@ -1963,6 +1963,7 @@ onMounted(() => {
   justify-content: center;
   z-index: 1000;
   padding: 20px;
+  transition: left 0.3s ease;
 }
 
 .modal-content {
@@ -2092,6 +2093,10 @@ onMounted(() => {
 }
 
 @media (max-width: 1024px) {
+  .modal-overlay {
+    left: 0;
+  }
+
   .charts-grid-premium {
     grid-template-columns: 1fr;
   }
