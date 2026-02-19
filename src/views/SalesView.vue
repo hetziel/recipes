@@ -153,19 +153,47 @@
       </div>
 
       <!-- LIST TAB -->
-      <div v-else class="list-view">
-        <section class="stats-cards mini">
-          <div class="stat-card pending">
-            <label>Pendientes</label>
-            <div class="value">{{ stats.pending }}</div>
+      <div v-else class="list-view fade-in">
+        <section class="stats-cards-mini-grid">
+          <div class="glass-card mini-stat pending" @click="statusFilter = 'pendiente'"
+            :class="{ active: statusFilter === 'pendiente' }">
+            <div class="mini-icon">
+              <Icon name="clock-outline" />
+            </div>
+            <div class="mini-content">
+              <label>Pendientes</label>
+              <div class="value">{{ stats.pending }}</div>
+            </div>
           </div>
-          <div class="stat-card paid">
-            <label>Pagados</label>
-            <div class="value">{{ stats.paid }}</div>
+          <div class="glass-card mini-stat paid" @click="statusFilter = 'pagado'"
+            :class="{ active: statusFilter === 'pagado' }">
+            <div class="mini-icon">
+              <Icon name="check-circle-outline" />
+            </div>
+            <div class="mini-content">
+              <label>Pagados</label>
+              <div class="value">{{ stats.paid }}</div>
+            </div>
           </div>
-          <div class="stat-card to-pay">
-            <label>Por Pagar</label>
-            <div class="value">{{ stats.toPay }}</div>
+          <div class="glass-card mini-stat to-pay" @click="statusFilter = 'por pagar'"
+            :class="{ active: statusFilter === 'por pagar' }">
+            <div class="mini-icon">
+              <Icon name="wallet-outline" />
+            </div>
+            <div class="mini-content">
+              <label>Por Pagar</label>
+              <div class="value">{{ stats.toPay }}</div>
+            </div>
+          </div>
+          <div class="glass-card mini-stat all" @click="statusFilter = 'all'"
+            :class="{ active: statusFilter === 'all' }">
+            <div class="mini-icon">
+              <Icon name="all-inclusive" />
+            </div>
+            <div class="mini-content">
+              <label>Total</label>
+              <div class="value">{{ sales.length }}</div>
+            </div>
           </div>
         </section>
 
@@ -178,6 +206,14 @@
               <span class="subtitle">{{ filteredSales.length }} ventas encontradas</span>
             </div>
             <div class="header-tools">
+              <div class="pill-filters status-pills">
+                <button @click="statusFilter = 'all'" :class="{ active: statusFilter === 'all' }">Todos</button>
+                <button @click="statusFilter = 'pendiente'"
+                  :class="{ active: statusFilter === 'pendiente' }">Pendientes</button>
+                <button @click="statusFilter = 'pagado'" :class="{ active: statusFilter === 'pagado' }">Pagados</button>
+                <button @click="statusFilter = 'por pagar'" :class="{ active: statusFilter === 'por pagar' }">Por
+                  Pagar</button>
+              </div>
               <div class="search-premium">
                 <Icon name="search" class="search-icon" />
                 <input v-model="searchQuery" type="text" placeholder="Buscar por cliente o factura..." />
@@ -465,7 +501,7 @@
                 <div class="meta-item">
                   <span class="label">Fecha:</span>
                   <span class="value">{{ selectedSaleForInvoice ? formatDate(selectedSaleForInvoice.created_at) : ''
-                  }}</span>
+                    }}</span>
                 </div>
               </div>
             </div>
@@ -565,6 +601,7 @@ const searchQuery = ref('')
 const showStatusModal = ref(false)
 const currentSale = ref<Sale | null>(null)
 const timeFilter = ref<'day' | 'month' | 'year'>('month')
+const statusFilter = ref<SaleStatus | 'all'>('all')
 
 // NEW SALE STATE
 const newSale = ref({
@@ -599,9 +636,16 @@ const {
 
 // COMPUTED
 const filteredSales = computed(() => {
-  if (!searchQuery.value) return sales.value
+  let result = sales.value
+
+  if (statusFilter.value !== 'all') {
+    result = result.filter(s => s.status === statusFilter.value)
+  }
+
+  if (!searchQuery.value) return result
+
   const q = searchQuery.value.toLowerCase()
-  return sales.value.filter(s =>
+  return result.filter(s =>
     s.customer_name.toLowerCase().includes(q) ||
     s.invoice_number?.toLowerCase().includes(q)
   )
@@ -1280,8 +1324,20 @@ onMounted(() => {
   margin-bottom: 32px;
 }
 
+@media (min-width: 1600px) {
+  .charts-grid-premium {
+    grid-template-columns: 1fr 1fr;
+    max-width: 1600px;
+  }
+}
+
+.chart-container {
+  overflow: hidden;
+}
+
 .chart-header {
   padding: 20px 24px;
+  background: rgba(255, 255, 255, 0.4);
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   display: flex;
   justify-content: space-between;
@@ -1323,10 +1379,189 @@ onMounted(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
+.status-pills {
+  background: white;
+  border: 1px solid #e2e8f0;
+}
+
+.status-pills button.active {
+  background: #f1f5f9;
+}
+
 .canvas-wrapper {
   padding: 24px;
-  height: 350px;
+  height: 400px;
   position: relative;
+}
+
+/* MINI STATS GRID */
+.stats-cards-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.mini-stat {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.mini-stat.active {
+  background: white;
+  border-color: #4f46e5;
+  box-shadow: 0 4px 15px rgba(79, 70, 229, 0.1);
+}
+
+.mini-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+}
+
+.mini-stat.pending .mini-icon {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.mini-stat.paid .mini-icon {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.mini-stat.to-pay .mini-icon {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.mini-stat.all .mini-icon {
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.mini-content label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.mini-content .value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+/* MISC STYLES */
+.subtotal-preview {
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+}
+
+.subtotal-preview .label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.subtotal-preview .value {
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.subtotal-preview .value-bs {
+  font-size: 0.8125rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 8px;
+}
+
+.status-option {
+  padding: 16px;
+  border: 2px solid #f1f5f9;
+  border-radius: 16px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-option.active {
+  transform: scale(1.02);
+  border-color: currentColor;
+}
+
+.status-option.pendiente {
+  color: #b45309;
+}
+
+.status-option.pagado {
+  color: #059669;
+}
+
+.status-option.por\ pagar {
+  color: #1d4ed8;
+}
+
+.status-option.cancelado {
+  color: #b91c1c;
+}
+
+.status-option:hover {
+  background: #f8fafc;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.top-buyers-list {
+  padding-bottom: 32px;
+}
+
+.mini-table thead th {
+  background: #f8fafc;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.mini-table tbody tr:hover {
+  background: rgba(79, 70, 229, 0.02);
+}
+
+.price-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.price-stack .price-bs {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 600;
 }
 
 /* MODERN LIST SECTION */
@@ -1755,6 +1990,10 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
+  .stats-cards-mini-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
   .sale-entry-card {
     grid-template-columns: 1fr 1fr;
     gap: 16px;
@@ -1794,6 +2033,11 @@ onMounted(() => {
   .stats-grid-premium {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+
+  .stats-cards-mini-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .sale-entry-card {
