@@ -43,10 +43,44 @@
 
           <div class="glass-card stat-item sales">
             <div class="stat-icon">
+              <Icon name="cash-check" />
+            </div>
+            <div class="stat-info">
+              <label>Recaudado (Pagado)</label>
+              <div class="stat-value">${{ totalFinancials.paidRevenue.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              }) }}</div>
+              <div class="stat-sub">Bs. {{ (totalFinancials.paidRevenue * dolarRate).toLocaleString() }}</div>
+            </div>
+            <div class="stat-bg-icon">
+              <Icon name="cash-check" />
+            </div>
+          </div>
+
+          <div class="glass-card stat-item pending-revenue">
+            <div class="stat-icon">
+              <Icon name="cash-minus" />
+            </div>
+            <div class="stat-info">
+              <label>Por Cobrar</label>
+              <div class="stat-value">${{ totalFinancials.pendingRevenue.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              }) }}</div>
+              <div class="stat-sub">Bs. {{ (totalFinancials.pendingRevenue * dolarRate).toLocaleString() }}</div>
+            </div>
+            <div class="stat-bg-icon">
+              <Icon name="cash-minus" />
+            </div>
+          </div>
+
+          <div class="glass-card stat-item sales-total">
+            <div class="stat-icon">
               <Icon name="shopping-cart" />
             </div>
             <div class="stat-info">
-              <label>Ventas Totales</label>
+              <label>Ventas {{ statusFilter !== 'all' ? '(' + formatStatus(statusFilter) + ')' : 'Totales' }}</label>
               <div class="stat-value">${{ totalFinancials.revenue.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
@@ -95,10 +129,21 @@
               <h3>
                 <Icon name="chart-line" /> Tendencia de Ventas
               </h3>
-              <div class="pill-filters">
-                <button @click="timeFilter = 'day'" :class="{ active: timeFilter === 'day' }">Día</button>
-                <button @click="timeFilter = 'month'" :class="{ active: timeFilter === 'month' }">Mes</button>
-                <button @click="timeFilter = 'year'" :class="{ active: timeFilter === 'year' }">Año</button>
+              <div class="header-tools-analytics">
+                <div class="pill-filters status-pills mini">
+                  <button @click="statusFilter = 'all'" :class="{ active: statusFilter === 'all' }">Todos</button>
+                  <button @click="statusFilter = 'pendiente'"
+                    :class="{ active: statusFilter === 'pendiente' }">Pendientes</button>
+                  <button @click="statusFilter = 'pagado'"
+                    :class="{ active: statusFilter === 'pagado' }">Pagados</button>
+                  <button @click="statusFilter = 'por pagar'" :class="{ active: statusFilter === 'por pagar' }">Por
+                    Pagar</button>
+                </div>
+                <div class="pill-filters">
+                  <button @click="timeFilter = 'day'" :class="{ active: timeFilter === 'day' }">Día</button>
+                  <button @click="timeFilter = 'month'" :class="{ active: timeFilter === 'month' }">Mes</button>
+                  <button @click="timeFilter = 'year'" :class="{ active: timeFilter === 'year' }">Año</button>
+                </div>
               </div>
             </div>
             <div class="canvas-wrapper">
@@ -206,6 +251,12 @@
               <span class="subtitle">{{ filteredSales.length }} ventas encontradas</span>
             </div>
             <div class="header-tools">
+              <div v-if="dateFilter" class="date-filter-tag fade-in">
+                <Icon name="calendar-search" /> Filtro: {{ dateFilter }}
+                <button @click="dateFilter = null" class="btn-clear">
+                  <Icon name="close" />
+                </button>
+              </div>
               <div class="pill-filters status-pills">
                 <button @click="statusFilter = 'all'" :class="{ active: statusFilter === 'all' }">Todos</button>
                 <button @click="statusFilter = 'pendiente'"
@@ -614,6 +665,7 @@ const showStatusModal = ref(false)
 const currentSale = ref<Sale | null>(null)
 const timeFilter = ref<'day' | 'month' | 'year'>('month')
 const statusFilter = ref<SaleStatus | 'all'>('all')
+const dateFilter = ref<string | null>(null)
 
 // NEW SALE STATE
 const newSale = ref({
@@ -655,6 +707,20 @@ const filteredSales = computed(() => {
     result = result.filter(s => s.status === statusFilter.value)
   }
 
+  if (dateFilter.value) {
+    result = result.filter(s => {
+      const dStr = s.purchase_date || s.created_at
+      const date = dStr.includes('T') ? new Date(dStr) : new Date(dStr.replace(/-/g, '/'))
+
+      if (timeFilter.value === 'day') return date.toLocaleDateString() === dateFilter.value
+      if (timeFilter.value === 'month') {
+        const month = (date.getMonth() + 1).toString().padStart(2, '0')
+        return `${month}/${date.getFullYear()}` === dateFilter.value
+      }
+      return date.getFullYear().toString() === dateFilter.value
+    })
+  }
+
   if (!searchQuery.value) return result
 
   const q = searchQuery.value.toLowerCase()
@@ -676,43 +742,68 @@ const stats = computed(() => {
 const totalFinancials = computed(() => {
   let cost = 0
   let revenue = 0
+  let paidRevenue = 0
+  let pendingRevenue = 0
 
-  sales.value.forEach(sale => {
-    if (sale.status === 'cancelado') return
-    revenue += sale.total_amount
-    sale.items.forEach(item => {
-      const scenario = allScenarios.value.find(sc => sc.id === item.scenario_id)
-      const recipe = recipes.value.find(r => r.id === scenario?.recipe_id)
-      if (recipe && scenario) {
-        cost += calculateScenarioUnitCost(recipe, scenario) * item.quantity
-      }
-    })
+  // Para las tarjetas principales usamos siempre el total global (menos cancelados)
+  const allValidSales = sales.value.filter(s => s.status !== 'cancelado')
+
+  allValidSales.forEach(sale => {
+    // Totales globales
+    if (sale.status === 'pagado') {
+      paidRevenue += sale.total_amount
+    } else if (sale.status === 'pendiente' || sale.status === 'por pagar') {
+      pendingRevenue += sale.total_amount
+    }
+
+    // Si hay un filtro de estado activo, el revenue/cost del resumen principal
+    // podría seguir el filtro o ser global. Por coherencia con el diseño premium usual,
+    // haremos que revenue/cost sigan el filtro para que los gráficos coincidan,
+    // pero calculamos paid/pending de forma global.
+
+    const isMatchingFilter = statusFilter.value === 'all' || sale.status === statusFilter.value
+
+    if (isMatchingFilter) {
+      revenue += sale.total_amount
+      sale.items.forEach(item => {
+        const scenario = allScenarios.value.find(sc => sc.id === item.scenario_id)
+        const recipe = recipes.value.find(r => r.id === scenario?.recipe_id)
+        if (recipe && scenario) {
+          cost += calculateScenarioUnitCost(recipe, scenario) * item.quantity
+        }
+      })
+    }
   })
 
   const profit = revenue - cost
   const margin = revenue > 0 ? (profit / revenue) * 100 : 0
 
-  return { cost, revenue, profit, margin }
+  return { cost, revenue, profit, margin, paidRevenue, pendingRevenue }
 })
 
 const topBuyers = computed(() => {
   const buyerMap = new Map<string, { id: string, name: string, count: number, total: number, lastDate: string }>()
 
-  sales.value.forEach(sale => {
-    if (sale.status === 'cancelado') return
-    const current = buyerMap.get(sale.customer_id) || {
-      id: sale.customer_id,
+  const targetSales = statusFilter.value === 'all'
+    ? sales.value.filter(s => s.status !== 'cancelado')
+    : sales.value.filter(s => s.status === statusFilter.value)
+
+  targetSales.forEach(sale => {
+    const customerId = sale.customer_id || 'anonymous'
+    const current = buyerMap.get(customerId) || {
+      id: customerId,
       name: sale.customer_name,
       count: 0,
       total: 0,
-      lastDate: sale.created_at
+      lastDate: sale.purchase_date || sale.created_at
     }
     current.count++
     current.total += sale.total_amount
-    if (new Date(sale.created_at) > new Date(current.lastDate)) {
-      current.lastDate = sale.created_at
+    const saleDate = sale.purchase_date || sale.created_at
+    if (new Date(saleDate) > new Date(current.lastDate)) {
+      current.lastDate = saleDate
     }
-    buyerMap.set(sale.customer_id, current)
+    buyerMap.set(customerId, current)
   })
 
   return Array.from(buyerMap.values())
@@ -751,7 +842,7 @@ watch(selectedScenarioId, (newId) => {
   }
 })
 
-watch([activeTab, timeFilter, sales], () => {
+watch([activeTab, timeFilter, statusFilter, sales], () => {
   if (activeTab.value === 'analytics') {
     setTimeout(initCharts, 100)
   }
@@ -794,18 +885,34 @@ function initCharts() {
 
   // SALES DATA PROCESSING
   const periodData = new Map<string, number>()
-  sales.value.forEach(s => {
-    if (s.status === 'cancelado') return
-    const date = new Date(s.created_at)
+
+  // Filter and Sort sales by purchase_date/created_at
+  const processedSales = [...sales.value]
+    .filter(s => statusFilter.value === 'all' ? s.status !== 'cancelado' : s.status === statusFilter.value)
+    .sort((a, b) => {
+      const dStrA = a.purchase_date || a.created_at
+      const dStrB = b.purchase_date || b.created_at
+      const dateA = dStrA.includes('T') ? new Date(dStrA).getTime() : new Date(dStrA.replace(/-/g, '/')).getTime()
+      const dateB = dStrB.includes('T') ? new Date(dStrB).getTime() : new Date(dStrB.replace(/-/g, '/')).getTime()
+      return dateA - dateB
+    })
+
+  processedSales.forEach(s => {
+    const dStr = s.purchase_date || s.created_at
+    const date = dStr.includes('T') ? new Date(dStr) : new Date(dStr.replace(/-/g, '/'))
     let key = ''
     if (timeFilter.value === 'day') key = date.toLocaleDateString()
-    else if (timeFilter.value === 'month') key = `${date.getMonth() + 1}/${date.getFullYear()}`
+    else if (timeFilter.value === 'month') {
+      const month = (date.getMonth() + 1).toString().padStart(2, '0')
+      key = `${month}/${date.getFullYear()}`
+    }
     else key = `${date.getFullYear()}`
 
     periodData.set(key, (periodData.get(key) || 0) + s.total_amount)
   })
 
-  const sortedKeys = Array.from(periodData.keys()).reverse()
+  // Since it's already sorted by sale date, Map keys will be in order if we collect them properly
+  const sortedKeys = Array.from(periodData.keys())
 
   // Gradient for Sales
   const salesGradient = ctxSales.createLinearGradient(0, 0, 0, 400)
@@ -848,8 +955,16 @@ function initCharts() {
         }
       },
       scales: {
-        y: { grid: { display: false }, ticks: { callback: (val) => `$${val}` } },
+        y: { grid: { display: false }, ticks: { callback: (val: number | string) => `$${val}` } },
         x: { grid: { display: false } }
+      },
+      onClick: (_event, elements) => {
+        if (elements.length > 0) {
+          const index = elements[0].index
+          const label = sortedKeys[index]
+          dateFilter.value = label
+          activeTab.value = 'list'
+        }
       }
     }
   })
@@ -903,14 +1018,17 @@ function formatStatus(status: string) {
 
 function formatDate(dateStr: string) {
   if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleDateString()
+  // Reemplazar guiones por barras evita que se trate como UTC medianoche
+  // o añadir T00:00:00 para forzar interpretación local
+  const date = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr.replace(/-/g, '/'))
+  return date.toLocaleDateString()
 }
 
 function getDueMessage(dueDate: string) {
   if (!dueDate) return ''
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const due = new Date(dueDate)
+  const due = new Date(dueDate.replace(/-/g, '/'))
   due.setHours(0, 0, 0, 0)
   const diffTime = due.getTime() - today.getTime()
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
@@ -924,7 +1042,7 @@ function getDueClass(dueDate: string) {
   if (!dueDate) return ''
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const due = new Date(dueDate)
+  const due = new Date(dueDate.replace(/-/g, '/'))
   due.setHours(0, 0, 0, 0)
   const diffTime = due.getTime() - today.getTime()
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
@@ -937,7 +1055,7 @@ function getDueClass(dueDate: string) {
 function getDueIcon(dueDate: string) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const due = new Date(dueDate)
+  const due = new Date(dueDate.replace(/-/g, '/'))
   due.setHours(0, 0, 0, 0)
   const diffTime = due.getTime() - today.getTime()
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
@@ -1321,6 +1439,16 @@ onMounted(() => {
   color: #16a34a;
 }
 
+.pending-revenue .stat-icon {
+  background: #fff1f2;
+  color: #e11d48;
+}
+
+.sales-total .stat-icon {
+  background: #f0f9ff;
+  color: #0369a1;
+}
+
 .margin .stat-icon {
   background: #faf5ff;
   color: #7c3aed;
@@ -1405,6 +1533,20 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.header-tools-analytics {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.status-pills.mini button {
+  padding: 4px 12px;
+  font-size: 0.75rem;
 }
 
 .chart-header h3 {
@@ -1682,6 +1824,34 @@ onMounted(() => {
   border-color: #4f46e5;
   background: white;
   box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.05);
+}
+
+.date-filter-tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #eef2ff;
+  color: #4f46e5;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  border: 1px solid #c7d2fe;
+}
+
+.date-filter-tag .btn-clear {
+  background: transparent;
+  border: none;
+  color: #4f46e5;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.date-filter-tag .btn-clear:hover {
+  background: rgba(79, 70, 229, 0.1);
 }
 
 .sales-modern-list {
