@@ -513,7 +513,7 @@
                 <div class="meta-item">
                   <span class="label">Fecha:</span>
                   <span class="value">{{ selectedSaleForInvoice ? formatDate(selectedSaleForInvoice.created_at) : ''
-                    }}</span>
+                  }}</span>
                 </div>
               </div>
             </div>
@@ -1962,14 +1962,18 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  padding: 20px;
 }
 
 .modal-content {
   background: white;
   border-radius: 24px;
-  width: 90%;
+  width: 100%;
   max-width: 600px;
+  max-height: calc(100vh - 40px);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -2010,7 +2014,7 @@ onMounted(() => {
 
 .modal-body {
   padding: 24px;
-  max-height: calc(100vh - 200px);
+  flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
