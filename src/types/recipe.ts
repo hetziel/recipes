@@ -48,8 +48,6 @@ export interface ChickenControlRecord {
   starter_kg: number
   fattening_kg: number
   total_investment: number
-  estimated_income: number
-  profit_percent: number
 }
 
 export interface ChickenData {

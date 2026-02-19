@@ -301,9 +301,9 @@
                 <td>{{ record.starter_kg?.toFixed(1) || 0 }} kg</td>
                 <td>{{ record.fattening_kg?.toFixed(1) || 0 }} kg</td>
                 <td>${{ record.total_investment.toFixed(2) }}</td>
-                <td>${{ record.estimated_income.toFixed(2) }}</td>
-                <td :class="record.profit_percent >= 0 ? 'text-success' : 'text-danger'">
-                  {{ record.profit_percent.toFixed(1) }}%
+                <td class="font-bold text-primary">${{ calculateDynamicRecordIncome(record).toFixed(2) }}</td>
+                <td :class="calculateDynamicRecordProfitPercent(record) >= 0 ? 'text-success' : 'text-danger'">
+                  {{ calculateDynamicRecordProfitPercent(record).toFixed(1) }}%
                 </td>
                 <td>
                   <button @click="removeControlRecord(recipe.chicken_data!.control_records!.length - 1 - idx)"
@@ -680,10 +680,6 @@ function addControlRecord() {
   const calcs = chickenCalculations.value
   if (!calcs) return
 
-  const profitPercent = totalIngredientsCost.value > 0
-    ? (calcs.currentProfit / totalIngredientsCost.value) * 100
-    : 0
-
   const newRecord = {
     id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).substring(2),
     date: new Date().toISOString(),
@@ -691,9 +687,7 @@ function addControlRecord() {
     feed_investment: calcs.feedInvestment,
     starter_kg: totalStarterKg.value,
     fattening_kg: totalFatteningKg.value,
-    total_investment: totalIngredientsCost.value,
-    estimated_income: calcs.currentIncome,
-    profit_percent: profitPercent
+    total_investment: totalIngredientsCost.value
   }
 
   if (!recipe.value.chicken_data.control_records) {
@@ -707,6 +701,19 @@ function removeControlRecord(index: number) {
   if (recipe.value.chicken_data?.control_records) {
     recipe.value.chicken_data.control_records.splice(index, 1)
   }
+}
+
+function calculateDynamicRecordIncome(record: import('../types/recipe').ChickenControlRecord): number {
+  if (!recipe.value.chicken_data) return 0
+  const qty = recipe.value.chicken_data.initial_quantity || 0
+  const price = recipe.value.chicken_data.live_weight_price_kg || 0
+  return (record.avg_weight_g / 1000) * qty * price
+}
+
+function calculateDynamicRecordProfitPercent(record: import('../types/recipe').ChickenControlRecord): number {
+  const income = calculateDynamicRecordIncome(record)
+  const cost = record.total_investment || 1
+  return ((income - cost) / cost) * 100
 }
 
 async function saveRecipe() {
