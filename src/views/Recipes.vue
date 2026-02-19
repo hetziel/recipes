@@ -12,143 +12,207 @@
       </div>
     </header>
 
-    <div class="card">
-      <div class="table-responsive">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th width="40"></th>
-              <th>Nombre de la Receta</th>
-              <th v-if="userProfile?.role === 'admin'">Inversión Base</th>
-              <th v-if="userProfile?.role === 'admin'">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-for="recipe in recipes" :key="recipe.id">
-              <tr class="recipe-row" :class="{ 'is-expanded': expandedRecipes[recipe.id!] }"
-                @click="toggleExpanded(recipe.id)">
-                <td>
-                  <button class="btn-expand">
-                    <Icon :name="expandedRecipes[recipe.id!] ? 'chevron-down' : 'chevron-right'" />
-                  </button>
-                </td>
-                <td>
-                  <div class="recipe-name-cell">
-                    <div class="title-with-icon">
-                      <Icon v-if="recipe.is_chicken_batch" name="bird" class="recipe-type-icon chicken" />
-                      <Icon v-else name="silverware-variant" class="recipe-type-icon" />
-                      <strong>{{ recipe.name }}</strong>
-                    </div>
-                    <div class="text-xs text-muted">{{ formatDate(recipe.updated_at) }}</div>
-                  </div>
-                </td>
-                <td v-if="userProfile?.role === 'admin'">
-                  <div v-if="recipe.is_chicken_batch" class="cost-stack">
-                    <span class="price-usd">${{ (recipe.total_cost_ingredients / (recipe.chicken_data?.initial_quantity
-                      || 1)).toFixed(2) }}<small>/u</small></span>
-                    <span class="price-bs">Total: ${{ recipe.total_cost_ingredients.toFixed(2) }}</span>
-                  </div>
-                  <div v-else class="cost-stack">
-                    <span class="price-usd">${{ calculateBaseCost(recipe).toFixed(2) }}</span>
-                    <span class="price-bs">Bs {{ (calculateBaseCost(recipe) * dolarRate).toFixed(2) }}</span>
-                  </div>
-                </td>
-                <td v-if="userProfile?.role === 'admin'">
-                  <div class="actions" @click.stop>
-                    <button v-if="recipe.is_chicken_batch"
-                      @click="$router.push(`/production/chicken/${recipe.id}/edit`)" class="btn-icon"
-                      title="Editar Lote">
-                      <Icon name="pencil" />
-                    </button>
-                    <button v-else @click="$router.push(`/production/${recipe.id}/edit`)" class="btn-icon"
-                      title="Editar Receta">
-                      <Icon name="pencil" />
-                    </button>
-                    <button @click="confirmDelete(recipe)" class="btn-icon text-danger" title="Eliminar">
-                      <Icon name="delete" />
-                    </button>
-                  </div>
-                </td>
+    <!-- Sección de Lotes de Pollos -->
+    <div v-if="chickenBatches.length > 0" class="section-container">
+      <div class="section-header">
+        <Icon name="bird" class="section-icon chicken" />
+        <h2 class="section-title">Lotes de Pollos</h2>
+        <span class="badge">{{ chickenBatches.length }}</span>
+      </div>
+      <div class="card">
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th width="40"></th>
+                <th>Nombre del Lote</th>
+                <th v-if="userProfile?.role === 'admin'">Inversión / Costo Unitario</th>
+                <th v-if="userProfile?.role === 'admin'">Acciones</th>
               </tr>
-              <!-- LINEA DE HIJOS (ESCENARIOS) -->
-              <tr v-if="expandedRecipes[recipe.id!]" class="nested-row">
-                <td colspan="5">
-                  <div class="tree-children">
-                    <div v-if="recipe.is_chicken_batch && getChickenCalculations(recipe)"
-                      class="chicken-expanded-summary">
-                      <div class="summary-grid-mini">
-                        <div class="summary-item-mini">
-                          <label>Costo por Pollo</label>
-                          <span>${{ getChickenCalculations(recipe)!.costPerChicken.toFixed(2) }}</span>
-                        </div>
-                        <div class="summary-item-mini">
-                          <label>Alimento (kg)</label>
-                          <span>Est. Inicio: {{ getChickenCalculations(recipe)!.totalStarterNeeded.toFixed(1)
-                            }}kg</span>
-                        </div>
-                        <div class="summary-item-mini highlight-profit">
-                          <label>Ganancia Proyectada</label>
-                          <span>
-                            ${{ getChickenCalculations(recipe)!.projectedProfit.toFixed(2) }}
-                            <small v-if="recipe.total_cost_ingredients" style="font-weight: normal;">
-                              ({{ ((getChickenCalculations(recipe)!.projectedProfit / recipe.total_cost_ingredients) *
-                              100).toFixed(1) }}%)
-                            </small>
-                          </span>
+            </thead>
+            <tbody>
+              <template v-for="recipe in chickenBatches" :key="recipe.id">
+                <tr class="recipe-row" :class="{ 'is-expanded': expandedRecipes[recipe.id!] }"
+                  @click="toggleExpanded(recipe.id)">
+                  <td>
+                    <button class="btn-expand">
+                      <Icon :name="expandedRecipes[recipe.id!] ? 'chevron-down' : 'chevron-right'" />
+                    </button>
+                  </td>
+                  <td>
+                    <div class="recipe-name-cell">
+                      <div class="title-with-icon">
+                        <Icon name="bird" class="recipe-type-icon chicken" />
+                        <strong>{{ recipe.name }}</strong>
+                      </div>
+                      <div class="text-xs text-muted">{{ formatDate(recipe.updated_at) }}</div>
+                    </div>
+                  </td>
+                  <td v-if="userProfile?.role === 'admin'">
+                    <div class="cost-stack">
+                      <span class="price-usd">${{ (recipe.total_cost_ingredients / (recipe.chicken_data?.initial_quantity
+                        || 1)).toFixed(2) }}<small>/u</small></span>
+                      <span class="price-bs">Total: ${{ recipe.total_cost_ingredients.toFixed(2) }}</span>
+                    </div>
+                  </td>
+                  <td v-if="userProfile?.role === 'admin'">
+                    <div class="actions" @click.stop>
+                      <button @click="$router.push(`/production/chicken/${recipe.id}/edit`)" class="btn-icon"
+                        title="Editar Lote">
+                        <Icon name="pencil" />
+                      </button>
+                      <button @click="confirmDelete(recipe)" class="btn-icon text-danger" title="Eliminar">
+                        <Icon name="delete" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <!-- LINEA DE HIJOS (CHICKEN SUMMARY) -->
+                <tr v-if="expandedRecipes[recipe.id!]" class="nested-row">
+                  <td colspan="5">
+                    <div class="tree-children">
+                      <div v-if="getChickenCalculations(recipe)" class="chicken-expanded-summary">
+                        <div class="summary-grid-mini">
+                          <div class="summary-item-mini">
+                            <label>Costo por Pollo</label>
+                            <span>${{ getChickenCalculations(recipe)!.costPerChicken.toFixed(2) }}</span>
+                          </div>
+                          <div class="summary-item-mini">
+                            <label>Alimento (kg)</label>
+                            <span>Est. Inicio: {{ getChickenCalculations(recipe)!.totalStarterNeeded.toFixed(1)
+                              }}kg</span>
+                          </div>
+                          <div class="summary-item-mini highlight-profit">
+                            <label>Ganancia Proyectada</label>
+                            <span>
+                              ${{ getChickenCalculations(recipe)!.projectedProfit.toFixed(2) }}
+                              <small v-if="recipe.total_cost_ingredients" style="font-weight: normal;">
+                                ({{ ((getChickenCalculations(recipe)!.projectedProfit / recipe.total_cost_ingredients) *
+                                  100).toFixed(1) }}%)
+                              </small>
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-                    <div v-for="(sc, idx) in getRecipesScenarios(recipe.id!)" :key="idx" class="tree-item">
-                      <div class="scenario-card-mini">
-                        <div class="sc-info">
-                          <Icon name="package-variant" size="sm" />
-                          <span class="sc-name">{{ sc.name }}</span>
-                          <span class="sc-meta">{{ sc.value }}{{ sc.mode === 'weight' ? 'g' : 'und' }}</span>
-                        </div>
-                        <div class="sc-finances">
-                          <div v-if="userProfile?.role === 'admin'" class="fin-item">
-                            <label>Inversión</label>
-                            <div class="price-stack-mini">
-                              <span class="usd">${{ getScenarioUnitCost(recipe, sc).toFixed(2) }}</span>
-                              <span class="bs">Bs {{ (getScenarioUnitCost(recipe, sc) * dolarRate).toFixed(2) }}</span>
-                            </div>
+    <!-- Sección de Recetas Estándar -->
+    <div class="section-container mt-8">
+      <div class="section-header">
+        <Icon name="silverware-variant" class="section-icon" />
+        <h2 class="section-title">Recetas Estándar</h2>
+        <span class="badge">{{ standardRecipes.length }}</span>
+      </div>
+      <div class="card">
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th width="40"></th>
+                <th>Nombre de la Receta</th>
+                <th v-if="userProfile?.role === 'admin'">Inversión Base</th>
+                <th v-if="userProfile?.role === 'admin'">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="recipe in standardRecipes" :key="recipe.id">
+                <tr class="recipe-row" :class="{ 'is-expanded': expandedRecipes[recipe.id!] }"
+                  @click="toggleExpanded(recipe.id)">
+                  <td>
+                    <button class="btn-expand">
+                      <Icon :name="expandedRecipes[recipe.id!] ? 'chevron-down' : 'chevron-right'" />
+                    </button>
+                  </td>
+                  <td>
+                    <div class="recipe-name-cell">
+                      <div class="title-with-icon">
+                        <Icon name="silverware-variant" class="recipe-type-icon" />
+                        <strong>{{ recipe.name }}</strong>
+                      </div>
+                      <div class="text-xs text-muted">{{ formatDate(recipe.updated_at) }}</div>
+                    </div>
+                  </td>
+                  <td v-if="userProfile?.role === 'admin'">
+                    <div class="cost-stack">
+                      <span class="price-usd">${{ calculateBaseCost(recipe).toFixed(2) }}</span>
+                      <span class="price-bs">Bs {{ (calculateBaseCost(recipe) * dolarRate).toFixed(2) }}</span>
+                    </div>
+                  </td>
+                  <td v-if="userProfile?.role === 'admin'">
+                    <div class="actions" @click.stop>
+                      <button @click="$router.push(`/production/${recipe.id}/edit`)" class="btn-icon"
+                        title="Editar Receta">
+                        <Icon name="pencil" />
+                      </button>
+                      <button @click="confirmDelete(recipe)" class="btn-icon text-danger" title="Eliminar">
+                        <Icon name="delete" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <!-- LINEA DE HIJOS (ESCENARIOS) -->
+                <tr v-if="expandedRecipes[recipe.id!]" class="nested-row">
+                  <td colspan="5">
+                    <div class="tree-children">
+                      <div v-for="(sc, idx) in getRecipesScenarios(recipe.id!)" :key="idx" class="tree-item">
+                        <div class="scenario-card-mini">
+                          <div class="sc-info">
+                            <Icon name="package-variant" size="sm" />
+                            <span class="sc-name">{{ sc.name }}</span>
+                            <span class="sc-meta">{{ sc.value }}{{ sc.mode === 'weight' ? 'g' : 'und' }}</span>
                           </div>
-                          <div class="fin-item highlight-success">
-                            <label>Venta</label>
-                            <div class="price-stack-mini">
-                              <span class="usd">${{ getScenarioPrice(recipe, sc).toFixed(2) }}</span>
-                              <span class="bs">Bs {{ (getScenarioPrice(recipe, sc) * dolarRate).toFixed(2) }}</span>
+                          <div class="sc-finances">
+                            <div v-if="userProfile?.role === 'admin'" class="fin-item">
+                              <label>Inversión</label>
+                              <div class="price-stack-mini">
+                                <span class="usd">${{ getScenarioUnitCost(recipe, sc).toFixed(2) }}</span>
+                                <span class="bs">Bs {{ (getScenarioUnitCost(recipe, sc) * dolarRate).toFixed(2) }}</span>
+                              </div>
                             </div>
-                          </div>
-                          <div v-if="userProfile?.role === 'admin'" class="fin-item highlight-profit">
-                            <label>Ganancia</label>
-                            <div class="price-stack-mini">
-                              <span class="usd">
-                                ${{ getScenarioProfit(recipe, sc).toFixed(2) }}
-                                <small v-if="getScenarioUnitCost(recipe, sc)" style="font-weight: normal;">
-                                  ({{ ((getScenarioProfit(recipe, sc) / (getScenarioUnitCost(recipe, sc) *
-                                    calculateEstimatedUnits(recipe, sc))) * 100).toFixed(1) }}%)
-                                </small>
-                              </span>
-                              <span class="bs">Bs {{ (getScenarioProfit(recipe, sc) * dolarRate).toFixed(2) }}</span>
+                            <div class="fin-item highlight-success">
+                              <label>Venta</label>
+                              <div class="price-stack-mini">
+                                <span class="usd">${{ getScenarioPrice(recipe, sc).toFixed(2) }}</span>
+                                <span class="bs">Bs {{ (getScenarioPrice(recipe, sc) * dolarRate).toFixed(2) }}</span>
+                              </div>
+                            </div>
+                            <div v-if="userProfile?.role === 'admin'" class="fin-item highlight-profit">
+                              <label>Ganancia</label>
+                              <div class="price-stack-mini">
+                                <span class="usd">
+                                  ${{ getScenarioProfit(recipe, sc).toFixed(2) }}
+                                  <small v-if="getScenarioUnitCost(recipe, sc)" style="font-weight: normal;">
+                                    ({{ ((getScenarioProfit(recipe, sc) / (getScenarioUnitCost(recipe, sc) *
+                                      calculateEstimatedUnits(recipe, sc))) * 100).toFixed(1) }}%)
+                                  </small>
+                                </span>
+                                <span class="bs">Bs {{ (getScenarioProfit(recipe, sc) * dolarRate).toFixed(2) }}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </td>
+                </tr>
+              </template>
+              <tr v-if="standardRecipes.length === 0">
+                <td :colspan="userProfile?.role === 'admin' ? 4 : 2" class="text-center py-8">
+                  <Icon name="chef-hat" size="xl" class="mb-2" />
+                  <p>No hay recetas creadas aún.</p>
                 </td>
               </tr>
-            </template>
-            <tr v-if="recipes.length === 0">
-              <td :colspan="userProfile?.role === 'admin' ? 4 : 2" class="text-center py-8">
-                <Icon name="chef-hat" size="xl" class="mb-2" />
-                <p>No hay recetas creadas aún.</p>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -180,6 +244,9 @@ const {
   calculateChickenCalculations,
   getProductById
 } = useProduction(availableProducts, dolarRate)
+
+const standardRecipes = computed(() => recipes.value.filter(r => !r.is_chicken_batch))
+const chickenBatches = computed(() => recipes.value.filter(r => r.is_chicken_batch))
 
 async function loadRecipes() {
   loading.value = true
@@ -301,6 +368,47 @@ onMounted(() => {
 .header-buttons {
   display: flex;
   gap: 12px;
+}
+
+.section-container {
+  margin-bottom: 2rem;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.section-icon {
+  font-size: 1.4rem;
+  color: var(--text-secondary);
+}
+
+.section-icon.chicken {
+  color: #ff9800;
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.badge {
+  background: var(--primary);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 12px;
+}
+
+.mt-8 {
+  margin-top: 2rem;
 }
 
 .card {

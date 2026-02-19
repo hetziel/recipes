@@ -34,10 +34,13 @@ El sistema utiliza **Firebase Auth** y guardias de navegación en el router.
 Es la vista principal para administradores. Permite gestionar el inventario (productos, precios, stock). Sincronizado en tiempo real a través del composable `useProducts`.
 
 ### 3. Módulo de Producción y Recetas (`/production`)
-Permite crear y gestionar recetas:
-- **Recetas Estándar**: (`RecipeForm.vue`) Gestión de ingredientes y costos.
-- **Producción de Pollo**: (`ChickenForm.vue`) Un flujo especializado para el manejo de producción avícola.
-- Los datos se gestionan mediante `useRecipes` y `useProduction`.
+La vista principal de producción (`Recipes.vue`) organiza los datos en dos listas separadas para mejorar la claridad operativa:
+- **Lotes de Pollos**: Sección superior dedicada a la producción avícola. Muestra inversión por unidad (pollo) y costo total. Al expandirse, muestra el resumen de costos de alimento y ganancia proyectada.
+- **Recetas Estándar**: Sección para preparaciones generales. Muestra la inversión base y, al expandirse, permite ver los **Escenarios de Venta** (diferentes presentaciones o empaques del producto final).
+- **Lógica de Negocio**:
+  - Utiliza el composable `useProduction` para todos los cálculos financieros.
+  - Los datos se cargan desde las colecciones `recipes` y `scenarios` de Firestore.
+  - La navegación para creación/edición es diferenciada: `/production/create` para recetas y `/production/chicken/create` para lotes.
 
 ### 4. Transacciones (Compras y Ventas)
 - **Ventas (`/sales`)**: Registro de salidas de productos y facturación básica.
