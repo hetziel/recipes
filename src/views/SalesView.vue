@@ -228,8 +228,13 @@
                 <div class="customer-details">
                   <span class="c-name">{{ sale.customer_name }}</span>
                   <span class="c-date">
-                    <Icon name="calendar" /> {{ formatDate(sale.created_at) }}
+                    <Icon name="calendar" /> Venta: {{ formatDate(sale.purchase_date || sale.created_at) }}
                   </span>
+                  <div v-if="sale.status === 'por pagar' || sale.status === 'pendiente'" class="due-alert"
+                    :class="getDueClass(sale.payment_due_date)">
+                    <Icon :name="getDueIcon(sale.payment_due_date)" />
+                    {{ getDueMessage(sale.payment_due_date) }}
+                  </div>
                 </div>
               </div>
 
@@ -250,6 +255,9 @@
               <div class="sale-status-area">
                 <span :class="['modern-badge', sale.status]" @click="openStatusModal(sale)">
                   {{ formatStatus(sale.status) }}
+                  <span v-if="sale.status_updated_at" class="status-date">
+                    {{ formatDate(sale.status_updated_at) }}
+                  </span>
                 </span>
               </div>
 
@@ -309,6 +317,10 @@
               <div class="form-group">
                 <label>Teléfono</label>
                 <input v-model="newSale.customer_phone" type="text" class="form-input" placeholder="Ej: 0412..." />
+              </div>
+              <div class="form-group">
+                <label>Fecha de Venta</label>
+                <input v-model="newSale.purchase_date" type="date" class="form-input" />
               </div>
             </div>
           </div>
@@ -608,6 +620,7 @@ const newSale = ref({
   customer_name: '',
   customer_phone: '',
   status: 'pendiente' as SaleStatus,
+  purchase_date: new Date().toISOString().split('T')[0],
   payment_due_date: new Date().toISOString().split('T')[0],
 })
 const newSaleItems = ref<SaleItem[]>([])
@@ -893,6 +906,47 @@ function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString()
 }
 
+function getDueMessage(dueDate: string) {
+  if (!dueDate) return ''
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const due = new Date(dueDate)
+  due.setHours(0, 0, 0, 0)
+  const diffTime = due.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  if (diffDays > 0) return `Faltan ${diffDays} días para pagar`
+  if (diffDays < 0) return `Tiene ${Math.abs(diffDays)} días de retraso`
+  return 'Vence hoy'
+}
+
+function getDueClass(dueDate: string) {
+  if (!dueDate) return ''
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const due = new Date(dueDate)
+  due.setHours(0, 0, 0, 0)
+  const diffTime = due.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) return 'overdue'
+  if (diffDays <= 3) return 'urgent'
+  return 'upcoming'
+}
+
+function getDueIcon(dueDate: string) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const due = new Date(dueDate)
+  due.setHours(0, 0, 0, 0)
+  const diffTime = due.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) return 'alert-circle'
+  if (diffDays <= 3) return 'clock-alert'
+  return 'clock-outline'
+}
+
 // SALE CREATION LOGIC
 function openSaleModal() {
   resetSaleForm()
@@ -973,6 +1027,7 @@ function resetSaleForm() {
     customer_name: '',
     customer_phone: '',
     status: 'pendiente',
+    purchase_date: new Date().toISOString().split('T')[0],
     payment_due_date: new Date().toISOString().split('T')[0],
   }
   newSaleItems.value = []
@@ -992,6 +1047,7 @@ function editSale(sale: Sale) {
     customer_name: sale.customer_name,
     customer_phone: sale.customer_phone || customers.value.find(c => c.id === sale.customer_id)?.phone || '',
     status: sale.status,
+    purchase_date: sale.purchase_date || sale.created_at.split('T')[0],
     payment_due_date: sale.payment_due_date,
   }
   newSaleItems.value = JSON.parse(JSON.stringify(sale.items))
@@ -1021,14 +1077,20 @@ async function createSale() {
       items: newSaleItems.value,
       total_amount: totalNewSaleAmount.value,
       status: newSale.value.status,
+      purchase_date: newSale.value.purchase_date,
       payment_due_date: newSale.value.payment_due_date,
     }
 
     if (isEditingSale.value && editingSaleId.value) {
+      const oldSale = sales.value.find(s => s.id === editingSaleId.value)
+      if (oldSale && oldSale.status !== newSale.value.status) {
+        saleData.status_updated_at = new Date().toISOString()
+      }
       saleData.updated_at = new Date().toISOString()
       await updateDoc(doc(db, 'sales', editingSaleId.value), saleData)
     } else {
       saleData.created_at = new Date().toISOString()
+      saleData.status_updated_at = new Date().toISOString()
       saleData.invoice_number = await getNextInvoiceNumber()
       await addDoc(collection(db, 'sales'), saleData)
     }
@@ -1128,6 +1190,7 @@ async function updateSaleStatus(newStatus: SaleStatus) {
   try {
     await updateDoc(doc(db, 'sales', currentSale.value.id), {
       status: newStatus,
+      status_updated_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
     showStatusModal.value = false
@@ -1681,6 +1744,36 @@ onMounted(() => {
   gap: 4px;
 }
 
+.due-alert {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.due-alert.overdue {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fee2e2;
+}
+
+.due-alert.urgent {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fef3c7;
+}
+
+.due-alert.upcoming {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #dcfce7;
+}
+
 .items-stack {
   display: flex;
   flex-wrap: wrap;
@@ -1721,16 +1814,25 @@ onMounted(() => {
 }
 
 .modern-badge {
-  padding: 6px 12px;
+  padding: 8px 12px;
   border-radius: 10px;
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   text-align: center;
-  display: inline-block;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
   cursor: pointer;
   width: 100%;
   transition: all 0.2s;
+}
+
+.status-date {
+  font-size: 0.65rem;
+  opacity: 0.8;
+  font-weight: 500;
+  margin-top: 2px;
 }
 
 .modern-badge.pendiente {
