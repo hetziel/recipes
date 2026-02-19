@@ -45,6 +45,8 @@ export interface ChickenControlRecord {
   date: string
   avg_weight_g: number
   feed_investment: number
+  starter_kg: number
+  fattening_kg: number
   total_investment: number
   estimated_income: number
   profit_percent: number

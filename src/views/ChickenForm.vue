@@ -286,7 +286,8 @@
               <tr>
                 <th>Fecha</th>
                 <th>Peso (g)</th>
-                <th>Inv. Alimento</th>
+                <th>Inicio (kg)</th>
+                <th>Engorde (kg)</th>
                 <th>Inv. Total</th>
                 <th>Venta Est.</th>
                 <th>Ganancia %</th>
@@ -297,7 +298,8 @@
               <tr v-for="(record, idx) in [...recipe.chicken_data.control_records].reverse()" :key="record.id">
                 <td>{{ formatDateShort(record.date) }}</td>
                 <td class="font-bold">{{ record.avg_weight_g }}g</td>
-                <td>${{ record.feed_investment.toFixed(2) }}</td>
+                <td>{{ record.starter_kg?.toFixed(1) || 0 }} kg</td>
+                <td>{{ record.fattening_kg?.toFixed(1) || 0 }} kg</td>
                 <td>${{ record.total_investment.toFixed(2) }}</td>
                 <td>${{ record.estimated_income.toFixed(2) }}</td>
                 <td :class="record.profit_percent >= 0 ? 'text-success' : 'text-danger'">
@@ -340,7 +342,7 @@
             <div class="product-info-mini">
               <span class="product-name-mini font-bold">{{ prod.name }}</span>
               <span v-if="prod.brand_id" class="product-brand-mini text-xs text-muted">{{ getBrandName(prod.brand_id)
-                }}</span>
+              }}</span>
             </div>
             <div class="product-price-mini text-right">
               <div class="font-bold">${{ prod.price }}</div>
@@ -687,6 +689,8 @@ function addControlRecord() {
     date: new Date().toISOString(),
     avg_weight_g: recipe.value.chicken_data.current_avg_weight_g,
     feed_investment: calcs.feedInvestment,
+    starter_kg: totalStarterKg.value,
+    fattening_kg: totalFatteningKg.value,
     total_investment: totalIngredientsCost.value,
     estimated_income: calcs.currentIncome,
     profit_percent: profitPercent
