@@ -869,7 +869,7 @@ onMounted(() => {
 }
 
 .btn-icon {
-  background: none;
+
   border: none;
   cursor: pointer;
   padding: 4px;
@@ -877,7 +877,7 @@ onMounted(() => {
 }
 
 .btn-icon:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .text-danger {
