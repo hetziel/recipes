@@ -25,6 +25,8 @@ export interface Sale {
     items: SaleItem[]
     total_amount: number // USD
     status: SaleStatus
+    status_updated_at?: string
+    purchase_date?: string
     payment_due_date: string
     created_at: string
     updated_at?: string

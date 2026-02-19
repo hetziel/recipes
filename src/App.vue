@@ -32,6 +32,12 @@ const dolarBCV = ref<DolarBCV | null>({
   origen: 'local',
 })
 
+const dolarInternacional = ref<DolarBCV | null>({
+  promedio: 0,
+  fecha: null,
+  origen: 'local',
+})
+
 // Estados
 const cargandoTasa = ref<boolean>(false)
 const errorTasa = ref<string | null>(null)
@@ -43,44 +49,44 @@ async function cargarTasaDolar() {
 
   try {
     const rate = await getExchangeRate
-    if (rate && (rate.usdOficial || rate.usdParalelo)) {
-      dolarBCV.value = {
-        promedio: rate.usdOficial || rate.usdParalelo || 0,
-        fecha: rate.date,
-        origen: 'api',
+    if (rate) {
+      if (rate.usdOficial) {
+        dolarBCV.value = {
+          promedio: rate.usdOficial,
+          fecha: rate.date,
+          origen: 'api',
+        }
+      }
+      if (rate.usdParalelo) {
+        dolarInternacional.value = {
+          promedio: rate.usdParalelo,
+          fecha: rate.date,
+          origen: 'api',
+        }
       }
     }
   } catch (error) {
     console.error('Error al leer datos:', error)
   }
-  if (onGetApiDolar) {
-    try {
-      const rate = await getExchangeRate
-      if (!rate || (!rate.usdOficial && !rate.usdParalelo)) throw new Error('Error al obtener datos del dólar')
-
-      dolarBCV.value = {
-        promedio: rate.usdOficial || rate.usdParalelo || 0,
-        fecha: rate.date,
-        origen: 'api',
-      }
-    } catch (err) {
-      console.error('Error al obtener datos del dólar:', err)
-      errorTasa.value = 'Error al obtener datos del dólar'
-    } finally {
-      cargandoTasa.value = false
-    }
-  }
 }
 
-// Función para actualizar el valor
+// Funciones para actualizar los valores
 function actualizarDolarBCV(nuevoValor: DolarBCV) {
   dolarBCV.value = nuevoValor
+}
+
+function actualizarDolarInternacional(nuevoValor: DolarBCV) {
+  dolarInternacional.value = nuevoValor
 }
 
 // Proveer los datos y función para hijos
 provide('dolarBCV', {
   dolarBCV: dolarBCV,
   actualizarDolarBCV: actualizarDolarBCV,
+})
+provide('dolarInternacional', {
+  dolarInternacional: dolarInternacional,
+  actualizarDolarInternacional: actualizarDolarInternacional,
 })
 provide('cargarTasaDolar', cargarTasaDolar)
 

@@ -50,13 +50,21 @@
                   </td>
                   <td v-if="userProfile?.role === 'admin'">
                     <div class="cost-stack">
-                      <span class="price-usd">${{ (recipe.total_cost_ingredients / (recipe.chicken_data?.initial_quantity
-                        || 1)).toFixed(2) }}<small>/u</small></span>
+                      <span class="price-usd">${{ (recipe.total_cost_ingredients /
+                        (recipe.chicken_data?.initial_quantity
+                          || 1)).toFixed(2) }}<small>/u</small></span>
                       <span class="price-bs">Total: ${{ recipe.total_cost_ingredients.toFixed(2) }}</span>
                     </div>
                   </td>
                   <td v-if="userProfile?.role === 'admin'">
                     <div class="actions" @click.stop>
+                      <button @click="openCalculationModal(recipe)" class="btn-icon text-warning"
+                        title="Cálculos de Venta">
+                        <Icon name="calculator" />
+                      </button>
+                      <button @click="openSalesModal(recipe)" class="btn-icon text-primary" title="Ventas Registradas">
+                        <Icon name="cash-check" />
+                      </button>
                       <button @click="$router.push(`/production/chicken/${recipe.id}/edit`)" class="btn-icon"
                         title="Editar Lote">
                         <Icon name="pencil" />
@@ -174,7 +182,8 @@
                               <label>Inversión</label>
                               <div class="price-stack-mini">
                                 <span class="usd">${{ getScenarioUnitCost(recipe, sc).toFixed(2) }}</span>
-                                <span class="bs">Bs {{ (getScenarioUnitCost(recipe, sc) * dolarRate).toFixed(2) }}</span>
+                                <span class="bs">Bs {{ (getScenarioUnitCost(recipe, sc) * dolarRate).toFixed(2)
+                                }}</span>
                               </div>
                             </div>
                             <div class="fin-item highlight-success">
@@ -215,16 +224,127 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal de Ventas Registradas -->
+    <div v-if="showSalesModal && selectedBatch" class="modal-overlay">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h3>
+            <Icon name="bird" class="mr-2 chicken" />
+            Ventas de: {{ selectedBatch.name }}
+          </h3>
+          <button @click="showSalesModal = false" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <ChickenBatchSales v-if="selectedBatch.chicken_data" v-model="selectedBatch.chicken_data" :readonly="false"
+            :totalIngredientsCost="selectedBatch.total_cost_ingredients" :dolarRate="dolarRate" />
+        </div>
+        <div class="modal-footer footer-actions">
+          <button @click="showSalesModal = false" class="btn btn-secondary">Cerrar</button>
+          <button @click="saveSales" class="btn btn-primary" :disabled="isSavingSales">
+            <Icon name="content-save" />
+            {{ isSavingSales ? 'Guardando...' : 'Guardar Cambios' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Cálculos de Venta -->
+    <div v-if="showCalculationModal && selectedBatch" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>
+            <Icon name="calculator" class="mr-2" />
+            Cálculos: {{ selectedBatch.name }}
+          </h3>
+          <button @click="showCalculationModal = false" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="calculation-form">
+            <!-- Selector de Tasa -->
+            <div class="form-group mb-4">
+              <label class="text-xs font-bold text-muted uppercase">Tipo de Tasa</label>
+              <div class="rate-selector mt-1">
+                <label class="rate-option">
+                  <input type="radio" v-model="calculationData.rateType" value="official" @change="updateRate" />
+                  <span>BCV Oficial</span>
+                </label>
+                <label class="rate-option">
+                  <input type="radio" v-model="calculationData.rateType" value="parallel" @change="updateRate" />
+                  <span>Paralelo</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group mb-4">
+              <label class="text-xs font-bold text-muted uppercase">Tasa de Cambio (Bs/$)</label>
+              <input v-model.number="calculationData.currentRate" type="number" class="form-input" step="0.01"
+                @input="updateCalculationBs" />
+            </div>
+
+            <div class="form-grid-mini">
+              <div class="form-group mb-4">
+                <label class="text-xs font-bold text-muted uppercase">Venta BCV ($/kg)</label>
+                <input v-model.number="calculationData.salePrice" type="number" class="form-input" step="0.01"
+                  @input="updateFromPriceBCV" />
+              </div>
+              <div class="form-group mb-4">
+                <label class="text-xs font-bold text-muted uppercase">Venta Int. ($/kg)</label>
+                <input v-model.number="calculationData.salePriceInt" type="number" class="form-input" step="0.01"
+                  @input="updateFromPriceInt" />
+              </div>
+            </div>
+
+            <hr class="my-4 border-dashed border-border" />
+
+            <div class="form-group mb-4">
+              <label class="text-xs font-bold text-muted uppercase">Monto en Bolívares (Bs)</label>
+              <input v-model.number="calculationData.bsAmount" type="number" class="form-input" step="0.01"
+                @input="updateFromBs" />
+            </div>
+
+            <div class="form-grid-mini">
+              <div class="form-group mb-4">
+                <label class="text-xs font-bold text-muted uppercase">Monto en Dólares ($)</label>
+                <input v-model.number="calculationData.amount" type="number" class="form-input" step="0.01"
+                  @input="updateCalculationAmount" />
+              </div>
+              <div class="form-group mb-4">
+                <label class="text-xs font-bold text-muted uppercase">Cantidad en Kilos (kg)</label>
+                <input v-model.number="calculationData.kilograms" type="number" class="form-input" step="0.1"
+                  @input="updateCalculationKilos" />
+              </div>
+            </div>
+          </div>
+
+          <div class="calculation-summary mt-6 p-4 bg-primary-light rounded-lg border-primary">
+            <div class="summary-item text-center">
+              <label class="text-xs text-secondary uppercase font-bold">Resumen de Cálculo</label>
+              <div class="value text-primary text-xl font-bold mt-1">
+                {{ (calculationData.kilograms || 0).toFixed(2) }} kg de pollo
+              </div>
+              <div class="text-xs text-muted">equivalen a ${{ (calculationData.amount || 0).toFixed(2) }}</div>
+              <div class="text-xs text-muted font-bold">(Bs {{ (calculationData.bsAmount || 0).toLocaleString() }})
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="showCalculationModal = false" class="btn btn-secondary btn-block">Cerrar</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 defineOptions({ name: 'RecipesView' })
 import { ref, onMounted, inject, computed, type Ref } from 'vue'
-import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore'
+import { collection, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
-import type { Recipe, RecipeScenario, RecipeUtility } from '../types/recipe'
+import ChickenBatchSales from '@/components/productions/chicken_batches/ChickenBatchSales.vue'
+import type { Recipe, RecipeScenario } from '../types/recipe'
 import type { DolarBCV, Product } from '../types/producto'
 import { useAuth } from '../composables/useAuth'
 import { useProduction } from '../composables/useProduction'
@@ -235,14 +355,30 @@ const availableProducts = ref<Product[]>([])
 const expandedRecipes = ref<Record<string, boolean>>({})
 const allScenarios = ref<RecipeScenario[]>([])
 const loading = ref(false)
+const showSalesModal = ref(false)
+const showCalculationModal = ref(false)
+const isSavingSales = ref(false)
+const selectedBatch = ref<Recipe | null>(null)
+const calculationData = ref({
+  salePrice: 0,
+  salePriceInt: 0,
+  amount: 0,
+  kilograms: 0,
+  bsAmount: 0,
+  rateType: 'official' as 'official' | 'parallel',
+  currentRate: 0
+})
 
 const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
+const { dolarInternacional } = inject<{ dolarInternacional: Ref<DolarBCV | null> }>('dolarInternacional')!
 const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
 
 const {
   calculateBaseCost,
   calculateChickenCalculations,
-  getProductById
+  calculateScenarioUnitCost,
+  calculateScenarioSalePrice,
+  calculateEstimatedUnitsForRecipe,
 } = useProduction(availableProducts, dolarRate)
 
 const standardRecipes = computed(() => recipes.value.filter(r => !r.is_chicken_batch))
@@ -251,9 +387,15 @@ const chickenBatches = computed(() => recipes.value.filter(r => r.is_chicken_bat
 async function loadRecipes() {
   loading.value = true
   try {
-    // Load products first for calculations
-    const prodSnap = await getDocs(collection(db, 'productos'))
-    availableProducts.value = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
+    // Load both regular products AND recipe products (my_products),
+    // exactly as RecipeForm does, so ingredients linked to my_products are found.
+    const [prodSnap, myProdSnap] = await Promise.all([
+      getDocs(collection(db, 'productos')),
+      getDocs(collection(db, 'my_products')),
+    ])
+    const regularProducts = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
+    const myProducts = myProdSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
+    availableProducts.value = [...regularProducts, ...myProducts]
 
     const snap = await getDocs(collection(db, 'recipes'))
     recipes.value = snap.docs.map(d => ({ id: d.id, ...d.data() } as Recipe))
@@ -281,6 +423,111 @@ function toggleExpanded(recipeId?: string) {
   expandedRecipes.value[recipeId] = !expandedRecipes.value[recipeId]
 }
 
+function openSalesModal(batch: Recipe) {
+  selectedBatch.value = JSON.parse(JSON.stringify(batch)) // Clone to avoid direct mutation
+  showSalesModal.value = true
+}
+
+async function saveSales() {
+  if (!selectedBatch.value || !selectedBatch.value.id) return
+  isSavingSales.value = true
+  try {
+    const docRef = doc(db, 'recipes', selectedBatch.value.id)
+    await updateDoc(docRef, {
+      chicken_data: selectedBatch.value.chicken_data,
+      updated_at: new Date().toISOString()
+    })
+    // Update local recipes list
+    const index = recipes.value.findIndex(r => r.id === selectedBatch.value?.id)
+    if (index !== -1) {
+      recipes.value[index] = { ...selectedBatch.value }
+    }
+    showSalesModal.value = false
+    alert('Ventas actualizadas correctamente')
+  } catch (e) {
+    console.error(e)
+    alert('Error al guardar ventas: ' + (e as Error).message)
+  } finally {
+    isSavingSales.value = false
+  }
+}
+
+function openCalculationModal(batch: Recipe) {
+  selectedBatch.value = batch
+  const initialRate = dolarBCV.value?.promedio || 0
+  const oficialPrice = batch.chicken_data?.live_weight_price_kg || 0
+  const intPrice = (dolarInternacional.value?.promedio && initialRate)
+    ? Number(((oficialPrice * initialRate) / dolarInternacional.value.promedio).toFixed(2))
+    : oficialPrice
+
+  calculationData.value = {
+    salePrice: oficialPrice,
+    salePriceInt: intPrice,
+    amount: 0,
+    kilograms: 0,
+    bsAmount: 0,
+    rateType: 'official',
+    currentRate: initialRate
+  }
+  showCalculationModal.value = true
+}
+
+function updateFromPriceBCV() {
+  const ofic = dolarBCV.value?.promedio || 1
+  const para = dolarInternacional.value?.promedio || 1
+  calculationData.value.salePriceInt = Number(((calculationData.value.salePrice * ofic) / para).toFixed(2))
+  updateCalculationAmount()
+}
+
+function updateFromPriceInt() {
+  const ofic = dolarBCV.value?.promedio || 1
+  const para = dolarInternacional.value?.promedio || 1
+  calculationData.value.salePrice = Number(((calculationData.value.salePriceInt * para) / ofic).toFixed(2))
+  updateCalculationAmount()
+}
+
+function updateRate() {
+  if (calculationData.value.rateType === 'official') {
+    calculationData.value.currentRate = dolarBCV.value?.promedio || 0
+  } else {
+    calculationData.value.currentRate = dolarInternacional.value?.promedio || 0
+  }
+  updateCalculationKilos() // Maintain kg constant and update amounts
+}
+
+function updateCalculationAmount() {
+  const price = calculationData.value.rateType === 'official'
+    ? calculationData.value.salePrice
+    : calculationData.value.salePriceInt
+
+  if (price > 0) {
+    calculationData.value.kilograms = Number((calculationData.value.amount / price).toFixed(2))
+  }
+  updateCalculationBs()
+}
+
+function updateCalculationKilos() {
+  const price = calculationData.value.rateType === 'official'
+    ? calculationData.value.salePrice
+    : calculationData.value.salePriceInt
+
+  calculationData.value.amount = Number((calculationData.value.kilograms * price).toFixed(2))
+  updateCalculationBs()
+}
+
+function updateCalculationBs() {
+  calculationData.value.bsAmount = Number((calculationData.value.amount * calculationData.value.currentRate).toFixed(2))
+}
+
+function updateFromBs() {
+  if (calculationData.value.currentRate > 0) {
+    calculationData.value.amount = Number((calculationData.value.bsAmount / calculationData.value.currentRate).toFixed(2))
+    if (calculationData.value.salePrice > 0) {
+      calculationData.value.kilograms = Number((calculationData.value.amount / calculationData.value.salePrice).toFixed(2))
+    }
+  }
+}
+
 function formatDate(dateStr?: string) {
   if (!dateStr) return ''
   return new Date(dateStr).toLocaleDateString()
@@ -295,56 +542,21 @@ function getChickenCalculations(recipe: Recipe) {
   return calculateChickenCalculations(recipe)
 }
 
-// CALCULATION HELPERS
+// Wrappers delegating to composable
 function calculateEstimatedUnits(recipe: Recipe, scenario: RecipeScenario): number {
-  const totalFinalWeight = Math.max(0, (recipe.total_weight || 0) - (recipe.weight_loss || 0))
-  if (scenario.mode === 'unit') {
-    if (recipe.has_production_units && recipe.total_production_units) {
-      return recipe.total_production_units / (scenario.value || 1)
-    }
-    return scenario.value || 1
-  } else {
-    if (totalFinalWeight === 0) return 0
-    return totalFinalWeight / (scenario.value || 1)
-  }
-}
-
-// CALCULATION HELPERS
-function getScenarioUtilitiesCost(scenario: RecipeScenario): number {
-  return (scenario.utilities || []).reduce((sum: number, u: RecipeUtility) => {
-    if (u.product_id) {
-      const prod = getProductById(u.product_id)
-      if (prod && prod.measurement_value) {
-        return sum + (prod.price / prod.measurement_value) * (u.usage_quantity || 0)
-      }
-    }
-    const cost = u.cost || 0
-    const qty = u.quantity || 0
-    if (qty === 0) return sum
-    return sum + (cost / qty) * (u.usage_quantity || 0)
-  }, 0)
+  return calculateEstimatedUnitsForRecipe(recipe, scenario)
 }
 
 function getScenarioUnitCost(recipe: Recipe, scenario: RecipeScenario): number {
-  const units = calculateEstimatedUnits(recipe, scenario)
-  if (units <= 0) return 0
-  const baseCost = calculateBaseCost(recipe)
-  return (baseCost / units) + getScenarioUtilitiesCost(scenario)
+  return calculateScenarioUnitCost(recipe, scenario)
 }
 
-function getScenarioPrice(recipe: Recipe, scenario: RecipeScenario) {
-  if (scenario.fixed_sale_price && scenario.fixed_sale_price > 0) {
-    if (scenario.fixed_sale_price_currency === 'Bs') {
-      return scenario.fixed_sale_price / (dolarRate.value || 1)
-    }
-    return scenario.fixed_sale_price
-  }
-  const unitCost = getScenarioUnitCost(recipe, scenario)
-  return unitCost * (1 + (recipe.profit_margin_percent || 0) / 100)
+function getScenarioPrice(recipe: Recipe, scenario: RecipeScenario): number {
+  return calculateScenarioSalePrice(recipe, scenario)
 }
 
 function getScenarioProfit(recipe: Recipe, scenario: RecipeScenario): number {
-  return getScenarioPrice(recipe, scenario) - getScenarioUnitCost(recipe, scenario)
+  return calculateScenarioSalePrice(recipe, scenario) - calculateScenarioUnitCost(recipe, scenario)
 }
 
 onMounted(() => {
@@ -630,7 +842,7 @@ onMounted(() => {
 }
 
 .btn-icon {
-  background: none;
+
   border: none;
   cursor: pointer;
   padding: 4px;
@@ -638,7 +850,7 @@ onMounted(() => {
 }
 
 .btn-icon:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .text-danger {
@@ -746,6 +958,86 @@ onMounted(() => {
   }
 }
 
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 20px;
+}
+
+.modal-content {
+  background: var(--surface);
+  padding: 24px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.modal-large {
+  max-width: 900px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-header .chicken {
+  color: #ff9800;
+}
+
+.modal-footer {
+  margin-top: 24px;
+}
+
+.footer-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.footer-actions .btn {
+  flex: 1;
+  max-width: 200px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.mr-2 {
+  margin-right: 8px;
+}
+
+.btn-block {
+  width: 100%;
+}
+
 .chicken-expanded-summary {
   background: rgba(255, 152, 0, 0.05);
   border: 1px dashed #ff9800;
@@ -782,5 +1074,54 @@ onMounted(() => {
 
 .summary-item-mini.highlight-profit span {
   color: var(--primary);
+}
+
+.rate-selector {
+  display: flex;
+  gap: 12px;
+  background: var(--bg-secondary);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.rate-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.rate-option:has(input:checked) {
+  background: white;
+  color: var(--primary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.rate-option input {
+  display: none;
+}
+
+.form-grid-mini {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.border-dashed {
+  border-style: dashed;
+}
+
+.my-4 {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
 }
 </style>

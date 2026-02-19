@@ -69,8 +69,14 @@
           </div>
           <div class="form-group">
             <label>Peso Promedio Actual (g)</label>
-            <input v-model.number="recipe.chicken_data!.current_avg_weight_g" type="number" class="form-input"
-              min="0" />
+            <div class="input-with-action">
+              <input v-model.number="recipe.chicken_data!.current_avg_weight_g" type="number" class="form-input"
+                min="0" />
+              <button type="button" @click="addControlRecord" class="btn-icon-circular btn-success"
+                title="Añadir a Control">
+                <Icon name="plus" />
+              </button>
+            </div>
           </div>
           <div class="form-group">
             <label>Peso Objetivo (g)</label>
@@ -204,6 +210,40 @@
               <div class="sub-value">Bs {{ (totalIngredientsCost * dolarRate).toFixed(2) }}</div>
             </div>
           </div>
+          <div class="summary-card starter info">
+            <Icon name="basket-outline" />
+            <div class="summary-details">
+              <label>Alimento Inicio</label>
+              <div class="value">{{ totalStarterKg.toFixed(1) }} kg</div>
+              <div class="sub-value">Consumo total inicial</div>
+            </div>
+          </div>
+          <div class="summary-card fattening info">
+            <Icon name="basket-fill" />
+            <div class="summary-details">
+              <label>Alimento Engorde</label>
+              <div class="value">{{ totalFatteningKg.toFixed(1) }} kg</div>
+              <div class="sub-value">Consumo total engorde</div>
+            </div>
+          </div>
+          <div class="summary-card starter info">
+            <Icon name="egg-outline" />
+            <div class="summary-details">
+              <label>Inicio por Pollo</label>
+              <div class="value">{{ (totalStarterKg / (recipe.chicken_data?.initial_quantity || 1)).toFixed(2) }} kg/ave
+              </div>
+              <div class="sub-value">Promedio inicial</div>
+            </div>
+          </div>
+          <div class="summary-card fattening info">
+            <Icon name="egg" />
+            <div class="summary-details">
+              <label>Engorde por Pollo</label>
+              <div class="value">{{ (totalFatteningKg / (recipe.chicken_data?.initial_quantity || 1)).toFixed(2) }}
+                kg/ave</div>
+              <div class="sub-value">Promedio engorde</div>
+            </div>
+          </div>
           <div class="summary-card projection info">
             <Icon name="chart-bar" />
             <div class="summary-details">
@@ -245,103 +285,56 @@
 
       <!-- VENTAS DEL LOTE -->
       <section v-if="recipe.chicken_data" class="card sales-section">
+        <ChickenBatchSales v-model="recipe.chicken_data" :totalIngredientsCost="totalIngredientsCost"
+          :dolarRate="dolarRate" />
+      </section>
+
+      <!-- HISTORIAL DE CONTROL Y RENTABILIDAD -->
+      <section v-if="recipe.chicken_data" class="card control-history-section">
         <div class="section-header">
           <h2>
-            <Icon name="cash-check" /> Ventas Realizadas
+            <Icon name="history" /> Historial de Control y Rentabilidad
           </h2>
-          <div class="section-actions-group">
-            <button @click="addSale" class="btn btn-sm btn-outline">
-              <Icon name="plus" /> Registrar Venta
-            </button>
-          </div>
         </div>
 
-        <div class="table-responsive">
+        <div v-if="recipe.chicken_data.control_records && recipe.chicken_data.control_records.length > 0"
+          class="table-responsive">
           <table class="data-table">
             <thead>
               <tr>
                 <th>Fecha</th>
-                <th>Cantidad (und)</th>
-                <th>Peso/Und (kg)</th>
-                <th>Peso Total (kg)</th>
-                <th>Precio/Kg ($)</th>
-                <th>Monto Total</th>
+                <th>Peso (g)</th>
+                <th>Inicio (kg)</th>
+                <th>Engorde (kg)</th>
+                <th>Inv. Total</th>
+                <th>Venta Est.</th>
+                <th>Ganancia %</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(sale, index) in recipe.chicken_data.sales" :key="sale.id">
-                <td>
-                  <input v-model="sale.date" type="date" class="input-xs" />
+              <tr v-for="(record, idx) in [...recipe.chicken_data.control_records].reverse()" :key="record.id">
+                <td>{{ formatDateShort(record.date) }}</td>
+                <td class="font-bold">{{ record.avg_weight_g }}g</td>
+                <td>{{ record.starter_kg?.toFixed(1) || 0 }} kg</td>
+                <td>{{ record.fattening_kg?.toFixed(1) || 0 }} kg</td>
+                <td>${{ record.total_investment.toFixed(2) }}</td>
+                <td class="font-bold text-primary">${{ calculateDynamicRecordIncome(record).toFixed(2) }}</td>
+                <td :class="calculateDynamicRecordProfitPercent(record) >= 0 ? 'text-success' : 'text-danger'">
+                  {{ calculateDynamicRecordProfitPercent(record).toFixed(1) }}%
                 </td>
                 <td>
-                  <input v-model.number="sale.quantity" type="number" class="form-input input-sm" min="1"
-                    @input="updateSaleWeight(sale)" />
-                </td>
-                <td>
-                  <input v-model.number="sale.weight_per_unit_kg" type="number" class="form-input input-sm" step="0.1"
-                    min="0" placeholder="0.0" @input="updateSaleWeight(sale)" />
-                </td>
-                <td>
-                  <input v-model.number="sale.total_weight_kg" type="number" class="form-input input-sm" step="0.1"
-                    min="0" @input="updateSaleUnitWeight(sale)" />
-                </td>
-                <td>
-                  <input v-model.number="sale.price_per_kg" type="number" class="form-input input-sm" step="0.01"
-                    min="0" />
-                </td>
-                <td class="font-bold">
-                  ${{ (sale.total_weight_kg * (sale.price_per_kg || 0)).toFixed(2) }}
-                </td>
-                <td>
-                  <button @click="removeSale(index)" class="btn-icon text-danger">
+                  <button @click="removeControlRecord(recipe.chicken_data!.control_records!.length - 1 - idx)"
+                    class="btn-icon text-danger">
                     <Icon name="delete" />
                   </button>
                 </td>
               </tr>
-              <tr v-if="!recipe.chicken_data.sales || recipe.chicken_data.sales.length === 0">
-                <td colspan="7" class="text-center text-muted py-8">
-                  No hay ventas registradas todavía.
-                </td>
-              </tr>
             </tbody>
-            <tfoot v-if="recipe.chicken_data.sales && recipe.chicken_data.sales.length > 0">
-              <tr class="table-summary">
-                <td colspan="5" class="text-right"><strong>Total Vendido:</strong></td>
-                <td class="font-bold text-lg text-success">
-                  ${{ chickenCalculations?.totalSoldIncome.toFixed(2) }}
-                </td>
-                <td></td>
-              </tr>
-            </tfoot>
           </table>
         </div>
-
-        <div v-if="chickenCalculations && chickenCalculations.totalSoldQuantity > 0"
-          class="sales-performance-grid mt-8">
-          <div class="performance-card">
-            <label>Promedio Peso Vendido</label>
-            <div class="perf-value">{{ chickenCalculations.avgWeightSold.toFixed(2) }} kg</div>
-          </div>
-          <div class="performance-card">
-            <label>Precio Promedio de Venta</label>
-            <div class="perf-value">${{ chickenCalculations.avgPriceSold.toFixed(2) }}/kg</div>
-          </div>
-          <div class="performance-card">
-            <label>Pollos por Vender</label>
-            <div class="perf-value" :class="{ 'text-success': chickenCalculations.remainingQuantity === 0 }">
-              {{ chickenCalculations.remainingQuantity }} und
-            </div>
-          </div>
-          <div class="performance-card highlight-profit">
-            <label>Resultado Real (Ganancia Neta)</label>
-            <div class="perf-value" :class="chickenCalculations.realProfit >= 0 ? 'text-success' : 'text-danger'">
-              ${{ chickenCalculations.realProfit.toFixed(2) }}
-              <small class="text-xs ml-1" style="font-weight: normal;">
-                ({{ calculateProfitPercent(chickenCalculations.realProfit, totalIngredientsCost) }}%)
-              </small>
-            </div>
-          </div>
+        <div v-else class="empty-state-mini">
+          <p class="text-muted">No hay registros de control capturados aún.</p>
         </div>
       </section>
     </div>
@@ -367,7 +360,7 @@
             <div class="product-info-mini">
               <span class="product-name-mini font-bold">{{ prod.name }}</span>
               <span v-if="prod.brand_id" class="product-brand-mini text-xs text-muted">{{ getBrandName(prod.brand_id)
-              }}</span>
+                }}</span>
             </div>
             <div class="product-price-mini text-right">
               <div class="font-bold">${{ prod.price }}</div>
@@ -408,7 +401,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { collection, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
-import type { Recipe, RecipeIngredient, ChickenSale } from '../types/recipe'
+import ChickenBatchSales from '@/components/productions/chicken_batches/ChickenBatchSales.vue'
+import type { Recipe, RecipeIngredient } from '../types/recipe'
 import type { Product, DolarBCV, Category } from '../types/producto'
 import { useBrands } from '../composables/useBrands'
 import { useEstablishments } from '../composables/useEstablishments'
@@ -492,6 +486,9 @@ onMounted(async () => {
       if (!recipe.value.chicken_data.sales) {
         recipe.value.chicken_data.sales = []
       }
+      if (!recipe.value.chicken_data.control_records) {
+        recipe.value.chicken_data.control_records = []
+      }
     }
   }
 })
@@ -574,6 +571,28 @@ const chickenCalculations = computed(() => {
   return calcs
 })
 
+const totalStarterKg = computed(() => {
+  return recipe.value.ingredients
+    .filter(ing => getFeedType(ing) === 'starter')
+    .reduce((sum, ing) => sum + (ing.usage_weight || 0), 0)
+})
+
+const totalFatteningKg = computed(() => {
+  return recipe.value.ingredients
+    .filter(ing => getFeedType(ing) === 'fattening')
+    .reduce((sum, ing) => sum + (ing.usage_weight || 0), 0)
+})
+
+function getFeedType(ing: RecipeIngredient): 'starter' | 'fattening' | 'other' {
+  if (ing.feed_type && ing.feed_type !== 'other') return ing.feed_type
+  const prod = getProductById(ing.product_id)
+  if (!prod) return 'other'
+  const name = prod.name.toLowerCase()
+  if (name.includes('inicio')) return 'starter'
+  if (name.includes('engorde')) return 'fattening'
+  return 'other'
+}
+
 function calculateConsumptionPerChicken(ing: RecipeIngredient): number {
   const qty = Number(recipe.value.chicken_data?.initial_quantity) || 1
   return (ing.usage_weight || 0) / qty
@@ -643,10 +662,16 @@ function handleProductSelection(prod: Product) {
       recipe.value.name = `Lote de ${prod.name} - ${new Date().toLocaleDateString()}`
     }
   } else {
+    const name = prod.name.toLowerCase()
+    let feedType: 'starter' | 'fattening' | 'other' = 'other'
+    if (name.includes('inicio')) feedType = 'starter'
+    else if (name.includes('engorde')) feedType = 'fattening'
+
     recipe.value.ingredients.push({
       product_id: prod.id!,
       usage_weight: 0,
-      selected_price: getProductPrice(prod)
+      selected_price: getProductPrice(prod),
+      feed_type: feedType
     })
   }
   showProductModal.value = false
@@ -656,40 +681,57 @@ function removeIngredient(index: number) {
   recipe.value.ingredients.splice(index, 1)
 }
 
-function addSale() {
-  if (!recipe.value.chicken_data) return
-  if (!recipe.value.chicken_data.sales) recipe.value.chicken_data.sales = []
-
-  recipe.value.chicken_data.sales.push({
-    id: 'sale-' + Date.now(),
-    date: new Date().toISOString().split('T')[0],
-    quantity: 1,
-    weight_per_unit_kg: 0,
-    total_weight_kg: 0,
-    price_per_kg: recipe.value.chicken_data.live_weight_price_kg || 0
-  })
-}
-
-function updateSaleWeight(sale: ChickenSale) {
-  if (sale.quantity && sale.weight_per_unit_kg) {
-    sale.total_weight_kg = Number((sale.quantity * sale.weight_per_unit_kg).toFixed(2))
-  }
-}
-
-function updateSaleUnitWeight(sale: ChickenSale) {
-  if (sale.quantity && sale.total_weight_kg) {
-    sale.weight_per_unit_kg = Number((sale.total_weight_kg / sale.quantity).toFixed(2))
-  }
-}
-
 function calculateProfitPercent(profit: number, cost: number): string {
   if (!cost || cost === 0) return '0.0'
   return ((profit / cost) * 100).toFixed(1)
 }
 
-function removeSale(index: number) {
-  if (!recipe.value.chicken_data?.sales) return
-  recipe.value.chicken_data.sales.splice(index, 1)
+function formatDateShort(dateStr: string): string {
+  const date = new Date(dateStr)
+  return date.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' +
+    date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+}
+
+function addControlRecord() {
+  if (!recipe.value.chicken_data) return
+
+  const calcs = chickenCalculations.value
+  if (!calcs) return
+
+  const newRecord = {
+    id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+    date: new Date().toISOString(),
+    avg_weight_g: recipe.value.chicken_data.current_avg_weight_g,
+    feed_investment: calcs.feedInvestment,
+    starter_kg: totalStarterKg.value,
+    fattening_kg: totalFatteningKg.value,
+    total_investment: totalIngredientsCost.value
+  }
+
+  if (!recipe.value.chicken_data.control_records) {
+    recipe.value.chicken_data.control_records = []
+  }
+
+  recipe.value.chicken_data.control_records.push(newRecord)
+}
+
+function removeControlRecord(index: number) {
+  if (recipe.value.chicken_data?.control_records) {
+    recipe.value.chicken_data.control_records.splice(index, 1)
+  }
+}
+
+function calculateDynamicRecordIncome(record: import('../types/recipe').ChickenControlRecord): number {
+  if (!recipe.value.chicken_data) return 0
+  const qty = recipe.value.chicken_data.initial_quantity || 0
+  const price = recipe.value.chicken_data.live_weight_price_kg || 0
+  return (record.avg_weight_g / 1000) * qty * price
+}
+
+function calculateDynamicRecordProfitPercent(record: import('../types/recipe').ChickenControlRecord): number {
+  const income = calculateDynamicRecordIncome(record)
+  const cost = record.total_investment || 1
+  return ((income - cost) / cost) * 100
 }
 
 async function saveRecipe() {
@@ -824,6 +866,43 @@ async function saveRecipe() {
   max-width: 130px;
   background: var(--background);
   color: var(--text-primary);
+}
+
+.input-with-action {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-icon-circular {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-icon-circular:hover {
+  transform: scale(1.1);
+  filter: brightness(1.1);
+}
+
+.btn-success {
+  background: #10b981;
+  color: white;
+}
+
+.empty-state-mini {
+  padding: 20px;
+  text-align: center;
+  background: var(--background);
+  border-radius: 8px;
+  border: 1px dashed var(--border);
 }
 
 .selection-info {

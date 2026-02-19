@@ -6,6 +6,7 @@ export interface RecipeIngredient {
   price_type?: 'average' | 'unit_price' // 'average' if using product average/establishment price, 'unit_price' if using product.price directly
   ideal_weight?: number // Target weight for the input (kg)
   measurement_id?: string // Selected measurement unit for recipe products (e.g., 'unit' or 'g')
+  feed_type?: 'starter' | 'fattening' | 'other' // Classification for chicken feed
 }
 
 export interface RecipeUtility {
@@ -39,6 +40,16 @@ export interface ChickenSale {
   date: string
 }
 
+export interface ChickenControlRecord {
+  id: string
+  date: string
+  avg_weight_g: number
+  feed_investment: number
+  starter_kg: number
+  fattening_kg: number
+  total_investment: number
+}
+
 export interface ChickenData {
   initial_quantity: number
   live_weight_price_kg: number
@@ -51,6 +62,7 @@ export interface ChickenData {
   batch_product_price?: number // Fixed price for the batch product
   entry_date?: string // Batch entry date
   sales?: ChickenSale[] // Track sales of the batch
+  control_records?: ChickenControlRecord[] // History of growth/rentability status
 }
 
 export interface Recipe {

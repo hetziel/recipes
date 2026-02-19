@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import type { Recipe, RecipeIngredient } from '../types/recipe'
+import type { Recipe, RecipeIngredient, RecipeScenario, RecipeUtility } from '../types/recipe'
 import type { Product } from '../types/producto'
 
 export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<number>) {
@@ -56,8 +56,97 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
         return recipe.ingredients.reduce((sum, ing) => sum + calculateIngredientCost(ing, !!recipe.is_chicken_batch), 0)
     }
 
+    // ---------- SCENARIO CALCULATIONS ----------
+
+    function calculateScenarioUtilityCost(util: RecipeUtility): number {
+        if (util.product_id) {
+            const prod = getProductById(util.product_id)
+            if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
+
+            let finalPrice = prod.average_price && prod.average_price > 0 ? prod.average_price : (prod.price || 0)
+            if (util.establishment_id) {
+                const specificPrice = prod.prices?.find(p => p.establishment_id === util.establishment_id)
+                if (specificPrice) {
+                    finalPrice = specificPrice.currency === 'USD' ? specificPrice.price : specificPrice.price / (dolarRate.value || 1)
+                }
+            }
+            return (finalPrice / prod.measurement_value) * (util.usage_quantity || 0)
+        }
+        const cost = util.cost || 0
+        const qty = util.quantity || 0
+        if (qty === 0) return 0
+        return (cost / qty) * (util.usage_quantity || 0)
+    }
+
+    function calculateScenarioUtilitiesCost(scenario: RecipeScenario): number {
+        return (scenario.utilities || []).reduce((sum, u) => sum + calculateScenarioUtilityCost(u), 0)
+    }
+
+    function calculateEstimatedUnitsForRecipe(recipe: Recipe, scenario: RecipeScenario): number {
+        const totalFinalWeight = Math.max(0, (recipe.total_weight || 0) - (recipe.weight_loss || 0))
+        if (scenario.mode === 'unit') {
+            if (recipe.has_production_units && recipe.total_production_units) {
+                return recipe.total_production_units / (scenario.value || 1)
+            }
+            return scenario.value || 1
+        } else {
+            if (totalFinalWeight === 0) return 0
+            return totalFinalWeight / (scenario.value || 1)
+        }
+    }
+
+    /**
+     * Investment cost per unit = (base ingredient cost / units) + utility cost per pack
+     */
+    function calculateScenarioUnitCost(recipe: Recipe, scenario: RecipeScenario): number {
+        const units = calculateEstimatedUnitsForRecipe(recipe, scenario)
+        if (units <= 0) return 0
+        const baseCost = calculateBaseCost(recipe)
+        return (baseCost / units) + calculateScenarioUtilitiesCost(scenario)
+    }
+
+    /**
+     * Sale price per unit.
+     * - Fixed price takes priority.
+     * - Otherwise: applies recipe profit_margin ONLY to ingredient cost,
+     *   then adds each utility cost with its own individual profit_margin.
+     */
+    function calculateScenarioSalePrice(recipe: Recipe, scenario: RecipeScenario): number {
+        // Fixed price takes priority
+        if (scenario.fixed_sale_price && scenario.fixed_sale_price > 0) {
+            if (scenario.fixed_sale_price_currency === 'Bs') {
+                return scenario.fixed_sale_price / (dolarRate.value || 1)
+            }
+            return scenario.fixed_sale_price
+        }
+
+        const units = calculateEstimatedUnitsForRecipe(recipe, scenario)
+        if (units <= 0) return 0
+
+        const baseCost = calculateBaseCost(recipe)
+        const ingredientCostPerUnit = baseCost / units
+        const marginGen = 1 + ((recipe.profit_margin_percent || 0) / 100)
+
+        // Utility cost with each utility's own profit_margin
+        const utilitySaleTotalPerPack = (scenario.utilities || []).reduce((sum, util) => {
+            const cost = calculateScenarioUtilityCost(util)
+            const margin = 1 + ((util.profit_margin ?? 50) / 100)
+            return sum + (cost * margin)
+        }, 0)
+
+        return (ingredientCostPerUnit * marginGen) + utilitySaleTotalPerPack
+    }
+
+    function calculateScenarioRealMargin(recipe: Recipe, scenario: RecipeScenario): number {
+        const salePrice = calculateScenarioSalePrice(recipe, scenario)
+        const unitCost = calculateScenarioUnitCost(recipe, scenario)
+        if (unitCost <= 0) return 0
+        return ((salePrice / unitCost) - 1) * 100
+    }
+
+    // ---------- CHICKEN BATCH ----------
+
     function calculateChickenCalculations(recipe: Recipe) {
-        // Force batch mode if we are in this context, or trust the flag
         if (!recipe.chicken_data) return null
 
         const d = recipe.chicken_data
@@ -73,28 +162,20 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
 
         const ingredientsCost = calculateBaseCost(recipe)
         const totalIngredientsCost = ingredientsCost + chickenInvestment
-
-        // In a chicken batch, ALL ingredients are considered "feed/inputs investment"
         const feedInvestment = ingredientsCost
-
-        // 2. Costo por Pollo
         const costPerChicken = qty > 0 ? totalIngredientsCost / qty : 0
 
-        // 3. Alimento necesario (starter/fattening projection)
-        const totalStarterNeeded = ((Number(d.starter_feed_per_chicken_g) || 0) * qty) / 1000 // kg
-        const totalFatteningNeeded = ((Number(d.fattening_feed_per_chicken_g) || 0) * qty) / 1000 // kg
+        const totalStarterNeeded = ((Number(d.starter_feed_per_chicken_g) || 0) * qty) / 1000
+        const totalFatteningNeeded = ((Number(d.fattening_feed_per_chicken_g) || 0) * qty) / 1000
 
-        // 4. Proyección de ganancia al peso objetivo
         const totalTargetWeightKg = ((Number(d.target_weight_g) || 0) * qty) / 1000
         const projectedIncome = totalTargetWeightKg * (Number(d.live_weight_price_kg) || 0)
         const projectedProfit = projectedIncome - totalIngredientsCost
 
-        // 5. Valor/Ganancia actual (basado en peso promedio actual)
         const totalCurrentWeightKg = ((Number(d.current_avg_weight_g) || 0) * qty) / 1000
         const currentIncome = totalCurrentWeightKg * (Number(d.live_weight_price_kg) || 0)
         const currentProfit = currentIncome - totalIngredientsCost
 
-        // 6. Ventas Reales (Acumulado)
         let totalSoldQuantity = 0
         let totalSoldWeight = 0
         let totalSoldIncome = 0
@@ -125,7 +206,6 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
             currentIncome,
             currentProfit,
             totalCurrentWeightKg,
-            // Real Sales data
             totalSoldQuantity,
             totalSoldWeight,
             totalSoldIncome,
@@ -141,6 +221,12 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
         calculateBaseCost,
         calculateChickenCalculations,
         getProductById,
-        getProductPrice
+        getProductPrice,
+        calculateScenarioUtilityCost,
+        calculateScenarioUtilitiesCost,
+        calculateEstimatedUnitsForRecipe,
+        calculateScenarioUnitCost,
+        calculateScenarioSalePrice,
+        calculateScenarioRealMargin,
     }
 }

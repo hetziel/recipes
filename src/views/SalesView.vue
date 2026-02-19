@@ -7,117 +7,331 @@
         </h1>
       </div>
       <div class="header-actions">
-        <button @click="openSaleModal" class="btn btn-primary">
+        <button @click="activeTab = 'list'" :class="['btn', activeTab === 'list' ? 'btn-primary' : 'btn-outline']">
+          <Icon name="view-list" /> Listado
+        </button>
+        <button @click="activeTab = 'analytics'"
+          :class="['btn', activeTab === 'analytics' ? 'btn-primary' : 'btn-outline']">
+          <Icon name="chart-bar" /> Analíticas
+        </button>
+        <button @click="openSaleModal" class="btn btn-primary ml-2">
           <Icon name="plus" /> Nueva Venta
         </button>
       </div>
     </header>
 
     <div class="sales-content">
-      <!-- FILTROS Y ESTADÍSTICAS RÁPIDAS -->
-      <section class="stats-cards">
-        <div class="stat-card pending">
-          <label>Pendientes</label>
-          <div class="value">{{ stats.pending }}</div>
-        </div>
-        <div class="stat-card paid">
-          <label>Pagados</label>
-          <div class="value">{{ stats.paid }}</div>
-        </div>
-        <div class="stat-card to-pay">
-          <label>Por Pagar</label>
-          <div class="value">{{ stats.toPay }}</div>
-        </div>
-      </section>
+      <!-- ANALYTICS TAB -->
+      <div v-if="activeTab === 'analytics'" class="analytics-view fade-in">
+        <section class="stats-grid-premium">
+          <div class="glass-card stat-item investment">
+            <div class="stat-icon">
+              <Icon name="hand-holding-usd" />
+            </div>
+            <div class="stat-info">
+              <label>Inversión</label>
+              <div class="stat-value">${{ totalFinancials.cost.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              }) }}</div>
+              <div class="stat-sub">Bs. {{ (totalFinancials.cost * dolarRate).toLocaleString() }}</div>
+            </div>
+            <div class="stat-bg-icon">
+              <Icon name="hand-holding-usd" />
+            </div>
+          </div>
 
-      <!-- LISTA DE VENTAS (TIPO ÁRBOL/ACORDEÓN POR CLIENTE) -->
-      <section class="sales-tree card">
-        <div class="section-header">
-          <h2>
-            <Icon name="account-group" /> Clientes y Pedidos
-          </h2>
-          <div class="search-box">
-            <input v-model="searchQuery" type="text" placeholder="Buscar cliente..." class="form-input" />
+          <div class="glass-card stat-item sales">
+            <div class="stat-icon">
+              <Icon name="cash-check" />
+            </div>
+            <div class="stat-info">
+              <label>Recaudado (Pagado)</label>
+              <div class="stat-value">${{ totalFinancials.paidRevenue.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              }) }}</div>
+              <div class="stat-sub">Bs. {{ (totalFinancials.paidRevenue * dolarRate).toLocaleString() }}</div>
+            </div>
+            <div class="stat-bg-icon">
+              <Icon name="cash-check" />
+            </div>
+          </div>
+
+          <div class="glass-card stat-item pending-revenue">
+            <div class="stat-icon">
+              <Icon name="cash-minus" />
+            </div>
+            <div class="stat-info">
+              <label>Por Cobrar</label>
+              <div class="stat-value">${{ totalFinancials.pendingRevenue.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              }) }}</div>
+              <div class="stat-sub">Bs. {{ (totalFinancials.pendingRevenue * dolarRate).toLocaleString() }}</div>
+            </div>
+            <div class="stat-bg-icon">
+              <Icon name="cash-minus" />
+            </div>
+          </div>
+
+          <div class="glass-card stat-item sales-total">
+            <div class="stat-icon">
+              <Icon name="shopping-cart" />
+            </div>
+            <div class="stat-info">
+              <label>Ventas {{ statusFilter !== 'all' ? '(' + formatStatus(statusFilter) + ')' : 'Totales' }}</label>
+              <div class="stat-value">${{ totalFinancials.revenue.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              }) }}</div>
+              <div class="stat-sub">Bs. {{ (totalFinancials.revenue * dolarRate).toLocaleString() }}</div>
+            </div>
+            <div class="stat-bg-icon">
+              <Icon name="shopping-cart" />
+            </div>
+          </div>
+
+          <div class="glass-card stat-item profit" :class="{ positive: totalFinancials.profit > 0 }">
+            <div class="stat-icon">
+              <Icon name="chart-line" />
+            </div>
+            <div class="stat-info">
+              <label>Ganancia Neta</label>
+              <div class="stat-value">${{ totalFinancials.profit.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              }) }}</div>
+              <div class="stat-sub">Bs. {{ (totalFinancials.profit * dolarRate).toLocaleString() }}</div>
+            </div>
+            <div class="stat-bg-icon">
+              <Icon name="chart-line" />
+            </div>
+          </div>
+
+          <div class="glass-card stat-item margin">
+            <div class="stat-icon">
+              <Icon name="percentage" />
+            </div>
+            <div class="stat-info">
+              <label>Margen</label>
+              <div class="stat-value">{{ totalFinancials.margin.toFixed(1) }}%</div>
+              <div class="stat-progress">
+                <div class="progress-bar" :style="{ width: Math.min(totalFinancials.margin, 100) + '%' }"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="charts-grid-premium">
+          <div class="glass-card chart-container">
+            <div class="chart-header">
+              <h3>
+                <Icon name="chart-line" /> Tendencia de Ventas
+              </h3>
+              <div class="header-tools-analytics">
+                <div class="pill-filters status-pills mini">
+                  <button @click="statusFilter = 'all'" :class="{ active: statusFilter === 'all' }">Todos</button>
+                  <button @click="statusFilter = 'pendiente'"
+                    :class="{ active: statusFilter === 'pendiente' }">Pendientes</button>
+                  <button @click="statusFilter = 'pagado'"
+                    :class="{ active: statusFilter === 'pagado' }">Pagados</button>
+                  <button @click="statusFilter = 'por pagar'" :class="{ active: statusFilter === 'por pagar' }">Por
+                    Pagar</button>
+                </div>
+                <div class="pill-filters">
+                  <button @click="timeFilter = 'day'" :class="{ active: timeFilter === 'day' }">Día</button>
+                  <button @click="timeFilter = 'month'" :class="{ active: timeFilter === 'month' }">Mes</button>
+                  <button @click="timeFilter = 'year'" :class="{ active: timeFilter === 'year' }">Año</button>
+                </div>
+              </div>
+            </div>
+            <div class="canvas-wrapper">
+              <canvas ref="salesChartCanvas"></canvas>
+            </div>
+          </div>
+
+          <div class="glass-card chart-container">
+            <div class="chart-header">
+              <h3>
+                <Icon name="trophy" /> Top 10 Compradores
+              </h3>
+            </div>
+            <div class="canvas-wrapper">
+              <canvas ref="buyersChartCanvas"></canvas>
+            </div>
           </div>
         </div>
 
-        <div class="tree-container">
-          <div v-for="customer in filteredCustomers" :key="customer.id" class="customer-node">
-            <div class="customer-header" @click="toggleCustomer(customer.id!)">
-              <div class="customer-info">
-                <Icon :name="expandedCustomers.includes(customer.id!) ? 'chevron-down' : 'chevron-right'" />
-                <span class="customer-name">{{ customer.name }}</span>
-                <span class="customer-phone">{{ customer.phone }}</span>
-              </div>
-              <div class="customer-totals">
-                <span class="badge">{{ getCustomerSales(customer.id!).length }} ventas</span>
-              </div>
+        <section class="top-buyers-list glass-card mt-4 fade-in">
+          <div class="chart-header">
+            <h3>
+              <Icon name="trophy" /> Detalle de Mejores Clientes
+            </h3>
+          </div>
+          <div class="table-responsive">
+            <table class="mini-table">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Ventas</th>
+                  <th>Total Comprado</th>
+                  <th>Última Compra</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="buyer in topBuyers" :key="buyer.id">
+                  <td><strong>{{ buyer.name }}</strong></td>
+                  <td>{{ buyer.count }}</td>
+                  <td>
+                    <div class="price-stack">
+                      <span>${{ buyer.total.toFixed(2) }}</span>
+                      <span class="price-bs">Bs. {{ (buyer.total * dolarRate).toFixed(2) }}</span>
+                    </div>
+                  </td>
+                  <td>{{ formatDate(buyer.lastDate) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- LIST TAB -->
+      <div v-else class="list-view fade-in">
+        <section class="stats-cards-mini-grid">
+          <div class="glass-card mini-stat pending" @click="statusFilter = 'pendiente'"
+            :class="{ active: statusFilter === 'pendiente' }">
+            <div class="mini-icon">
+              <Icon name="clock-outline" />
             </div>
+            <div class="mini-content">
+              <label>Pendientes</label>
+              <div class="value">{{ stats.pending }}</div>
+            </div>
+          </div>
+          <div class="glass-card mini-stat paid" @click="statusFilter = 'pagado'"
+            :class="{ active: statusFilter === 'pagado' }">
+            <div class="mini-icon">
+              <Icon name="check-circle-outline" />
+            </div>
+            <div class="mini-content">
+              <label>Pagados</label>
+              <div class="value">{{ stats.paid }}</div>
+            </div>
+          </div>
+          <div class="glass-card mini-stat to-pay" @click="statusFilter = 'por pagar'"
+            :class="{ active: statusFilter === 'por pagar' }">
+            <div class="mini-icon">
+              <Icon name="wallet-outline" />
+            </div>
+            <div class="mini-content">
+              <label>Por Pagar</label>
+              <div class="value">{{ stats.toPay }}</div>
+            </div>
+          </div>
+          <div class="glass-card mini-stat all" @click="statusFilter = 'all'"
+            :class="{ active: statusFilter === 'all' }">
+            <div class="mini-icon">
+              <Icon name="all-inclusive" />
+            </div>
+            <div class="mini-content">
+              <label>Total</label>
+              <div class="value">{{ sales.length }}</div>
+            </div>
+          </div>
+        </section>
 
-            <div v-if="expandedCustomers.includes(customer.id!)" class="sales-list">
-              <div v-for="sale in getCustomerSales(customer.id!)" :key="sale.id" class="sale-item-card">
-                <div class="sale-main-info">
-                  <div class="sale-date">
-                    <Icon name="calendar" />
-                    <span>{{ formatDate(sale.created_at) }}</span>
-                  </div>
-                  <div class="sale-status">
-                    <span :class="['status-badge', sale.status]">
-                      {{ formatStatus(sale.status) }}
-                    </span>
-                  </div>
-                  <div class="sale-due">
-                    <span class="text-xs text-muted">Vence: {{ formatDate(sale.payment_due_date)
-                    }}</span>
-                  </div>
-                </div>
-
-                <div class="sale-products">
-                  <div v-for="(item, idx) in sale.items" :key="idx" class="product-mini-tag">
-                    <div class="tag-info">
-                      <strong>{{ item.quantity }}x</strong> {{ item.recipe_name }} ({{ item.scenario_name }})
-                    </div>
-                    <div class="tag-prices">
-                      <span class="unit-price">U: ${{ (item.unit_price || 0).toFixed(2) }} / Bs {{ ((item.unit_price ||
-                        0) *
-                        dolarRate).toFixed(2) }}</span>
-                      <span class="total-price-sm">T: ${{ item.total_price.toFixed(2) }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="sale-footer">
-                  <div class="total-amount">
-                    Total: <strong>${{ sale.total_amount.toFixed(2) }}</strong>
-                    <span class="bs-val">/ Bs {{ (sale.total_amount * dolarRate).toFixed(2)
-                    }}</span>
-                  </div>
-                  <div class="sale-actions">
-                    <button @click="editSale(sale)" class="btn-icon" title="Editar Venta">
-                      <Icon name="pencil" />
-                    </button>
-                    <button @click="openStatusModal(sale)" class="btn-icon text-success" title="Cambiar Estado">
-                      <Icon name="list-status" />
-                    </button>
-                    <button @click="openInvoiceModal(sale)" class="btn-icon text-primary" title="Ver Factura">
-                      <Icon name="printer" />
-                    </button>
-                    <button @click="deleteSale(sale.id!)" class="btn-icon text-danger" title="Eliminar Venta">
-                      <Icon name="delete" />
-                    </button>
-                  </div>
-                </div>
+        <section class="sales-list-section glass-card">
+          <div class="section-header-premium">
+            <div class="title-with-subtitle">
+              <h2>
+                <Icon name="history" /> Historial de Ventas
+              </h2>
+              <span class="subtitle">{{ filteredSales.length }} ventas encontradas</span>
+            </div>
+            <div class="header-tools">
+              <div v-if="dateFilter" class="date-filter-tag fade-in">
+                <Icon name="calendar-search" /> {{ dateFilter }}
+                <button @click="dateFilter = null" class="btn-clear">
+                  <Icon name="close" />
+                </button>
               </div>
-              <div v-if="getCustomerSales(customer.id!).length === 0" class="empty-sales">
-                No hay ventas registradas para este cliente.
+              <div class="date-input-wrapper">
+                <Icon name="calendar-filter" class="input-icon" />
+                <input type="date" @change="handleManualDateFilter" class="date-input"
+                  placeholder="Filtrar por fecha" />
+              </div>
+              <div class="search-premium">
+                <Icon name="search" class="search-icon" />
+                <input v-model="searchQuery" type="text" placeholder="Buscar por cliente o factura..." />
               </div>
             </div>
           </div>
-        </div>
-      </section>
+
+          <div class="sales-modern-list">
+            <div v-for="sale in filteredSales" :key="sale.id" class="sale-entry-card fade-in">
+              <div class="sale-main-info">
+                <div class="invoice-badge">#{{ sale.invoice_number || 'S/N' }}</div>
+                <div class="customer-details">
+                  <span class="c-name">{{ sale.customer_name }}</span>
+                  <span class="c-date">
+                    <Icon name="calendar" /> Venta: {{ formatDate(sale.purchase_date || sale.created_at) }}
+                  </span>
+                  <div v-if="sale.status === 'por pagar' || sale.status === 'pendiente'" class="due-alert"
+                    :class="getDueClass(sale.payment_due_date)">
+                    <Icon :name="getDueIcon(sale.payment_due_date)" />
+                    {{ getDueMessage(sale.payment_due_date) }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="sale-products-overview">
+                <div class="items-stack">
+                  <div v-for="(item, idx) in sale.items.slice(0, 2)" :key="idx" class="item-tag">
+                    {{ item.quantity }}x {{ item.recipe_name }}
+                  </div>
+                  <div v-if="sale.items.length > 2" class="more-items">+{{ sale.items.length - 2 }} más</div>
+                </div>
+              </div>
+
+              <div class="sale-financials-premium">
+                <div class="price-usd">${{ sale.total_amount.toFixed(2) }}</div>
+                <div class="price-bs">Bs. {{ (sale.total_amount * dolarRate).toFixed(2) }}</div>
+              </div>
+
+              <div class="sale-status-area">
+                <span :class="['modern-badge', sale.status]" @click="openStatusModal(sale)">
+                  {{ formatStatus(sale.status) }}
+                  <span v-if="sale.status_updated_at" class="status-date">
+                    {{ formatDate(sale.status_updated_at) }}
+                  </span>
+                </span>
+              </div>
+
+              <div class="sale-actions-premium">
+                <button @click="editSale(sale)" class="action-btn edit" title="Editar">
+                  <Icon name="pencil" />
+                </button>
+                <button @click="openInvoiceModal(sale)" class="action-btn invoice" title="Factura">
+                  <Icon name="printer" />
+                </button>
+                <button @click="deleteSale(sale.id!)" class="action-btn delete" title="Eliminar">
+                  <Icon name="delete" />
+                </button>
+              </div>
+            </div>
+
+            <div v-if="filteredSales.length === 0" class="empty-state-premium">
+              <Icon name="search-off" class="empty-icon" />
+              <p>No se encontraron resultados para "{{ searchQuery }}"</p>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
 
-    <!-- MODAL NUEVA VENTA -->
+    <!-- MODAL NUEVA VENTA (EXISTING) -->
     <div v-if="showSaleModal" class="modal-overlay">
       <div class="modal-content large-modal">
         <header class="modal-header">
@@ -151,6 +365,10 @@
               <div class="form-group">
                 <label>Teléfono</label>
                 <input v-model="newSale.customer_phone" type="text" class="form-input" placeholder="Ej: 0412..." />
+              </div>
+              <div class="form-group">
+                <label>Fecha de Venta</label>
+                <input v-model="newSale.purchase_date" type="date" class="form-input" />
               </div>
             </div>
           </div>
@@ -275,7 +493,7 @@
             <button @click="showSaleModal = false" class="btn btn-outline">Cancelar</button>
             <button @click="createSale" class="btn btn-primary"
               :disabled="newSaleItems.length === 0 || !newSale.customer_name">
-              Crear Venta
+              {{ isEditingSale ? 'Actualizar Venta' : 'Crear Venta' }}
             </button>
           </div>
         </footer>
@@ -343,7 +561,7 @@
                 <div class="meta-item">
                   <span class="label">Fecha:</span>
                   <span class="value">{{ selectedSaleForInvoice ? formatDate(selectedSaleForInvoice.created_at) : ''
-                  }}</span>
+                    }}</span>
                 </div>
               </div>
             </div>
@@ -414,20 +632,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, inject, watch, type Ref } from 'vue'
+import { ref, computed, onMounted, inject, watch, type Ref, shallowRef } from 'vue'
 import { collection, query, getDocs, addDoc, updateDoc, doc, orderBy, deleteDoc, runTransaction } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
 import type { Customer, Sale, SaleItem, SaleStatus } from '../types/sales'
-import type { Recipe, RecipeScenario, RecipeIngredient, RecipeUtility } from '../types/recipe'
+import type { Recipe, RecipeScenario } from '../types/recipe'
 import { toJpeg } from 'html-to-image'
 import type { DolarBCV, Product } from '../types/producto'
+import { useProduction } from '../composables/useProduction'
+import { Chart, registerables } from 'chart.js'
+
+Chart.register(...registerables)
 
 // INJECTS
 const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
 const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
 
 // STATE
+const activeTab = ref<'list' | 'analytics'>('list')
 const customers = ref<Customer[]>([])
 const sales = ref<Sale[]>([])
 const recipes = ref<Recipe[]>([])
@@ -435,15 +658,18 @@ const allScenarios = ref<RecipeScenario[]>([])
 const availableProducts = ref<Product[]>([])
 const showSaleModal = ref(false)
 const searchQuery = ref('')
-const expandedCustomers = ref<string[]>([])
 const showStatusModal = ref(false)
 const currentSale = ref<Sale | null>(null)
+const timeFilter = ref<'day' | 'month' | 'year'>('month')
+const statusFilter = ref<SaleStatus | 'all'>('all')
+const dateFilter = ref<string | null>(null)
 
 // NEW SALE STATE
 const newSale = ref({
   customer_name: '',
   customer_phone: '',
   status: 'pendiente' as SaleStatus,
+  purchase_date: new Date().toISOString().split('T')[0],
   payment_due_date: new Date().toISOString().split('T')[0],
 })
 const newSaleItems = ref<SaleItem[]>([])
@@ -459,12 +685,46 @@ const showInvoiceModal = ref(false)
 const isExporting = ref(false)
 const selectedSaleForInvoice = ref<Sale | null>(null)
 
+// CHART REFS
+const salesChartCanvas = ref<HTMLCanvasElement | null>(null)
+const buyersChartCanvas = ref<HTMLCanvasElement | null>(null)
+const salesChart = shallowRef<Chart | null>(null)
+const buyersChart = shallowRef<Chart | null>(null)
+
+const {
+  calculateScenarioSalePrice,
+  calculateScenarioUnitCost,
+} = useProduction(availableProducts, dolarRate)
+
 // COMPUTED
-const filteredCustomers = computed(() => {
-  const withSales = customers.value.filter(c => getCustomerSales(c.id!).length > 0)
-  if (!searchQuery.value) return withSales
+const filteredSales = computed(() => {
+  let result = sales.value
+
+  if (statusFilter.value !== 'all') {
+    result = result.filter(s => s.status === statusFilter.value)
+  }
+
+  if (dateFilter.value) {
+    result = result.filter(s => {
+      const dStr = s.purchase_date || s.created_at
+      const date = dStr.includes('T') ? new Date(dStr) : new Date(dStr.replace(/-/g, '/'))
+
+      if (timeFilter.value === 'day') return date.toLocaleDateString() === dateFilter.value
+      if (timeFilter.value === 'month') {
+        const month = (date.getMonth() + 1).toString().padStart(2, '0')
+        return `${month}/${date.getFullYear()}` === dateFilter.value
+      }
+      return date.getFullYear().toString() === dateFilter.value
+    })
+  }
+
+  if (!searchQuery.value) return result
+
   const q = searchQuery.value.toLowerCase()
-  return withSales.filter(c => c.name.toLowerCase().includes(q))
+  return result.filter(s =>
+    s.customer_name.toLowerCase().includes(q) ||
+    s.invoice_number?.toLowerCase().includes(q)
+  )
 })
 
 const stats = computed(() => {
@@ -475,11 +735,86 @@ const stats = computed(() => {
   }
 })
 
+// ANALYTICS COMPUTED
+const totalFinancials = computed(() => {
+  let cost = 0
+  let revenue = 0
+  let paidRevenue = 0
+  let pendingRevenue = 0
+
+  // Para las tarjetas principales usamos siempre el total global (menos cancelados)
+  const allValidSales = sales.value.filter(s => s.status !== 'cancelado')
+
+  allValidSales.forEach(sale => {
+    // Totales globales
+    if (sale.status === 'pagado') {
+      paidRevenue += sale.total_amount
+    } else if (sale.status === 'pendiente' || sale.status === 'por pagar') {
+      pendingRevenue += sale.total_amount
+    }
+
+    // Si hay un filtro de estado activo, el revenue/cost del resumen principal
+    // podría seguir el filtro o ser global. Por coherencia con el diseño premium usual,
+    // haremos que revenue/cost sigan el filtro para que los gráficos coincidan,
+    // pero calculamos paid/pending de forma global.
+
+    const isMatchingFilter = statusFilter.value === 'all' || sale.status === statusFilter.value
+
+    if (isMatchingFilter) {
+      revenue += sale.total_amount
+      sale.items.forEach(item => {
+        const scenario = allScenarios.value.find(sc => sc.id === item.scenario_id)
+        const recipe = recipes.value.find(r => r.id === scenario?.recipe_id)
+        if (recipe && scenario) {
+          cost += calculateScenarioUnitCost(recipe, scenario) * item.quantity
+        }
+      })
+    }
+  })
+
+  const profit = revenue - cost
+  const margin = revenue > 0 ? (profit / revenue) * 100 : 0
+
+  return { cost, revenue, profit, margin, paidRevenue, pendingRevenue }
+})
+
+const topBuyers = computed(() => {
+  const buyerMap = new Map<string, { id: string, name: string, count: number, total: number, lastDate: string }>()
+
+  const targetSales = statusFilter.value === 'all'
+    ? sales.value.filter(s => s.status !== 'cancelado')
+    : sales.value.filter(s => s.status === statusFilter.value)
+
+  targetSales.forEach(sale => {
+    const customerId = sale.customer_id || 'anonymous'
+    const current = buyerMap.get(customerId) || {
+      id: customerId,
+      name: sale.customer_name,
+      count: 0,
+      total: 0,
+      lastDate: sale.purchase_date || sale.created_at
+    }
+    current.count++
+    current.total += sale.total_amount
+    const saleDate = sale.purchase_date || sale.created_at
+    if (new Date(saleDate) > new Date(current.lastDate)) {
+      current.lastDate = saleDate
+    }
+    buyerMap.set(customerId, current)
+  })
+
+  return Array.from(buyerMap.values())
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 10)
+})
+
 const totalNewSaleAmount = computed(() => {
   return newSaleItems.value.reduce((sum, item) => sum + item.total_price, 0)
 })
 
-const availableRecipes = computed(() => recipes.value)
+const availableRecipes = computed(() =>
+  recipes.value.filter(r => allScenarios.value.some(sc => sc.recipe_id === r.id))
+)
 
 const itemPreviewPriceUSD = computed(() => {
   if (manualUnitPriceCurrency.value === 'Bs') {
@@ -493,6 +828,7 @@ const itemPreviewSubtotal = computed(() => {
   return itemPreviewPriceUSD.value * (itemQuantity.value || 0)
 })
 
+// WATCHERS
 watch(selectedScenarioId, (newId) => {
   if (newId && editingItemIndex.value === null) {
     const sc = allScenarios.value.find(s => s.id === newId)
@@ -503,39 +839,168 @@ watch(selectedScenarioId, (newId) => {
   }
 })
 
+watch([activeTab, timeFilter, statusFilter, sales], () => {
+  if (activeTab.value === 'analytics') {
+    setTimeout(initCharts, 100)
+  }
+})
+
 // METHODS
 async function loadData() {
-  // Load Products
-  const prodSnap = await getDocs(collection(db, 'productos'))
-  availableProducts.value = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
+  const [prodSnap, myProdSnap] = await Promise.all([
+    getDocs(collection(db, 'productos')),
+    getDocs(collection(db, 'my_products')),
+  ])
+  const regularProducts = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
+  const myProducts = myProdSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
+  availableProducts.value = [...regularProducts, ...myProducts]
 
-  // Load Customers
   const custSnap = await getDocs(collection(db, 'customers'))
   customers.value = custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer))
 
-  // Load Sales
   const salesSnap = await getDocs(query(collection(db, 'sales'), orderBy('created_at', 'desc')))
   sales.value = salesSnap.docs.map(d => ({ id: d.id, ...d.data() } as Sale))
 
-  // Load Recipes (for creation)
   const recipesSnap = await getDocs(collection(db, 'recipes'))
   recipes.value = recipesSnap.docs.map(d => ({ id: d.id, ...d.data() } as Recipe))
 
-  // Load Scenarios (all)
   const scSnap = await getDocs(collection(db, 'scenarios'))
-  allScenarios.value = scSnap.docs.map(d => ({ ...d.data() } as RecipeScenario))
+  allScenarios.value = scSnap.docs.map(d => ({ ...d.data(), id: d.id } as RecipeScenario))
 }
 
-function getCustomerSales(customerId: string) {
-  return sales.value.filter(s => s.customer_id === customerId)
-}
+function initCharts() {
+  if (!salesChartCanvas.value || !buyersChartCanvas.value) return
 
-function toggleCustomer(id: string) {
-  if (expandedCustomers.value.includes(id)) {
-    expandedCustomers.value = expandedCustomers.value.filter(cid => cid !== id)
-  } else {
-    expandedCustomers.value.push(id)
-  }
+  const ctxSales = salesChartCanvas.value.getContext('2d')
+  const ctxBuyers = buyersChartCanvas.value.getContext('2d')
+
+  if (!ctxSales || !ctxBuyers) return
+
+  // DESTROY PREVIOUS
+  if (salesChart.value) salesChart.value.destroy()
+  if (buyersChart.value) buyersChart.value.destroy()
+
+  // SALES DATA PROCESSING
+  const periodData = new Map<string, number>()
+
+  // Filter and Sort sales by purchase_date/created_at
+  const processedSales = [...sales.value]
+    .filter(s => statusFilter.value === 'all' ? s.status !== 'cancelado' : s.status === statusFilter.value)
+    .sort((a, b) => {
+      const dStrA = a.purchase_date || a.created_at
+      const dStrB = b.purchase_date || b.created_at
+      const dateA = dStrA.includes('T') ? new Date(dStrA).getTime() : new Date(dStrA.replace(/-/g, '/')).getTime()
+      const dateB = dStrB.includes('T') ? new Date(dStrB).getTime() : new Date(dStrB.replace(/-/g, '/')).getTime()
+      return dateA - dateB
+    })
+
+  processedSales.forEach(s => {
+    const dStr = s.purchase_date || s.created_at
+    const date = dStr.includes('T') ? new Date(dStr) : new Date(dStr.replace(/-/g, '/'))
+    let key = ''
+    if (timeFilter.value === 'day') key = date.toLocaleDateString()
+    else if (timeFilter.value === 'month') {
+      const month = (date.getMonth() + 1).toString().padStart(2, '0')
+      key = `${month}/${date.getFullYear()}`
+    }
+    else key = `${date.getFullYear()}`
+
+    periodData.set(key, (periodData.get(key) || 0) + s.total_amount)
+  })
+
+  // Since it's already sorted by sale date, Map keys will be in order if we collect them properly
+  const sortedKeys = Array.from(periodData.keys())
+
+  // Gradient for Sales
+  const salesGradient = ctxSales.createLinearGradient(0, 0, 0, 400)
+  salesGradient.addColorStop(0, 'rgba(79, 70, 229, 0.4)')
+  salesGradient.addColorStop(1, 'rgba(79, 70, 229, 0.0)')
+
+  salesChart.value = new Chart(salesChartCanvas.value, {
+    type: 'line',
+    data: {
+      labels: sortedKeys,
+      datasets: [{
+        label: 'Ventas ($)',
+        data: sortedKeys.map(k => periodData.get(k) ?? 0),
+        borderColor: '#4f46e5',
+        borderWidth: 3,
+        backgroundColor: salesGradient,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#4f46e5',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { size: 14, weight: 'bold' },
+          bodyFont: { size: 13 },
+          callbacks: {
+            label: (context) => ` Total: $${(context.parsed.y ?? 0).toFixed(2)}`
+          }
+        }
+      },
+      scales: {
+        y: { grid: { display: false }, ticks: { callback: (val: number | string) => `$${val}` } },
+        x: { grid: { display: false } }
+      },
+      onClick: (_event, elements) => {
+        if (elements.length > 0) {
+          const index = elements[0].index
+          const label = sortedKeys[index]
+          dateFilter.value = label
+          activeTab.value = 'list'
+        }
+      }
+    }
+  })
+
+  // Gradient for Buyers
+  const buyersGradient = ctxBuyers.createLinearGradient(0, 0, 400, 0)
+  buyersGradient.addColorStop(0, '#10b981')
+  buyersGradient.addColorStop(1, '#6ee7b7')
+
+  buyersChart.value = new Chart(buyersChartCanvas.value, {
+    type: 'bar',
+    data: {
+      labels: topBuyers.value.map(b => b.name),
+      datasets: [{
+        label: 'Total Comprado ($)',
+        data: topBuyers.value.map(b => b.total),
+        backgroundColor: buyersGradient,
+        borderRadius: 8,
+        barThickness: 20
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          padding: 10,
+          cornerRadius: 8
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { callback: (val) => `$${val}` } },
+        y: { grid: { display: false } }
+      }
+    }
+  })
 }
 
 function formatStatus(status: string) {
@@ -550,18 +1015,56 @@ function formatStatus(status: string) {
 
 function formatDate(dateStr: string) {
   if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleDateString()
+  // Reemplazar guiones por barras evita que se trate como UTC medianoche
+  // o añadir T00:00:00 para forzar interpretación local
+  const date = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr.replace(/-/g, '/'))
+  return date.toLocaleDateString()
+}
+
+function getDueMessage(dueDate: string) {
+  if (!dueDate) return ''
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const due = new Date(dueDate.replace(/-/g, '/'))
+  due.setHours(0, 0, 0, 0)
+  const diffTime = due.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  if (diffDays > 0) return `Faltan ${diffDays} días para pagar`
+  if (diffDays < 0) return `Tiene ${Math.abs(diffDays)} días de retraso`
+  return 'Vence hoy'
+}
+
+function getDueClass(dueDate: string) {
+  if (!dueDate) return ''
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const due = new Date(dueDate.replace(/-/g, '/'))
+  due.setHours(0, 0, 0, 0)
+  const diffTime = due.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) return 'overdue'
+  if (diffDays <= 3) return 'urgent'
+  return 'upcoming'
+}
+
+function getDueIcon(dueDate: string) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const due = new Date(dueDate.replace(/-/g, '/'))
+  due.setHours(0, 0, 0, 0)
+  const diffTime = due.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) return 'alert-circle'
+  if (diffDays <= 3) return 'clock-alert'
+  return 'clock-outline'
 }
 
 // SALE CREATION LOGIC
 function openSaleModal() {
-  newSale.value = {
-    customer_name: '',
-    customer_phone: '',
-    status: 'pendiente',
-    payment_due_date: new Date().toISOString().split('T')[0],
-  }
-  newSaleItems.value = []
+  resetSaleForm()
   showSaleModal.value = true
 }
 
@@ -584,68 +1087,10 @@ function getScenariosForRecipe(recipeId: string) {
   return allScenarios.value.filter(sc => sc.recipe_id === recipeId)
 }
 
-function getProductById(id: string): Product | undefined {
-  return availableProducts.value.find(p => p.id === id)
-}
-
-function calculateIngredientCost(ing: RecipeIngredient): number {
-  const prod = getProductById(ing.product_id)
-  if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
-  return (prod.price / prod.measurement_value) * (ing.usage_weight || 0)
-}
-
-function calculateEstimatedUnits(recipe: Recipe, scenario: RecipeScenario): number {
-  const totalWeight = recipe.ingredients.reduce((sum, ing) => sum + (ing.usage_weight || 0), 0)
-  const totalFinalWeight = Math.max(0, totalWeight - (recipe.weight_loss || 0))
-
-  if (scenario.mode === 'unit') {
-    if (recipe.has_production_units && recipe.total_production_units) {
-      return recipe.total_production_units / (scenario.value || 1)
-    }
-    return scenario.value || 1
-  } else {
-    if (totalFinalWeight === 0) return 0
-    return totalFinalWeight / (scenario.value || 1)
-  }
-}
-
-function calculateScenarioUtilityCost(util: RecipeUtility): number {
-  if (util.product_id) {
-    const prod = getProductById(util.product_id)
-    if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
-    return (prod.price / prod.measurement_value) * (util.usage_quantity || 0)
-  }
-  const cost = util.cost || 0
-  const qty = util.quantity || 0
-  if (qty === 0) return 0
-  return (cost / qty) * (util.usage_quantity || 0)
-}
-
 function calculateScenarioPrice(scenario: RecipeScenario): number {
-  if (scenario.fixed_sale_price) {
-    if (scenario.fixed_sale_price_currency === 'Bs') {
-      return scenario.fixed_sale_price / (dolarRate.value || 1)
-    }
-    return scenario.fixed_sale_price
-  }
-
   const recipe = recipes.value.find(r => r.id === scenario.recipe_id)
   if (!recipe) return 0
-
-  const units = calculateEstimatedUnits(recipe, scenario)
-  if (units <= 0) return 0
-
-  const totalIngredientsCost = recipe.ingredients.reduce((sum, ing) => sum + calculateIngredientCost(ing), 0)
-  const ingredientCostPerUnit = totalIngredientsCost / units
-  const marginGen = 1 + (recipe.profit_margin_percent / 100)
-
-  const utilitySaleTotalPerPack = (scenario.utilities || []).reduce((sum, util) => {
-    const cost = calculateScenarioUtilityCost(util)
-    const margin = 1 + ((util.profit_margin ?? 50) / 100)
-    return sum + (cost * margin)
-  }, 0)
-
-  return (ingredientCostPerUnit * marginGen) + utilitySaleTotalPerPack
+  return calculateScenarioSalePrice(recipe, scenario)
 }
 
 function addSaleItem() {
@@ -697,6 +1142,7 @@ function resetSaleForm() {
     customer_name: '',
     customer_phone: '',
     status: 'pendiente',
+    purchase_date: new Date().toISOString().split('T')[0],
     payment_due_date: new Date().toISOString().split('T')[0],
   }
   newSaleItems.value = []
@@ -716,6 +1162,7 @@ function editSale(sale: Sale) {
     customer_name: sale.customer_name,
     customer_phone: sale.customer_phone || customers.value.find(c => c.id === sale.customer_id)?.phone || '',
     status: sale.status,
+    purchase_date: sale.purchase_date || sale.created_at.split('T')[0],
     payment_due_date: sale.payment_due_date,
   }
   newSaleItems.value = JSON.parse(JSON.stringify(sale.items))
@@ -724,7 +1171,6 @@ function editSale(sale: Sale) {
 
 async function createSale() {
   try {
-    // 1. Check/Create Customer
     let customerId = ''
     const existing = customers.value.find(c => c.name.toLowerCase() === newSale.value.customer_name.toLowerCase())
 
@@ -739,7 +1185,6 @@ async function createSale() {
       customerId = newCustRef.id
     }
 
-    // 2. Create/Update Sale
     const saleData: Partial<Sale> = {
       customer_id: customerId,
       customer_name: newSale.value.customer_name,
@@ -747,15 +1192,20 @@ async function createSale() {
       items: newSaleItems.value,
       total_amount: totalNewSaleAmount.value,
       status: newSale.value.status,
+      purchase_date: newSale.value.purchase_date,
       payment_due_date: newSale.value.payment_due_date,
     }
 
     if (isEditingSale.value && editingSaleId.value) {
+      const oldSale = sales.value.find(s => s.id === editingSaleId.value)
+      if (oldSale && oldSale.status !== newSale.value.status) {
+        saleData.status_updated_at = new Date().toISOString()
+      }
       saleData.updated_at = new Date().toISOString()
       await updateDoc(doc(db, 'sales', editingSaleId.value), saleData)
     } else {
       saleData.created_at = new Date().toISOString()
-      // Generate Invoice Number for NEW sales
+      saleData.status_updated_at = new Date().toISOString()
       saleData.invoice_number = await getNextInvoiceNumber()
       await addDoc(collection(db, 'sales'), saleData)
     }
@@ -783,20 +1233,15 @@ async function exportarFacturaJPG() {
     const dataUrl = await toJpeg(node, {
       quality: 0.95,
       backgroundColor: '#ffffff',
-      style: {
-        transform: 'scale(1)',
-        transformOrigin: 'top left'
-      }
     })
 
     const link = document.createElement('a')
-    const fileName = `factura_${selectedSaleForInvoice.value?.customer_name.replace(/\s+/g, '_')}_${new Date().getTime()}.jpg`
+    const fileName = `factura_${selectedSaleForInvoice.value?.customer_name.replace(/\s+/g, '_')}.jpg`
     link.download = fileName
     link.href = dataUrl
     link.click()
   } catch (error) {
     console.error('Error al exportar factura:', error)
-    alert('No se pudo generar la imagen. Verifica si hay imágenes con errores de CORS.')
   } finally {
     isExporting.value = false
   }
@@ -805,20 +1250,6 @@ async function exportarFacturaJPG() {
 function openStatusModal(sale: Sale) {
   currentSale.value = sale
   showStatusModal.value = true
-}
-
-// INVOICE NUMBERING LOGIC
-function incrementLetters(letters: string): string | null {
-  const chars = letters.split('')
-  for (let i = chars.length - 1; i >= 0; i--) {
-    if (chars[i] === 'Z') {
-      chars[i] = 'A'
-    } else {
-      chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1)
-      return chars.join('')
-    }
-  }
-  return null
 }
 
 async function getNextInvoiceNumber(): Promise<string> {
@@ -842,13 +1273,7 @@ async function getNextInvoiceNumber(): Promise<string> {
       const maxVal = Math.pow(10, numLength) - 1
 
       if (numVal > maxVal) {
-        const nextLetters = incrementLetters(letters)
-        if (nextLetters === null) {
-          // Reset letters but increase digits (AAA + 5 digits as per AAA00001)
-          nextNumber = "AAA" + "1".padStart(5, '0')
-        } else {
-          nextNumber = nextLetters + "1".padStart(numLength, '0')
-        }
+        nextNumber = letters + "1".padStart(numLength + 1, '0')
       } else {
         nextNumber = letters + numVal.toString().padStart(numLength, '0')
       }
@@ -856,8 +1281,7 @@ async function getNextInvoiceNumber(): Promise<string> {
       transaction.set(docRef, { last_number: nextNumber })
     })
   } catch (e) {
-    console.error('Error in invoice numbering transaction:', e)
-    // Fallback or rethrow
+    console.error('Error in invoice numbering:', e)
     throw e
   }
 
@@ -866,7 +1290,6 @@ async function getNextInvoiceNumber(): Promise<string> {
 
 async function assignInvoiceNumber(sale: Sale) {
   if (sale.invoice_number) return
-
   try {
     const next = await getNextInvoiceNumber()
     await updateDoc(doc(db, 'sales', sale.id!), { invoice_number: next })
@@ -874,16 +1297,15 @@ async function assignInvoiceNumber(sale: Sale) {
     await loadData()
   } catch (error) {
     console.error('Error al asignar nro. factura:', error)
-    alert('Error al generar correlativo')
   }
 }
 
 async function updateSaleStatus(newStatus: SaleStatus) {
   if (!currentSale.value?.id) return
-
   try {
     await updateDoc(doc(db, 'sales', currentSale.value.id), {
       status: newStatus,
+      status_updated_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
     showStatusModal.value = false
@@ -904,6 +1326,18 @@ async function deleteSale(id: string) {
   }
 }
 
+function handleManualDateFilter(event: Event) {
+  const val = (event.target as HTMLInputElement).value
+  if (!val) {
+    dateFilter.value = null
+    return
+  }
+  // Convertir YYYY-MM-DD a Local Date String para ser consistente con el filtro de clicks
+  const date = new Date(val.replace(/-/g, '/'))
+  dateFilter.value = date.toLocaleDateString()
+  timeFilter.value = 'day' // Forzamos vista de día para que el filtrado sea exacto
+}
+
 onMounted(() => {
   loadData()
 })
@@ -911,647 +1345,1099 @@ onMounted(() => {
 
 <style scoped>
 .sales-container {
-  max-width: 1100px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 24px;
+  color: #1e293b;
+  min-height: 100vh;
+  background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.05), transparent),
+    radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.05), transparent);
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 32px;
 }
 
 .header-left h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   display: flex;
   align-items: center;
   gap: 12px;
   margin: 0;
-  font-size: 1.8rem;
-  color: var(--text-primary);
 }
 
-.stats-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-  margin-bottom: 30px;
-}
-
-.stat-card {
-  padding: 20px;
+.header-actions {
+  display: flex;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 6px;
   border-radius: 12px;
-  background: var(--surface);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  border-left: 5px solid #ddd;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
-.stat-card.pending {
-  border-left-color: #f59e0b;
+/* PREMIUM STATS GRID */
+.stats-grid-premium {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+  margin-bottom: 32px;
 }
 
-.stat-card.paid {
-  border-left-color: #10b981;
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.stat-card.to-pay {
-  border-left-color: #3b82f6;
+.glass-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.08);
+  border-color: rgba(255, 255, 255, 0.6);
 }
 
-.stat-card label {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.stat-card .value {
-  font-size: 2rem;
-  font-weight: 800;
-  margin-top: 5px;
-}
-
-.sales-tree {
+.stat-item {
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  position: relative;
   overflow: hidden;
 }
 
-.tree-container {
-  display: flex;
-  flex-direction: column;
-}
-
-.customer-node {
-  border-bottom: 1px solid var(--border);
-}
-
-.customer-header {
-  padding: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.customer-header:hover {
-  background: var(--background);
-}
-
-.customer-info {
+.stat-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  z-index: 1;
 }
 
-.customer-name {
-  font-weight: 700;
-  font-size: 1.1rem;
+.investment .stat-icon {
+  background: #eef2ff;
+  color: #4f46e5;
 }
 
-.customer-phone {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  background: var(--background);
-  padding: 2px 8px;
-  border-radius: 4px;
+.sales .stat-icon {
+  background: #ecfdf5;
+  color: #059669;
 }
 
-.sales-list {
-  background: var(--background);
-  padding: 12px 16px 12px 48px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.profit .stat-icon {
+  background: #fffcf0;
+  color: #d97706;
 }
 
-.sale-item-card {
-  background: var(--surface);
-  padding: 16px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+.profit.positive .stat-icon {
+  background: #f0fdf4;
+  color: #16a34a;
 }
 
-.sale-main-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
+.pending-revenue .stat-icon {
+  background: #fff1f2;
+  color: #e11d48;
 }
 
-.sale-date {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.9rem;
+.sales-total .stat-icon {
+  background: #f0f9ff;
+  color: #0369a1;
+}
+
+.margin .stat-icon {
+  background: #faf5ff;
+  color: #7c3aed;
+}
+
+.stat-info {
+  z-index: 1;
+  flex: 1;
+}
+
+.stat-info label {
+  display: block;
+  font-size: 0.875rem;
   font-weight: 600;
-}
-
-.status-badge {
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 700;
+  color: #64748b;
   text-transform: uppercase;
+  letter-spacing: 0.025em;
+  margin-bottom: 4px;
 }
 
-.status-badge.pendiente {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.status-badge.pagado {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.status-badge.por\ pagar {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.status-badge.cancelado {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.sale-products {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 8px;
-  background: var(--background);
-  border-radius: 6px;
-}
-
-.product-mini-tag {
-  font-size: 0.8rem;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background: var(--surface);
-  min-width: 180px;
-}
-
-.product-mini-tag .tag-info {
+.stat-value {
+  font-size: 1.875rem;
+  font-weight: 800;
+  color: #0f172a;
   line-height: 1.2;
 }
 
-.product-mini-tag .tag-prices {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  border-top: 1px dashed var(--border);
-  padding-top: 4px;
+.stat-sub {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  font-weight: 500;
 }
 
-.product-mini-tag .unit-price {
-  font-size: 0.7rem;
-  color: var(--text-secondary);
-  font-weight: 600;
+.stat-bg-icon {
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  font-size: 5rem;
+  opacity: 0.03;
+  transform: rotate(-15deg);
+  pointer-events: none;
 }
 
-.product-mini-tag .total-price-sm {
-  font-weight: 800;
-  color: var(--primary);
-  font-size: 0.85rem;
+.stat-progress {
+  height: 6px;
+  background: #f1f5f9;
+  border-radius: 3px;
+  margin-top: 12px;
+  overflow: hidden;
 }
 
-.sale-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 8px;
-  border-top: 1px dashed var(--border);
+.progress-bar {
+  height: 100%;
+  background: #4f46e5;
+  border-radius: 3px;
+  transition: width 1s ease-out;
 }
 
-.total-amount {
-  font-size: 1rem;
-}
-
-.total-amount strong {
-  font-size: 1.2rem;
-  color: var(--primary);
-}
-
-.bs-val {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  margin-left: 8px;
-}
-
-/* MODAL STYLES */
-.grid-2 {
+/* CHARTS SECTION */
+.charts-grid-premium {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1.8fr 1.2fr;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+@media (min-width: 1600px) {
+  .charts-grid-premium {
+    grid-template-columns: 1fr 1fr;
+    max-width: 1600px;
+  }
+}
+
+.chart-container {
+  overflow: hidden;
+}
+
+.chart-header {
+  padding: 20px 24px;
+  background: rgba(255, 255, 255, 0.4);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
-.form-section h4 {
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-primary);
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 8px;
-}
-
-.add-product-row {
+.header-tools-analytics {
   display: flex;
   gap: 12px;
-  align-items: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
-.flex-2 {
-  flex: 2;
+.status-pills.mini button {
+  padding: 4px 12px;
+  font-size: 0.75rem;
 }
 
-.ml-2 {
-  margin-left: 8px;
-}
-
-.add-product-actions {
+.chart-header h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
   display: flex;
   align-items: center;
-}
-
-.sc-actions {
-  display: flex;
-  justify-content: flex-end;
   gap: 8px;
+  color: #334155;
+  margin: 0;
 }
 
-.searchable-input {
+.pill-filters {
+  display: flex;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.pill-filters button {
+  padding: 6px 16px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pill-filters button.active {
+  background: white;
+  color: #4f46e5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.status-pills {
+  background: white;
+  border: 1px solid #e2e8f0;
+}
+
+.status-pills button.active {
+  background: #f1f5f9;
+}
+
+.canvas-wrapper {
+  padding: 24px;
+  height: 400px;
   position: relative;
 }
 
-.suggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  z-index: 10;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  max-height: 150px;
-  overflow-y: auto;
+/* MINI STATS GRID */
+.stats-cards-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
 }
 
-.suggestion-item {
-  padding: 10px;
-  cursor: pointer;
-}
-
-.suggestion-item:hover {
-  background: var(--background);
-}
-
-.modal-footer {
+.mini-stat {
+  padding: 16px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
-  margin-top: 24px;
+  gap: 16px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
-.total-preview {
-  font-size: 1.1rem;
+.mini-stat.active {
+  background: white;
+  border-color: #4f46e5;
+  box-shadow: 0 4px 15px rgba(79, 70, 229, 0.1);
 }
 
-.total-preview strong {
-  color: var(--primary);
-  font-weight: 800;
-}
-
-.subtotal-preview {
+.mini-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding-bottom: 4px;
-  min-width: 140px;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
 }
 
-.subtotal-preview .label {
-  font-size: 0.65rem;
-  color: var(--text-secondary);
+.mini-stat.pending .mini-icon {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.mini-stat.paid .mini-icon {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.mini-stat.to-pay .mini-icon {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.mini-stat.all .mini-icon {
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.mini-content label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
   text-transform: uppercase;
-  font-weight: 800;
-  letter-spacing: 0.5px;
   margin-bottom: 2px;
 }
 
-.subtotal-preview .value {
-  font-size: 1.2rem;
+.mini-content .value {
+  font-size: 1.25rem;
   font-weight: 800;
-  color: var(--primary);
-  line-height: 1.1;
+  color: #1e293b;
+}
+
+/* MISC STYLES */
+.subtotal-preview {
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+}
+
+.subtotal-preview .label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.subtotal-preview .value {
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: #0f172a;
 }
 
 .subtotal-preview .value-bs {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  color: #94a3b8;
   font-weight: 600;
 }
 
-@media (max-width: 768px) {
-
-  .grid-2,
-  .add-product-row {
-    grid-template-columns: 1fr;
-    flex-direction: column;
-  }
-
-  .sales-list {
-    padding-left: 16px;
-  }
-}
-
 .status-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
+  padding: 8px;
 }
 
 .status-option {
   padding: 16px;
-  border-radius: 8px;
-  border: 2px solid transparent;
+  border: 2px solid #f1f5f9;
+  border-radius: 16px;
+  background: white;
   cursor: pointer;
-  font-weight: 700;
   transition: all 0.2s;
-  text-align: center;
-  color: #1a1a1a;
-  background: #f3f4f6;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .status-option.active {
-  border-color: #2563eb;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
   transform: scale(1.02);
+  border-color: currentColor;
 }
 
 .status-option.pendiente {
-  background: #fef3c7;
-  color: #92400e;
+  color: #b45309;
 }
 
 .status-option.pagado {
-  background: #d1fae5;
-  color: #065f46;
+  color: #059669;
 }
 
 .status-option.por\ pagar {
-  background: #dbeafe;
-  color: #1e40af;
+  color: #1d4ed8;
 }
 
 .status-option.cancelado {
-  background: #fee2e2;
-  color: #991b1b;
+  color: #b91c1c;
 }
 
-.status-option.pendiente:hover {
-  background: #fde68a;
+.status-option:hover {
+  background: #f8fafc;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-.status-option.pagado:hover {
-  background: #a7f3d0;
+.top-buyers-list {
+  padding-bottom: 32px;
 }
 
-.status-option.por\ pagar:hover {
-  background: #bfdbfe;
+.mini-table thead th {
+  background: #f8fafc;
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
-.status-option.cancelado:hover {
-  background: #fecaca;
+.mini-table tbody tr:hover {
+  background: rgba(79, 70, 229, 0.02);
 }
 
-/* INVOICE STYLES */
-.invoice-modal {
-  max-width: 800px;
-  width: 95%;
+.price-stack {
+  display: flex;
+  flex-direction: column;
 }
 
-.invoice-container {
-  background: white;
-  padding: 40px;
-  color: #1a1a1a;
-  font-family: 'Inter', system-ui, sans-serif;
-  width: 750px;
-  min-width: 750px;
-  max-width: 750px;
-  margin: 0 auto;
+.price-stack .price-bs {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 600;
 }
 
-@media (max-width: 768px) {
-  .invoice-modal .modal-body {
-    padding: 0;
-  }
-
-  .invoice-container {
-    transform: scale(0.5);
-    transform-origin: top center;
-    margin-bottom: -375px;
-  }
-}
-
-.invoice-header {
+/* MODERN LIST SECTION */
+.section-header-premium {
+  padding: 24px;
   display: flex;
   justify-content: space-between;
-  border-bottom: 2px solid #f3f4f6;
-  padding-bottom: 20px;
-  margin-bottom: 30px;
+  align-items: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
-.biz-name {
-  font-size: 1.8rem;
-  font-weight: 900;
-  color: #2563eb;
-  margin-bottom: 5px;
+.header-tools {
+  flex: auto;
+  display: flex;
+  gap: 10px;
+  justify-content: end;
+  align-items: center;
 }
 
-.biz-info p {
-  margin: 2px 0;
-  font-size: 0.9rem;
-  color: #4b5563;
-}
-
-.invoice-meta {
-  text-align: right;
-}
-
-.meta-item {
-  margin-bottom: 8px;
-}
-
-.meta-item .label {
-  font-size: 0.8rem;
-  color: #6b7280;
-  text-transform: uppercase;
-  font-weight: 700;
-  display: block;
-}
-
-.meta-item .value {
-  font-size: 1.1rem;
+.title-with-subtitle h2 {
+  font-size: 1.25rem;
   font-weight: 800;
+  color: #1e293b;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.invoice-num-box {
+.subtitle {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.search-premium {
+  position: relative;
+  width: 300px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+}
+
+.search-premium input {
+  width: 100%;
+  padding: 10px 14px 10px 42px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 0.9375rem;
+  transition: all 0.2s;
+}
+
+.search-premium input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.05);
+}
+
+.date-filter-tag {
   display: flex;
   align-items: center;
   gap: 8px;
+  background: #eef2ff;
+  color: #4f46e5;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  border: 1px solid #c7d2fe;
 }
 
-.btn-generate-invoice {
-  background: #dbeafe;
-  color: #1e40af;
+.date-filter-tag .btn-clear {
+  background: transparent;
   border: none;
+  color: #4f46e5;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
   border-radius: 4px;
-  width: 24px;
-  height: 24px;
+}
+
+.date-filter-tag .btn-clear:hover {
+  background: rgba(79, 70, 229, 0.1);
+}
+
+.date-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.date-input-wrapper .input-icon {
+  position: absolute;
+  left: 12px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.date-input {
+  padding: 10px 12px 10px 38px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 0.9375rem;
+  color: #1e293b;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.date-input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.05);
+}
+
+.sales-modern-list {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sale-entry-card {
+  display: grid;
+  grid-template-columns: 220px 1fr 140px 140px 120px;
+  align-items: center;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(0, 0, 0, 0.02);
+  border-radius: 16px;
+  gap: 20px;
+  transition: all 0.2s;
+}
+
+.sale-entry-card:hover {
+  background: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  transform: translateX(4px);
+}
+
+.sale-main-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.invoice-badge {
+  background: #f1f5f9;
+  color: #475569;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.customer-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.c-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.c-date {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.due-alert {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.due-alert.overdue {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fee2e2;
+}
+
+.due-alert.urgent {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fef3c7;
+}
+
+.due-alert.upcoming {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #dcfce7;
+}
+
+.items-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.item-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+}
+
+.more-items {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 600;
+  align-self: center;
+}
+
+.sale-financials-premium {
+  text-align: right;
+}
+
+.price-usd {
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.price-bs {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.modern-badge {
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  cursor: pointer;
+  width: 100%;
+  transition: all 0.2s;
+}
+
+.status-date {
+  font-size: 0.65rem;
+  opacity: 0.8;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.modern-badge.pendiente {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fef3c7;
+}
+
+.modern-badge.pagado {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #d1fae5;
+}
+
+.modern-badge.por\ pagar {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #dbeafe;
+}
+
+.modern-badge.cancelado {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fee2e2;
+}
+
+.sale-actions-premium {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: white;
+  color: #64748b;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-.btn-generate-invoice:hover {
-  background: #bfdbfe;
+.action-btn:hover {
   transform: scale(1.1);
 }
 
-.customer-info-section {
-  background: #f9fafb;
-  padding: 20px;
-  border-radius: 12px;
-  margin-bottom: 30px;
+.action-btn.edit:hover {
+  color: #4f46e5;
+  background: #eef2ff;
 }
 
-.section-title {
-  font-size: 0.8rem;
-  color: #6b7280;
-  text-transform: uppercase;
-  font-weight: 700;
-  margin-bottom: 12px;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 5px;
+.action-btn.invoice:hover {
+  color: #0891b2;
+  background: #ecfeff;
 }
 
-.customer-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 15px;
+.action-btn.delete:hover {
+  color: #e11d48;
+  background: #fff1f2;
 }
 
-.c-item .label {
-  font-size: 0.75rem;
-  color: #6b7280;
-  display: block;
+.empty-state-premium {
+  padding: 60px;
+  text-align: center;
+  color: #94a3b8;
 }
 
-.c-item .value {
-  font-weight: 700;
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+  opacity: 0.5;
 }
 
-.status-text {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-}
-
-.status-text.pagado {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.status-text.pendiente {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.invoice-table-wrapper {
-  margin-bottom: 40px;
-}
-
-.invoice-table {
+.mini-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
-.invoice-table th {
+.mini-table th {
   text-align: left;
-  font-size: 0.8rem;
+  padding: 12px 16px;
+  font-size: 0.75rem;
+  font-weight: 700;
   text-transform: uppercase;
-  color: #6b7280;
-  padding: 12px 8px;
-  border-bottom: 2px solid #e5e7eb;
+  color: #64748b;
+  border-bottom: 2px solid #f1f5f9;
 }
 
-.invoice-table td {
-  padding: 12px 8px;
-  border-bottom: 1px solid #f3f4f6;
-  font-size: 0.95rem;
+.mini-table td {
+  padding: 14px 16px;
+  font-size: 0.875rem;
+  border-bottom: 1px solid #f1f5f9;
 }
 
-.text-right {
-  text-align: right;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.invoice-footer {
+.fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+/* MODALS & FORMS */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 280px;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: 40px;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  transition: left 0.3s ease;
 }
 
-.totals-section {
-  width: 300px;
+.modal-content {
+  background: white;
+  border-radius: 24px;
+  width: 100%;
+  max-width: 600px;
+  max-height: calc(100vh - 40px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.total-row {
+.large-modal {
+  max-width: 900px;
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #f1f5f9;
   display: flex;
   justify-content: space-between;
-  padding: 8px 0;
-  font-size: 1.1rem;
+  align-items: center;
 }
 
-.total-row.bs {
-  color: #6b7280;
-  font-size: 0.9rem;
-  border-bottom: 1px solid #e5e7eb;
+.modal-header h3 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.total-row strong {
-  font-size: 1.4rem;
-  color: #1a1a1a;
-}
-
-.invoice-notes {
-  text-align: center;
-  border-top: 2px solid #f3f4f6;
-  padding-top: 20px;
-  color: #9ca3af;
-  font-size: 0.8rem;
-}
-
-.tasa-ref {
-  font-size: 0.7rem;
-  margin-top: 5px;
-}
-
-.scrollable {
-  max-height: 70vh;
+.modal-body {
+  padding: 24px;
+  flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-footer {
+  padding: 20px 24px;
+  background: #f8fafc;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn {
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+}
+
+.btn-primary {
+  background: #4f46e5;
+  color: white;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+}
+
+.btn-primary:hover {
+  background: #4338ca;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.3);
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.9375rem;
+  transition: all 0.2s;
+  background: #fff;
+}
+
+.form-input:focus,
+.form-select:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.05);
+}
+
+@media (max-width: 1024px) {
+  .modal-overlay {
+    left: 0;
+  }
+
+  .charts-grid-premium {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-cards-mini-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .sale-entry-card {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .sale-products-overview {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .sales-container {
+    padding: 16px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .header-left h1 {
+    font-size: 1.75rem;
+  }
+
+  .header-actions {
+    flex-direction: column;
+    width: 100%;
+    border-radius: 16px;
+  }
+
+  .header-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .stats-grid-premium {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .stats-cards-mini-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .sale-entry-card {
+    grid-template-columns: 1fr;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .sale-main-info,
+  .sale-products-overview,
+  .sale-financials-premium,
+  .sale-status-area,
+  .sale-actions-premium {
+    grid-column: span 1;
+  }
+
+  .sale-financials-premium {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 12px;
+  }
+
+  .sale-actions-premium {
+    justify-content: center;
+    background: #f8fafc;
+    padding: 8px;
+    border-radius: 12px;
+  }
+
+  .grid-2 {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .modal-content {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    max-width: none;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-body {
+    flex: 1;
+    padding: 20px 16px;
+    max-height: none;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .modal-footer .actions {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .add-product-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 </style>
