@@ -261,20 +261,53 @@
         </div>
         <div class="modal-body">
           <div class="calculation-form">
+            <!-- Selector de Tasa -->
             <div class="form-group mb-4">
-              <label class="text-xs font-bold text-muted">Precio de Venta ($/kg)</label>
-              <input v-model.number="calculationData.salePrice" type="number" class="form-input" step="0.01"
-                @input="updateCalculationAmount" />
+              <label class="text-xs font-bold text-muted uppercase">Tipo de Tasa</label>
+              <div class="rate-selector mt-1">
+                <label class="rate-option">
+                  <input type="radio" v-model="calculationData.rateType" value="official" @change="updateRate" />
+                  <span>BCV Oficial</span>
+                </label>
+                <label class="rate-option">
+                  <input type="radio" v-model="calculationData.rateType" value="parallel" @change="updateRate" />
+                  <span>Paralelo</span>
+                </label>
+              </div>
             </div>
-            <div class="form-group mb-4">
-              <label class="text-xs font-bold text-muted">Monto en Dólares ($)</label>
-              <input v-model.number="calculationData.amount" type="number" class="form-input" step="0.01"
-                @input="updateCalculationAmount" />
+
+            <div class="form-grid-mini">
+              <div class="form-group mb-4">
+                <label class="text-xs font-bold text-muted uppercase">Tasa de Cambio (Bs/$)</label>
+                <input v-model.number="calculationData.currentRate" type="number" class="form-input" step="0.01"
+                  @input="updateCalculationBs" />
+              </div>
+              <div class="form-group mb-4">
+                <label class="text-xs font-bold text-muted uppercase">Precio Venta ($/kg)</label>
+                <input v-model.number="calculationData.salePrice" type="number" class="form-input" step="0.01"
+                  @input="updateCalculationAmount" />
+              </div>
             </div>
+
+            <hr class="my-4 border-dashed border-border" />
+
             <div class="form-group mb-4">
-              <label class="text-xs font-bold text-muted">Cantidad en Kilos (kg)</label>
-              <input v-model.number="calculationData.kilograms" type="number" class="form-input" step="0.1"
-                @input="updateCalculationKilos" />
+              <label class="text-xs font-bold text-muted uppercase">Monto en Bolívares (Bs)</label>
+              <input v-model.number="calculationData.bsAmount" type="number" class="form-input" step="0.01"
+                @input="updateFromBs" />
+            </div>
+
+            <div class="form-grid-mini">
+              <div class="form-group mb-4">
+                <label class="text-xs font-bold text-muted uppercase">Monto en Dólares ($)</label>
+                <input v-model.number="calculationData.amount" type="number" class="form-input" step="0.01"
+                  @input="updateCalculationAmount" />
+              </div>
+              <div class="form-group mb-4">
+                <label class="text-xs font-bold text-muted uppercase">Cantidad en Kilos (kg)</label>
+                <input v-model.number="calculationData.kilograms" type="number" class="form-input" step="0.1"
+                  @input="updateCalculationKilos" />
+              </div>
             </div>
           </div>
 
@@ -282,9 +315,11 @@
             <div class="summary-item text-center">
               <label class="text-xs text-secondary uppercase font-bold">Resumen de Cálculo</label>
               <div class="value text-primary text-xl font-bold mt-1">
-                {{ calculationData.kilograms.toFixed(2) }} kg de pollo
+                {{ (calculationData.kilograms || 0).toFixed(2) }} kg de pollo
               </div>
-              <div class="text-xs text-muted">equivalen a ${{ calculationData.amount.toFixed(2) }}</div>
+              <div class="text-xs text-muted">equivalen a ${{ (calculationData.amount || 0).toFixed(2) }}</div>
+              <div class="text-xs text-muted font-bold">(Bs {{ (calculationData.bsAmount || 0).toLocaleString() }})
+              </div>
             </div>
           </div>
         </div>
@@ -321,10 +356,14 @@ const selectedBatch = ref<Recipe | null>(null)
 const calculationData = ref({
   salePrice: 0,
   amount: 0,
-  kilograms: 0
+  kilograms: 0,
+  bsAmount: 0,
+  rateType: 'official' as 'official' | 'parallel',
+  currentRate: 0
 })
 
 const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
+const { dolarInternacional } = inject<{ dolarInternacional: Ref<DolarBCV | null> }>('dolarInternacional')!
 const dolarRate = computed(() => dolarBCV.value?.promedio || 0)
 
 const {
@@ -400,22 +439,50 @@ async function saveSales() {
 
 function openCalculationModal(batch: Recipe) {
   selectedBatch.value = batch
+  const initialRate = dolarBCV.value?.promedio || 0
   calculationData.value = {
     salePrice: batch.chicken_data?.live_weight_price_kg || 0,
     amount: 0,
-    kilograms: 0
+    kilograms: 0,
+    bsAmount: 0,
+    rateType: 'official',
+    currentRate: initialRate
   }
   showCalculationModal.value = true
+}
+
+function updateRate() {
+  if (calculationData.value.rateType === 'official') {
+    calculationData.value.currentRate = dolarBCV.value?.promedio || 0
+  } else {
+    calculationData.value.currentRate = dolarInternacional.value?.promedio || 0
+  }
+  updateCalculationBs() // Re-calculate Bs if rate changes
 }
 
 function updateCalculationAmount() {
   if (calculationData.value.salePrice > 0) {
     calculationData.value.kilograms = Number((calculationData.value.amount / calculationData.value.salePrice).toFixed(2))
   }
+  updateCalculationBs()
 }
 
 function updateCalculationKilos() {
   calculationData.value.amount = Number((calculationData.value.kilograms * calculationData.value.salePrice).toFixed(2))
+  updateCalculationBs()
+}
+
+function updateCalculationBs() {
+  calculationData.value.bsAmount = Number((calculationData.value.amount * calculationData.value.currentRate).toFixed(2))
+}
+
+function updateFromBs() {
+  if (calculationData.value.currentRate > 0) {
+    calculationData.value.amount = Number((calculationData.value.bsAmount / calculationData.value.currentRate).toFixed(2))
+    if (calculationData.value.salePrice > 0) {
+      calculationData.value.kilograms = Number((calculationData.value.amount / calculationData.value.salePrice).toFixed(2))
+    }
+  }
 }
 
 function formatDate(dateStr?: string) {
@@ -999,5 +1066,54 @@ onMounted(() => {
 
 .summary-item-mini.highlight-profit span {
   color: var(--primary);
+}
+
+.rate-selector {
+  display: flex;
+  gap: 12px;
+  background: var(--bg-secondary);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.rate-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.rate-option:has(input:checked) {
+  background: white;
+  color: var(--primary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.rate-option input {
+  display: none;
+}
+
+.form-grid-mini {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.border-dashed {
+  border-style: dashed;
+}
+
+.my-4 {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
 }
 </style>
