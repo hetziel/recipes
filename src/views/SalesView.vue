@@ -68,7 +68,7 @@
                   </div>
                   <div class="sale-due">
                     <span class="text-xs text-muted">Vence: {{ formatDate(sale.payment_due_date)
-                    }}</span>
+                      }}</span>
                   </div>
                 </div>
 
@@ -90,7 +90,7 @@
                   <div class="total-amount">
                     Total: <strong>${{ sale.total_amount.toFixed(2) }}</strong>
                     <span class="bs-val">/ Bs {{ (sale.total_amount * dolarRate).toFixed(2)
-                    }}</span>
+                      }}</span>
                   </div>
                   <div class="sale-actions">
                     <button @click="editSale(sale)" class="btn-icon" title="Editar Venta">
@@ -343,7 +343,7 @@
                 <div class="meta-item">
                   <span class="label">Fecha:</span>
                   <span class="value">{{ selectedSaleForInvoice ? formatDate(selectedSaleForInvoice.created_at) : ''
-                  }}</span>
+                    }}</span>
                 </div>
               </div>
             </div>
@@ -419,9 +419,10 @@ import { collection, query, getDocs, addDoc, updateDoc, doc, orderBy, deleteDoc,
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
 import type { Customer, Sale, SaleItem, SaleStatus } from '../types/sales'
-import type { Recipe, RecipeScenario, RecipeIngredient, RecipeUtility } from '../types/recipe'
+import type { Recipe, RecipeScenario } from '../types/recipe'
 import { toJpeg } from 'html-to-image'
 import type { DolarBCV, Product } from '../types/producto'
+import { useProduction } from '../composables/useProduction'
 
 // INJECTS
 const { dolarBCV } = inject<{ dolarBCV: Ref<DolarBCV | null> }>('dolarBCV')!
@@ -479,7 +480,14 @@ const totalNewSaleAmount = computed(() => {
   return newSaleItems.value.reduce((sum, item) => sum + item.total_price, 0)
 })
 
-const availableRecipes = computed(() => recipes.value)
+// Only show recipes that have at least one scenario
+const availableRecipes = computed(() =>
+  recipes.value.filter(r => allScenarios.value.some(sc => sc.recipe_id === r.id))
+)
+
+const {
+  calculateScenarioSalePrice,
+} = useProduction(availableProducts, dolarRate)
 
 const itemPreviewPriceUSD = computed(() => {
   if (manualUnitPriceCurrency.value === 'Bs') {
@@ -505,9 +513,14 @@ watch(selectedScenarioId, (newId) => {
 
 // METHODS
 async function loadData() {
-  // Load Products
-  const prodSnap = await getDocs(collection(db, 'productos'))
-  availableProducts.value = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
+  // Load both regular products AND recipe products (my_products) for correct cost calculation
+  const [prodSnap, myProdSnap] = await Promise.all([
+    getDocs(collection(db, 'productos')),
+    getDocs(collection(db, 'my_products')),
+  ])
+  const regularProducts = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
+  const myProducts = myProdSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
+  availableProducts.value = [...regularProducts, ...myProducts]
 
   // Load Customers
   const custSnap = await getDocs(collection(db, 'customers'))
@@ -523,7 +536,7 @@ async function loadData() {
 
   // Load Scenarios (all)
   const scSnap = await getDocs(collection(db, 'scenarios'))
-  allScenarios.value = scSnap.docs.map(d => ({ ...d.data() } as RecipeScenario))
+  allScenarios.value = scSnap.docs.map(d => ({ ...d.data(), id: d.id } as RecipeScenario))
 }
 
 function getCustomerSales(customerId: string) {
@@ -584,68 +597,10 @@ function getScenariosForRecipe(recipeId: string) {
   return allScenarios.value.filter(sc => sc.recipe_id === recipeId)
 }
 
-function getProductById(id: string): Product | undefined {
-  return availableProducts.value.find(p => p.id === id)
-}
-
-function calculateIngredientCost(ing: RecipeIngredient): number {
-  const prod = getProductById(ing.product_id)
-  if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
-  return (prod.price / prod.measurement_value) * (ing.usage_weight || 0)
-}
-
-function calculateEstimatedUnits(recipe: Recipe, scenario: RecipeScenario): number {
-  const totalWeight = recipe.ingredients.reduce((sum, ing) => sum + (ing.usage_weight || 0), 0)
-  const totalFinalWeight = Math.max(0, totalWeight - (recipe.weight_loss || 0))
-
-  if (scenario.mode === 'unit') {
-    if (recipe.has_production_units && recipe.total_production_units) {
-      return recipe.total_production_units / (scenario.value || 1)
-    }
-    return scenario.value || 1
-  } else {
-    if (totalFinalWeight === 0) return 0
-    return totalFinalWeight / (scenario.value || 1)
-  }
-}
-
-function calculateScenarioUtilityCost(util: RecipeUtility): number {
-  if (util.product_id) {
-    const prod = getProductById(util.product_id)
-    if (!prod || !prod.measurement_value || prod.measurement_value === 0) return 0
-    return (prod.price / prod.measurement_value) * (util.usage_quantity || 0)
-  }
-  const cost = util.cost || 0
-  const qty = util.quantity || 0
-  if (qty === 0) return 0
-  return (cost / qty) * (util.usage_quantity || 0)
-}
-
 function calculateScenarioPrice(scenario: RecipeScenario): number {
-  if (scenario.fixed_sale_price) {
-    if (scenario.fixed_sale_price_currency === 'Bs') {
-      return scenario.fixed_sale_price / (dolarRate.value || 1)
-    }
-    return scenario.fixed_sale_price
-  }
-
   const recipe = recipes.value.find(r => r.id === scenario.recipe_id)
   if (!recipe) return 0
-
-  const units = calculateEstimatedUnits(recipe, scenario)
-  if (units <= 0) return 0
-
-  const totalIngredientsCost = recipe.ingredients.reduce((sum, ing) => sum + calculateIngredientCost(ing), 0)
-  const ingredientCostPerUnit = totalIngredientsCost / units
-  const marginGen = 1 + (recipe.profit_margin_percent / 100)
-
-  const utilitySaleTotalPerPack = (scenario.utilities || []).reduce((sum, util) => {
-    const cost = calculateScenarioUtilityCost(util)
-    const margin = 1 + ((util.profit_margin ?? 50) / 100)
-    return sum + (cost * margin)
-  }, 0)
-
-  return (ingredientCostPerUnit * marginGen) + utilitySaleTotalPerPack
+  return calculateScenarioSalePrice(recipe, scenario)
 }
 
 function addSaleItem() {
