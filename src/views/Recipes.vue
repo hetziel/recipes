@@ -88,7 +88,7 @@
                           <div class="summary-item-mini">
                             <label>Alimento (kg)</label>
                             <span>Est. Inicio: {{ getChickenCalculations(recipe)!.totalStarterNeeded.toFixed(1)
-                              }}kg</span>
+                            }}kg</span>
                           </div>
                           <div class="summary-item-mini highlight-profit">
                             <label>Ganancia Proyectada</label>
@@ -183,7 +183,7 @@
                               <div class="price-stack-mini">
                                 <span class="usd">${{ getScenarioUnitCost(recipe, sc).toFixed(2) }}</span>
                                 <span class="bs">Bs {{ (getScenarioUnitCost(recipe, sc) * dolarRate).toFixed(2)
-                                }}</span>
+                                  }}</span>
                               </div>
                             </div>
                             <div class="fin-item highlight-success">
@@ -276,16 +276,22 @@
               </div>
             </div>
 
+            <div class="form-group mb-4">
+              <label class="text-xs font-bold text-muted uppercase">Tasa de Cambio (Bs/$)</label>
+              <input v-model.number="calculationData.currentRate" type="number" class="form-input" step="0.01"
+                @input="updateCalculationBs" />
+            </div>
+
             <div class="form-grid-mini">
               <div class="form-group mb-4">
-                <label class="text-xs font-bold text-muted uppercase">Tasa de Cambio (Bs/$)</label>
-                <input v-model.number="calculationData.currentRate" type="number" class="form-input" step="0.01"
-                  @input="updateCalculationBs" />
+                <label class="text-xs font-bold text-muted uppercase">Venta BCV ($/kg)</label>
+                <input v-model.number="calculationData.salePrice" type="number" class="form-input" step="0.01"
+                  @input="updateFromPriceBCV" />
               </div>
               <div class="form-group mb-4">
-                <label class="text-xs font-bold text-muted uppercase">Precio Venta ($/kg)</label>
-                <input v-model.number="calculationData.salePrice" type="number" class="form-input" step="0.01"
-                  @input="updateCalculationAmount" />
+                <label class="text-xs font-bold text-muted uppercase">Venta Int. ($/kg)</label>
+                <input v-model.number="calculationData.salePriceInt" type="number" class="form-input" step="0.01"
+                  @input="updateFromPriceInt" />
               </div>
             </div>
 
@@ -355,6 +361,7 @@ const isSavingSales = ref(false)
 const selectedBatch = ref<Recipe | null>(null)
 const calculationData = ref({
   salePrice: 0,
+  salePriceInt: 0,
   amount: 0,
   kilograms: 0,
   bsAmount: 0,
@@ -440,8 +447,14 @@ async function saveSales() {
 function openCalculationModal(batch: Recipe) {
   selectedBatch.value = batch
   const initialRate = dolarBCV.value?.promedio || 0
+  const oficialPrice = batch.chicken_data?.live_weight_price_kg || 0
+  const intPrice = (dolarInternacional.value?.promedio && initialRate)
+    ? Number(((oficialPrice * initialRate) / dolarInternacional.value.promedio).toFixed(2))
+    : oficialPrice
+
   calculationData.value = {
-    salePrice: batch.chicken_data?.live_weight_price_kg || 0,
+    salePrice: oficialPrice,
+    salePriceInt: intPrice,
     amount: 0,
     kilograms: 0,
     bsAmount: 0,
@@ -451,24 +464,46 @@ function openCalculationModal(batch: Recipe) {
   showCalculationModal.value = true
 }
 
+function updateFromPriceBCV() {
+  const ofic = dolarBCV.value?.promedio || 1
+  const para = dolarInternacional.value?.promedio || 1
+  calculationData.value.salePriceInt = Number(((calculationData.value.salePrice * ofic) / para).toFixed(2))
+  updateCalculationAmount()
+}
+
+function updateFromPriceInt() {
+  const ofic = dolarBCV.value?.promedio || 1
+  const para = dolarInternacional.value?.promedio || 1
+  calculationData.value.salePrice = Number(((calculationData.value.salePriceInt * para) / ofic).toFixed(2))
+  updateCalculationAmount()
+}
+
 function updateRate() {
   if (calculationData.value.rateType === 'official') {
     calculationData.value.currentRate = dolarBCV.value?.promedio || 0
   } else {
     calculationData.value.currentRate = dolarInternacional.value?.promedio || 0
   }
-  updateCalculationBs() // Re-calculate Bs if rate changes
+  updateCalculationKilos() // Maintain kg constant and update amounts
 }
 
 function updateCalculationAmount() {
-  if (calculationData.value.salePrice > 0) {
-    calculationData.value.kilograms = Number((calculationData.value.amount / calculationData.value.salePrice).toFixed(2))
+  const price = calculationData.value.rateType === 'official'
+    ? calculationData.value.salePrice
+    : calculationData.value.salePriceInt
+
+  if (price > 0) {
+    calculationData.value.kilograms = Number((calculationData.value.amount / price).toFixed(2))
   }
   updateCalculationBs()
 }
 
 function updateCalculationKilos() {
-  calculationData.value.amount = Number((calculationData.value.kilograms * calculationData.value.salePrice).toFixed(2))
+  const price = calculationData.value.rateType === 'official'
+    ? calculationData.value.salePrice
+    : calculationData.value.salePriceInt
+
+  calculationData.value.amount = Number((calculationData.value.kilograms * price).toFixed(2))
   updateCalculationBs()
 }
 
