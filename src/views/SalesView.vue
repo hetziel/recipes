@@ -465,7 +465,7 @@
                 <div class="meta-item">
                   <span class="label">Fecha:</span>
                   <span class="value">{{ selectedSaleForInvoice ? formatDate(selectedSaleForInvoice.created_at) : ''
-                    }}</span>
+                  }}</span>
                 </div>
               </div>
             </div>
@@ -1673,8 +1673,9 @@ onMounted(() => {
 
 .modal-body {
   padding: 24px;
-  max-height: 80vh;
+  max-height: calc(100vh - 200px);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-footer {
@@ -1765,13 +1766,105 @@ onMounted(() => {
 }
 
 @media (max-width: 640px) {
+  .sales-container {
+    padding: 16px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .header-left h1 {
+    font-size: 1.75rem;
+  }
+
+  .header-actions {
+    flex-direction: column;
+    width: 100%;
+    border-radius: 16px;
+  }
+
+  .header-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .stats-grid-premium {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
   .sale-entry-card {
     grid-template-columns: 1fr;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .sale-main-info,
+  .sale-products-overview,
+  .sale-financials-premium,
+  .sale-status-area,
+  .sale-actions-premium {
+    grid-column: span 1;
   }
 
   .sale-financials-premium {
     display: flex;
     justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 12px;
+  }
+
+  .sale-actions-premium {
+    justify-content: center;
+    background: #f8fafc;
+    padding: 8px;
+    border-radius: 12px;
+  }
+
+  .grid-2 {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .modal-content {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    max-width: none;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-body {
+    flex: 1;
+    padding: 20px 16px;
+    max-height: none;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .modal-footer .actions {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .add-product-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>
