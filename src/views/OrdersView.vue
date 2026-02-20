@@ -28,9 +28,12 @@
               <th>Contacto</th>
               <th>Paquete Solicitado</th>
               <th>Cant.</th>
-              <th>Total a Pagar</th>
+              <th>Total</th>
+              <th>Abonado / Saldo</th>
               <th>Estado</th>
+              <th>Comprobante</th>
               <th>Fecha</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -51,18 +54,71 @@
               </td>
               <td>
                 <div class="price-stack">
-                  <span class="price-usd">${{ o.price_to_pay.toFixed(2) }}</span>
+                  <span class="price-usd">${{ o.total_amount?.toFixed(2) || o.price_to_pay.toFixed(2) }}</span>
+                </div>
+              </td>
+              <td>
+                <div class="balance-stack">
+                  <span class="text-success text-xs font-bold">Abonado: ${{ o.paid_amount || 0 }}</span>
+                  <span v-if="(o.remaining_balance || 0) > 0" class="text-danger text-xs font-bold">Saldo: ${{ o.remaining_balance || 0 }}</span>
                 </div>
               </td>
               <td>
                 <span :class="['modern-badge', o.status]">{{ formatStatus(o.status) }}</span>
               </td>
               <td>
+                <div v-if="o.receipt_uploaded" class="receipt-actions">
+                  <span class="text-xs text-muted d-block">Ref: {{ o.payment_reference || 'N/A' }}</span>
+                  <a v-if="o.receipt_url" :href="o.receipt_url" target="_blank" class="btn-link">Ver Link</a>
+                  <span v-else class="text-xs italic text-muted">Archivo en Drive</span>
+                </div>
+                <span v-else class="text-xs text-muted">-</span>
+              </td>
+              <td>
                 <div class="text-xs text-muted">{{ formatDate(o.created_at) }}</div>
+              </td>
+              <td>
+                <button v-if="o.status !== 'pagado' && o.status !== 'cancelado'" class="btn-action" @click="openPaymentModal(o)">
+                  <Icon name="check-decagram" size="sm" /> Validar
+                </button>
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Payment Validation Modal -->
+    <div v-if="showPaymentModal" class="modal-overlay">
+      <div class="modal-content glass-card">
+        <header class="modal-header">
+          <h3>Validar Pago - Orden #{{ selectedOrder.id.slice(-6).toUpperCase() }}</h3>
+          <button @click="closePaymentModal" class="btn-icon"><Icon name="close" /></button>
+        </header>
+        <div class="modal-body">
+          <div class="order-summary-mini mb-4">
+            <p><strong>Total Orden:</strong> ${{ (selectedOrder.total_amount || selectedOrder.price_to_pay).toFixed(2) }}</p>
+            <p><strong>Abonado anteriormente:</strong> ${{ (selectedOrder.paid_amount || 0).toFixed(2) }}</p>
+            <p class="text-danger"><strong>Saldo Pendiente:</strong> ${{ (selectedOrder.remaining_balance ?? selectedOrder.price_to_pay).toFixed(2) }}</p>
+          </div>
+          
+          <div class="form-group">
+            <label>Monto a Confirmar ($)</label>
+            <input type="number" v-model="amountToConfirm" class="form-input" step="0.01" />
+          </div>
+
+          <div class="payment-decision mt-4">
+            <label class="d-block mb-2">Decisión:</label>
+            <div class="btn-group-decision">
+              <button class="btn btn-success" @click="confirmPayment" :disabled="isProcessing">
+                <Icon name="check" /> Confirmar Abono
+              </button>
+              <button class="btn btn-danger" @click="rejectOrder" :disabled="isProcessing">
+                <Icon name="close" /> Rechazar Comprobante
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -70,14 +126,99 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { collection, getDocs, orderBy, query } from 'firebase/firestore'
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
 
 const loading = ref(true)
+const isProcessing = ref(false)
 const orders = ref<any[]>([])
 const customersMap: Record<string, any> = reactive({})
 const scenariosMap: Record<string, any> = reactive({})
+
+// Modal States
+const showPaymentModal = ref(false)
+const selectedOrder = ref<any>(null)
+const amountToConfirm = ref(0)
+
+function openPaymentModal(order: any) {
+  selectedOrder.value = order
+  amountToConfirm.value = order.remaining_balance ?? order.price_to_pay
+  showPaymentModal.value = true
+}
+
+function closePaymentModal() {
+  showPaymentModal.value = false
+  selectedOrder.value = null
+}
+
+async function confirmPayment() {
+  if (!selectedOrder.value || amountToConfirm.value <= 0) return
+  isProcessing.value = true
+  
+  try {
+    const order = selectedOrder.value
+    const currentPaid = order.paid_amount || 0
+    const total = order.total_amount || order.price_to_pay
+    const newPaid = currentPaid + amountToConfirm.value
+    const newBalance = Math.max(0, total - newPaid)
+    
+    let newStatus = 'parcial_confirmado'
+    if (newBalance <= 0) {
+      newStatus = 'pagado'
+    }
+
+    await updateDoc(doc(db, 'orders', order.id), {
+      paid_amount: newPaid,
+      remaining_balance: newBalance,
+      status: newStatus,
+      updated_at: new Date().toISOString()
+    })
+
+    // Refresh local state
+    const orderIdx = orders.value.findIndex(o => o.id === order.id)
+    if (orderIdx !== -1) {
+      orders.value[orderIdx] = { 
+        ...orders.value[orderIdx], 
+        paid_amount: newPaid, 
+        remaining_balance: newBalance, 
+        status: newStatus 
+      }
+    }
+    
+    closePaymentModal()
+  } catch (e) {
+    console.error(e)
+    alert('Error al actualizar el pago')
+  } finally {
+    isProcessing.value = false
+  }
+}
+
+async function rejectOrder() {
+  if (!selectedOrder.value) return
+  if (!confirm('¿Está seguro de rechazar este comprobante?')) return
+  
+  isProcessing.value = true
+  try {
+    await updateDoc(doc(db, 'orders', selectedOrder.value.id), {
+      status: 'rechazado',
+      updated_at: new Date().toISOString()
+    })
+    
+    // Refresh local state
+    const orderIdx = orders.value.findIndex(o => o.id === selectedOrder.value.id)
+    if (orderIdx !== -1) {
+      orders.value[orderIdx].status = 'rechazado'
+    }
+    
+    closePaymentModal()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    isProcessing.value = false
+  }
+}
 
 onMounted(async () => {
   loading.value = true
@@ -85,7 +226,7 @@ onMounted(async () => {
     const ordersSnap = await getDocs(collection(db, 'orders'))
     orders.value = ordersSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
     
-    // Sort orders manually since we might not have the correct index in Firebase
+    // Sort orders manually
     orders.value.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
     const custSnap = await getDocs(collection(db, 'customers'))
@@ -101,8 +242,16 @@ onMounted(async () => {
 })
 
 function formatStatus(status: string) {
-  if (!status) return 'Pendiente'
-  return status.charAt(0).toUpperCase() + status.slice(1)
+  const map: Record<string, string> = {
+    'pendiente': 'Pendiente',
+    'en_verificacion': 'En Verificación',
+    'parcial_en_verificacion': 'Abono en Revisión',
+    'parcial_confirmado': 'Abono Confirmado',
+    'pagado': 'Pagado',
+    'rechazado': 'Rechazado',
+    'cancelado': 'Cancelado'
+  }
+  return map[status] || status.toUpperCase()
 }
 
 function formatDate(dateStr: string) {
@@ -253,6 +402,116 @@ function formatDate(dateStr: string) {
   color: #f59e0b;
   border: 1px solid rgba(245, 158, 11, 0.2);
 }
+
+.modern-badge.en_verificacion, .modern-badge.parcial_en_verificacion {
+  background: rgba(2, 132, 199, 0.1);
+  color: #0284c7;
+  border: 1px solid rgba(2, 132, 199, 0.2);
+}
+
+.modern-badge.parcial_confirmado {
+  background: rgba(16, 163, 74, 0.1);
+  color: #16a34a;
+  border: 1px dashed rgba(16, 163, 74, 0.5);
+}
+
+.modern-badge.pagado {
+  background: rgba(16, 163, 74, 0.1);
+  color: #16a34a;
+  border: 1px solid rgba(16, 163, 74, 0.2);
+}
+
+.modern-badge.rechazado {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.2);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  width: 400px;
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 0;
+}
+
+.modal-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.order-summary-mini {
+  background: var(--background);
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.order-summary-mini p { margin: 4px 0; }
+
+.form-group { display: flex; flex-direction: column; gap: 8px; }
+.form-input { padding: 8px; border: 1px solid var(--border); border-radius: 4px; }
+
+.btn-group-decision {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.btn-action {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-link {
+  color: var(--primary);
+  font-size: 0.75rem;
+  text-decoration: underline;
+}
+
+.receipt-actions {
+  display: flex;
+  flex-direction: column;
+}
+
+.balance-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.text-danger { color: #dc2626; }
+.text-success { color: #16a34a; }
+.italic { font-style: italic; }
+.d-block { display: block; }
+.mb-2 { margin-bottom: 8px; }
+.mb-4 { margin-bottom: 16px; }
+.btn-icon { background: none; border: none; cursor: pointer; }
+.btn-success { background: #16a34a; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; }
+.btn-danger { background: #dc2626; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .empty-state-premium {
   display: flex;

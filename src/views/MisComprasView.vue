@@ -28,8 +28,12 @@
             <span class="order-date">{{ formatDate(order.created_at) }}</span>
           </div>
           <div :class="['status-badge', order.status]">
-            {{ order.status.toUpperCase() }}
+            {{ formatStatus(order.status) }}
           </div>
+        </div>
+
+        <div v-if="order.status === 'en_verificacion' || order.status === 'parcial_en_verificacion'" class="verification-alert">
+          <Icon name="clock-outline" size="sm" /> Tu pago está siendo validado por nuestro equipo
         </div>
         
         <div class="card-body">
@@ -43,18 +47,25 @@
 
           <div class="price-info">
             <div class="price-stack">
-              <span class="price-usd">${{ order.price_to_pay.toFixed(2) }}</span>
-              <span v-if="dolarRate" class="price-bs">Bs {{ (order.price_to_pay * dolarRate).toFixed(2) }}</span>
+              <span class="price-usd">${{ order.total_amount?.toFixed(2) || order.price_to_pay.toFixed(2) }}</span>
+              <div v-if="order.remaining_balance > 0" class="balance-due">
+                Saldo: ${{ order.remaining_balance.toFixed(2) }}
+              </div>
+              <span v-if="dolarRate" class="price-bs">Bs {{ ((order.total_amount || order.price_to_pay) * dolarRate).toFixed(2) }}</span>
             </div>
           </div>
         </div>
 
         <div class="card-footer">
-          <div v-if="order.receipt_url" class="receipt-info">
-            <Icon name="check-circle" class="text-success" /> Comprobante subido
+          <div v-if="order.receipt_uploaded" class="receipt-info text-success">
+            <Icon name="check-circle" /> Comprobante enviado
+            <a v-if="order.receipt_url" :href="order.receipt_url" target="_blank" class="receipt-link">Ver</a>
           </div>
           <div v-else class="receipt-info warning">
             <Icon name="alert-circle" /> Pendiente de comprobante
+          </div>
+          <div v-if="order.payment_reference" class="reference-info">
+            Ref: {{ order.payment_reference }}
           </div>
         </div>
       </div>
@@ -100,17 +111,20 @@ onMounted(async () => {
   }
 })
 
-function formatDate(dateStr: string) {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('es-VE', { 
-    day: '2-digit', 
-    month: '2-digit', 
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+function formatStatus(status: string) {
+  const map: Record<string, string> = {
+    'pendiente': 'Pendiente',
+    'en_verificacion': 'En Verificación',
+    'parcial_en_verificacion': 'Abono en Revisión',
+    'parcial_confirmado': 'Abono Confirmado',
+    'pagado': 'Pagado',
+    'rechazado': 'Rechazado',
+    'cancelado': 'Cancelado'
+  }
+  return map[status] || status.toUpperCase()
 }
+
+function formatDate(dateStr: string) {
 </script>
 
 <style scoped>
@@ -204,8 +218,42 @@ function formatDate(dateStr: string) {
 }
 
 .status-badge.pendiente { background: #fef3c7; color: #d97706; }
+.status-badge.en_verificacion, .status-badge.parcial_en_verificacion { background: #e0f2fe; color: #0284c7; }
+.status-badge.parcial_confirmado { background: #dcfce7; color: #16a34a; border: 1px dashed #16a34a; }
 .status-badge.pagado { background: #dcfce7; color: #16a34a; }
-.status-badge.cancelado { background: #fee2e2; color: #dc2626; }
+.status-badge.rechazado { background: #fee2e2; color: #dc2626; }
+.status-badge.cancelado { background: #f3f4f6; color: #6b7280; }
+
+.verification-alert {
+  background: #fffbeb;
+  border-bottom: 1px solid #fef3c7;
+  padding: 8px 20px;
+  font-size: 0.8rem;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.balance-due {
+  font-size: 0.85rem;
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.receipt-link {
+  margin-left: auto;
+  color: var(--primary);
+  text-decoration: underline;
+  font-size: 0.8rem;
+}
+
+.reference-info {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
 
 .card-body {
   padding: 20px;

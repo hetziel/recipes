@@ -200,6 +200,11 @@
               </label>
             </div>
 
+            <div class="form-group mt-4">
+              <label>Número de Referencia</label>
+              <input v-model="paymentReference" class="form-input" placeholder="Ej: 12345678" :disabled="isUploading" />
+            </div>
+
             <div v-if="uploadStatus" :class="['status-msg', statusType]">
                <Icon v-if="isUploading" name="loading" class="spin" />
                {{ uploadStatus }}
@@ -277,6 +282,7 @@ const customerPhone = ref('')
 const createdCustomer: any = ref(null)
 const createdOrder: any = ref(null)
 const isProcessing = ref(false)
+const paymentReference = ref('')
 
 // SMS Auth States
 const isSmsSent = ref(false)
@@ -390,7 +396,13 @@ async function submitKnownCustomer() {
       customer_id: customerId,
       scenario_id: props.scenario?.id || null,
       quantity: props.quantity || 1,
-      price_to_pay: totalPrice.value,
+      total_amount: totalPrice.value,
+      paid_amount: 0,
+      remaining_balance: totalPrice.value,
+      price_to_pay: totalPrice.value, // Mantener por compatibilidad si es necesario
+      payment_reference: '',
+      receipt_url: '',
+      receipt_uploaded: false,
       status: 'pendiente',
       created_at: new Date().toISOString()
     }
@@ -484,6 +496,8 @@ async function uploadReceipt() {
     // Update order in firestore
     await updateDoc(doc(db, 'orders', createdOrder.value.id), {
       receipt_uploaded: true,
+      payment_reference: paymentReference.value,
+      status: 'en_verificacion',
       receipt_date: new Date().toISOString()
     })
     
