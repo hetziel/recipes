@@ -31,7 +31,7 @@ service cloud.firestore {
 
     // Colecciones de administración e inventario
     match /productos/{producto} {
-      allow read: if isStaff();
+      allow read: if true;
       allow write: if isAdmin();
     }
     match /establishments/{establishment} {
@@ -54,8 +54,8 @@ service cloud.firestore {
     match /customers/{customerId} {
       // El cliente puede ver y editar su propio registro de cliente (vinculado por UID)
       allow read, write: if isAuth() && (request.auth.uid == customerId || isAdmin());
-      // Permitir creación para invitados o nuevos registros
-      allow create: if true;
+      // Solo permitir creación a usuarios autenticados (el wizard asegura esto tras el SMS)
+      allow create: if isAuth();
       allow update, delete: if isAdmin() || (isAuth() && request.auth.uid == customerId);
     }
 
@@ -71,7 +71,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     match /my_products/{productId} {
-      allow read: if isStaff();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
@@ -81,8 +81,8 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     match /scenarios/{scenario} {
-      // Público si está publicado, si no requiere ser Staff
-      allow read: if (resource.data.published == true) || isStaff();
+      // Público si está publicado, o si el usuario está autenticado
+      allow read: if (resource.data.published == true) || isAuth();
       allow write: if isAdmin();
     }
     
@@ -91,8 +91,8 @@ service cloud.firestore {
       // El admin ve todo, el cliente solo las suyas
       allow read: if isAdmin() || (isAuth() && resource.data.customer_id == request.auth.uid);
       
-      // Permitir creación (invitado o logueado)
-      allow create: if true;
+      // Solo permitir creación a usuarios autenticados
+      allow create: if isAuth();
       
       // Permitir actualización solo al admin o al cliente (solo para subir comprobante)
       allow update: if isAdmin() || (

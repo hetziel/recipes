@@ -11,26 +11,71 @@
       </header>
 
       <div class="modal-body scrollable">
-        <!-- STEP 1 -->
+        <!-- STEP 1: Identification & SMS Auth -->
         <div v-if="step === 1" class="form-section fade-in">
           <h4>
             <Icon name="account" /> Datos del Cliente
           </h4>
-          <p class="text-muted mb-4">
-            {{ currentUser ? 'Confirme sus datos para procesar la orden.' : 'Por favor ingrese sus datos para procesar la orden.' }}
-          </p>
-          <div class="grid-2">
-            <div class="form-group">
-              <label>Nombre y Apellido</label>
-              <input v-model="customerName" class="form-input" placeholder="Ej: Juan Pérez" :disabled="!!currentUser && customerName !== 'Cliente'" />
+          
+          <div v-if="!currentUser && !isSmsSent">
+            <p class="text-muted mb-4">Para continuar con su pedido, identifíquese con su número de teléfono.</p>
+            <div class="grid-2">
+              <div class="form-group">
+                <label>Nombre y Apellido</label>
+                <input v-model="customerName" class="form-input" placeholder="Ej: Juan Pérez" :disabled="isProcessing" />
+              </div>
+              <div class="form-group">
+                <label>Teléfono (Ej. +58...)</label>
+                <input v-model="customerPhone" class="form-input" placeholder="+58412..." :disabled="isProcessing" />
+              </div>
             </div>
-            <div class="form-group">
-              <label>Teléfono</label>
-              <input v-model="customerPhone" class="form-input" placeholder="Ej: 0412-1234567" :disabled="!!currentUser" />
+            <div id="recaptcha-container-wizard" class="mt-4"></div>
+            
+            <div v-if="authError" class="auth-error-msg mt-3">
+              <Icon name="alert-circle" /> {{ authError }}
             </div>
+
+            <button class="btn btn-primary btn-block mt-4" @click="sendVerificationCode" :disabled="isProcessing || !customerName || !customerPhone">
+              <Icon v-if="isProcessing" name="loading" class="spin" />
+              {{ isProcessing ? 'Enviando SMS...' : 'Enviar Código y Continuar' }}
+            </button>
           </div>
-          <div v-if="!currentUser" class="mt-4 text-center">
-            <p class="text-sm text-muted">¿Ya tienes cuenta? <RouterLink to="/client-login" class="text-primary font-bold">Inicia sesión aquí</RouterLink></p>
+
+          <div v-else-if="!currentUser && isSmsSent">
+            <p class="text-muted mb-4">Hemos enviado un código a <strong>{{ customerPhone }}</strong>. Ingréselo para confirmar su identidad.</p>
+            <div class="form-group">
+              <label>Código SMS</label>
+              <input v-model="smsCode" class="form-input text-center text-xl font-bold" placeholder="123456" maxlength="6" :disabled="isProcessing" />
+            </div>
+
+            <div v-if="authError" class="auth-error-msg mt-3">
+              <Icon name="alert-circle" /> {{ authError }}
+            </div>
+
+            <button class="btn btn-primary btn-block mt-4" @click="verifySmsCode" :disabled="isProcessing || smsCode.length < 6">
+              <Icon v-if="isProcessing" name="loading" class="spin" />
+              {{ isProcessing ? 'Verificando...' : 'Verificar y Continuar' }}
+            </button>
+            <button class="btn btn-outline btn-block mt-2" @click="isSmsSent = false" :disabled="isProcessing">
+              Cambiar datos
+            </button>
+          </div>
+
+          <div v-else-if="currentUser">
+            <p class="text-muted mb-4">Confirmando sus datos de contacto.</p>
+            <div class="grid-2">
+              <div class="form-group">
+                <label>Nombre y Apellido</label>
+                <input v-model="customerName" class="form-input" disabled />
+              </div>
+              <div class="form-group">
+                <label>Teléfono</label>
+                <input v-model="customerPhone" class="form-input" disabled />
+              </div>
+            </div>
+            <button class="btn btn-primary btn-block mt-4" @click="submitKnownCustomer">
+              Continuar al Resumen <Icon name="arrow-right" class="ml-2" />
+            </button>
           </div>
         </div>
 
@@ -233,12 +278,133 @@ const createdCustomer: any = ref(null)
 const createdOrder: any = ref(null)
 const isProcessing = ref(false)
 
+// SMS Auth States
+const isSmsSent = ref(false)
+const smsCode = ref('')
+const authError = ref('')
+let recaptchaVerifier: any = null
+let confirmationResult: any = null
+
 onMounted(() => {
   if (currentUser.value) {
     customerName.value = userProfile.value?.fullName || 'Cliente'
     customerPhone.value = userProfile.value?.phone || ''
   }
 })
+
+import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth'
+import { auth } from '../firebase.config'
+import { getDoc } from 'firebase/firestore'
+import type { UserProfile } from '../types/auth'
+
+async function sendVerificationCode() {
+  if (!customerPhone.value.startsWith('+')) {
+    authError.value = 'El teléfono debe incluir el código de país (ej. +58...)'
+    return
+  }
+  
+  isProcessing.value = true
+  authError.value = ''
+  
+  try {
+    if (!recaptchaVerifier) {
+      recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container-wizard', {
+        size: 'invisible'
+      })
+    }
+    
+    confirmationResult = await signInWithPhoneNumber(auth, customerPhone.value, recaptchaVerifier)
+    isSmsSent.value = true
+  } catch (err: any) {
+    console.error(err)
+    authError.value = 'Error al enviar SMS. Verifique el número e intente de nuevo.'
+    if (recaptchaVerifier) {
+       recaptchaVerifier.clear()
+       recaptchaVerifier = null
+    }
+  } finally {
+    isProcessing.value = false
+  }
+}
+
+async function verifySmsCode() {
+  if (!confirmationResult || !smsCode.value) return
+  isProcessing.value = true
+  authError.value = ''
+  
+  try {
+    const result = await confirmationResult.confirm(smsCode.value)
+    const user = result.user
+    
+    // Check/Create profile
+    const docRef = doc(db, 'users', user.uid)
+    const docSnap = await getDoc(docRef)
+    
+    if (!docSnap.exists()) {
+      const profile: UserProfile = {
+        uid: user.uid,
+        email: user.email || '',
+        fullName: customerName.value,
+        phone: user.phoneNumber || customerPhone.value,
+        role: 'client',
+        createdAt: new Date().toISOString()
+      }
+      await setDoc(docRef, profile)
+    }
+
+    // Now proceed to create order as known customer
+    await submitKnownCustomer()
+  } catch (err: any) {
+    console.error(err)
+    authError.value = 'Código inválido o expirado.'
+  } finally {
+    isProcessing.value = false
+  }
+}
+
+// Function specifically for when we already have a logged in user (or just logged in via SMS)
+async function submitKnownCustomer() {
+  if (!customerName.value || !customerPhone.value) {
+    alert('Por favor complete sus datos.')
+    return
+  }
+
+  isProcessing.value = true
+  
+  try {
+    const customerId = currentUser.value?.uid
+    if (!customerId) throw new Error('Usuario no identificado')
+
+    const customerData = {
+      name: customerName.value,
+      phone: customerPhone.value,
+      updated_at: new Date().toISOString()
+    }
+    
+    await setDoc(doc(db, 'customers', customerId), customerData, { merge: true })
+    createdCustomer.value = { id: customerId, ...customerData }
+
+    const orderRef = doc(collection(db, 'orders'))
+    const orderPayload = {
+      id: orderRef.id,
+      customer_id: customerId,
+      scenario_id: props.scenario?.id || null,
+      quantity: props.quantity || 1,
+      price_to_pay: totalPrice.value,
+      status: 'pendiente',
+      created_at: new Date().toISOString()
+    }
+    await setDoc(orderRef, orderPayload)
+    createdOrder.value = orderPayload
+
+    step.value = 2
+  } catch (e) {
+    console.error(e)
+    alert('Error al procesar la orden')
+  } finally {
+    isProcessing.value = false
+  }
+}
 
 const selectedPaymentMethod = ref('')
 
@@ -272,54 +438,6 @@ const totalPrice = computed(() => (unitPrice.value * (props.quantity || 1)))
 
 function emitClose() {
   emit('close')
-}
-
-// Validation logic and transitions as implemented originally
-async function submitCustomer() {
-  if (!customerName.value || !customerPhone.value) return
-  isProcessing.value = true
-  try {
-    let customerId = ''
-    
-    if (currentUser.value) {
-      customerId = currentUser.value.uid
-      // Update customer record just in case
-      await setDoc(doc(db, 'customers', customerId), {
-        name: customerName.value,
-        phone: customerPhone.value,
-        updated_at: new Date().toISOString()
-      }, { merge: true })
-      createdCustomer.value = { id: customerId, name: customerName.value, phone: customerPhone.value }
-    } else {
-      const custRef = await addDoc(collection(db, 'customers'), {
-        name: customerName.value,
-        phone: customerPhone.value,
-        created_at: new Date().toISOString()
-      })
-      customerId = custRef.id
-      createdCustomer.value = { id: custRef.id, name: customerName.value, phone: customerPhone.value }
-    }
-
-    const orderRef = doc(collection(db, 'orders'))
-    const orderPayload = {
-      id: orderRef.id,
-      customer_id: customerId,
-      scenario_id: props.scenario?.id || null,
-      quantity: props.quantity || 1,
-      price_to_pay: totalPrice.value,
-      status: 'pendiente',
-      created_at: new Date().toISOString()
-    }
-    await setDoc(orderRef, orderPayload)
-    createdOrder.value = orderPayload
-
-    step.value = 2
-  } catch (e) {
-    console.error(e)
-    alert('Error creando cliente u orden')
-  } finally {
-    isProcessing.value = false
-  }
 }
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxWrW0Sh7YBbE6CQQ-_AyTZ7KiJ2y52pilMVfBD4ai86pT8fPkdw4Ir4TiPdiemhkGZ/exec'
@@ -754,6 +872,23 @@ function finishPayment(method: string) {
 .status-msg.info { background: #e0f2fe; color: #0369a1; }
 .status-msg.success { background: #dcfce7; color: #16a34a; }
 .status-msg.error { background: #fee2e2; color: #dc2626; }
+
+.auth-error-msg {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  padding: 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.font-bold { font-weight: 700; }
+.text-sm { font-size: 0.85rem; }
+.text-xl { font-size: 1.25rem; }
+.mt-6 { margin-top: 1.5rem; }
+
 
 @media (max-width: 600px) {
   .grid-2 { grid-template-columns: 1fr; }

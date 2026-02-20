@@ -97,14 +97,14 @@ onMounted(() => {
 
 <template>
   <div class="b-main">
-    <header v-if="currentUser" class="app-header">
+    <header class="app-header">
       <button class="hamburger-menu" @click="toggleMenu" :class="{ 'is-active': isMenuOpen }">
         <span></span>
         <span></span>
         <span></span>
       </button>
       <h1 class="app-title">Producción</h1>
-      <div class="tasa-info" :class="{
+      <div v-if="currentUser" class="tasa-info" :class="{
         'tasa-actual': dolarBCV?.origen === 'api',
         'tasa-local': dolarBCV?.origen === 'local',
         'tasa-importado': dolarBCV?.origen === 'importado',
@@ -113,22 +113,43 @@ onMounted(() => {
       </div>
     </header>
 
-    <nav v-if="currentUser" class="sidebar-nav" :class="{ 'is-open': isMenuOpen }">
+    <nav class="sidebar-nav" :class="{ 'is-open': isMenuOpen }">
       <div class="sidebar-header">
         <div class="user-info-brief">
           <h2 class="sidebar-title">Menu</h2>
           <div v-if="userProfile" class="user-badge" :class="userProfile.role">
             {{ userProfile.role.toUpperCase() }}
           </div>
+          <div v-else class="user-badge guest">
+            INVITADO
+          </div>
         </div>
         <button class="close-btn" @click="toggleMenu">&times;</button>
       </div>
 
+      <!-- Guest Links -->
+      <template v-if="!currentUser">
+        <RouterLink to="/client-login" class="nav-link auth-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-user"></i></span>
+          <span class="text">Acceso Clientes</span>
+        </RouterLink>
+        <RouterLink to="/login" class="nav-link auth-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-key"></i></span>
+          <span class="text">Acceso Equipo</span>
+        </RouterLink>
+      </template>
+
+      <!-- Store Link (visible to everyone) -->
+      <RouterLink to="/" class="nav-link" @click="toggleMenu">
+        <span class="icon"><i class="fi fi-rr-shopping-basket"></i></span>
+        <span class="text">Tienda</span>
+      </RouterLink>
+
       <!-- Admin Only Links -->
       <template v-if="userProfile?.role === 'admin'">
-        <RouterLink to="/" class="nav-link" @click="toggleMenu">
-          <span class="icon"><i class="fi fi-rr-home"></i></span>
-          <span class="text">Inicio</span>
+        <RouterLink to="/products" class="nav-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-boxes"></i></span>
+          <span class="text">Inventario</span>
         </RouterLink>
       </template>
 
@@ -141,16 +162,10 @@ onMounted(() => {
       <!-- Common Links (Staff or Admin) -->
       <template v-if="userProfile?.role === 'admin' || userProfile?.role === 'user'">
         <RouterLink to="/production" class="nav-link" @click="toggleMenu">
-          <span class="icon"><i class="fi fi-rr-boxes"></i></span>
+          <span class="icon"><i class="fi fi-rr-room-service"></i></span>
           <span class="text">Producción</span>
         </RouterLink>
       </template>
-      
-      <!-- Public Store Link (visible to everyone logged in) -->
-      <RouterLink to="/store" class="nav-link" @click="toggleMenu">
-        <span class="icon"><i class="fi fi-rr-shopping-basket"></i></span>
-        <span class="text">Tienda</span>
-      </RouterLink>
 
       <!-- Admin Only Links -->
       <template v-if="userProfile?.role === 'admin'">
@@ -190,8 +205,8 @@ onMounted(() => {
         <span class="text">Calculadora</span>
       </RouterLink>
 
-      <div class="sidebar-footer">
-        <button v-if="currentUser" @click="handleLogout" class="nav-link logout-btn">
+      <div v-if="currentUser" class="sidebar-footer">
+        <button @click="handleLogout" class="nav-link logout-btn">
           <span class="icon"><i class="fi fi-rr-sign-out-alt"></i></span>
           <span class="text">Cerrar Sesión</span>
         </button>
@@ -449,6 +464,18 @@ onMounted(() => {
   background-color: #3b82f6;
   color: white;
 }
+
+.user-badge.guest {
+  background-color: #64748b;
+  color: white;
+}
+
+.auth-link {
+  border-left: 4px solid var(--primary);
+  background-color: rgba(79, 70, 229, 0.05);
+  margin: 4px 0;
+}
+
 
 .sidebar-footer {
   margin-top: auto;

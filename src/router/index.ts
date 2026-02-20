@@ -6,6 +6,23 @@ const router = createRouter({
   history: createWebHistory('/'),
   routes: [
     {
+      path: '/',
+      name: 'home',
+      component: () => import('../views/StoreView.vue'),
+      meta: { public: true }
+    },
+    {
+      path: '/store',
+      name: 'store',
+      redirect: { name: 'home' }
+    },
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('../views/LoginView.vue'),
+      meta: { public: true }
+    },
+    {
       path: '/client-login',
       name: 'client-login',
       component: () => import('../views/ClientLoginView.vue'),
@@ -23,16 +40,16 @@ const router = createRouter({
       meta: { title: 'Calculadora Bs/USD', public: true }
     },
     {
+      path: '/products',
+      name: 'inventory',
+      component: Products,
+      meta: { requiresStaff: true }
+    },
+    {
       path: '/production',
       name: 'production',
       component: () => import('../views/Recipes.vue'),
       meta: { requiresStaff: true }
-    },
-    {
-      path: '/store',
-      name: 'store',
-      component: () => import('../views/StoreView.vue'),
-      meta: { public: true }
     },
     {
       path: '/production/create',
@@ -106,17 +123,17 @@ router.beforeEach(async (to, from, next) => {
   const isAuthenticated = !!currentUser.value
   const role = userProfile.value?.role
 
-  // If route is public, allow access (unless already logged in and going to login)
+  // If route is public, allow access (unless already logged in and going to auth pages)
   if (to.meta.public) {
-    if (isAuthenticated && (to.name === 'login' || to.name === 'client-login' || to.name === 'register')) {
+    if (isAuthenticated && (to.name === 'login' || to.name === 'client-login')) {
       if (role === 'admin') return next({ name: 'home' })
-      if (role === 'client') return next({ name: 'store' })
+      if (role === 'client') return next({ name: 'home' })
       return next({ name: 'production' })
     }
     return next()
   }
 
-  // If not authenticated, redirect to client login (assuming most users arriving at private pages without login are clients or workers)
+  // If not authenticated, redirect to client login (for private routes)
   if (!isAuthenticated) {
     return next({ name: 'client-login' })
   }
@@ -128,7 +145,7 @@ router.beforeEach(async (to, from, next) => {
 
   // Staff routes (admin or user, but NOT client)
   if (to.meta.requiresStaff && role === 'client') {
-    return next({ name: 'store' })
+    return next({ name: 'home' })
   }
 
   // If no specific role required and logged in, allow
