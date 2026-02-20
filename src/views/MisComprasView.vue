@@ -27,8 +27,16 @@
             <span class="order-id">Orden #{{ order.id.slice(-6).toUpperCase() }}</span>
             <span class="order-date">{{ formatDate(order.created_at) }}</span>
           </div>
-          <div :class="['status-badge', order.status]">
-            {{ formatStatus(order.status) }}
+          <div class="status-badges-container">
+            <span :class="['status-badge', getPaymentStatus(order).class]">
+              <Icon name="cash" size="sm" class="mr-1" /> {{ getPaymentStatus(order).text }}
+            </span>
+            <span :class="['status-badge', getVerificationStatus(order).class]">
+              <Icon name="shield-check" size="sm" class="mr-1" /> {{ getVerificationStatus(order).text }}
+            </span>
+            <span :class="['status-badge', getDeliveryStatus(order).class]">
+              <Icon name="truck-delivery" size="sm" class="mr-1" /> {{ getDeliveryStatus(order).text }}
+            </span>
           </div>
         </div>
 
@@ -111,17 +119,30 @@ onMounted(async () => {
   }
 })
 
-function formatStatus(status: string) {
-  const map: Record<string, string> = {
-    'pendiente': 'Pendiente',
-    'en_verificacion': 'En Verificación',
-    'parcial_en_verificacion': 'Abono en Revisión',
-    'parcial_confirmado': 'Abono Confirmado',
-    'pagado': 'Pagado',
-    'rechazado': 'Rechazado',
-    'cancelado': 'Cancelado'
+function getPaymentStatus(order: any) {
+  if (order.status === 'cancelado') return { text: 'Cancelado', class: 'cancelado' }
+  if (order.receipt_uploaded || (order.paid_amount && order.paid_amount > 0)) {
+    return { text: 'Pagado', class: 'pagado' }
   }
-  return map[status] || status.toUpperCase()
+  return { text: 'Pendiente de pago', class: 'pendiente' }
+}
+
+function getVerificationStatus(order: any) {
+  if (order.status === 'cancelado') return { text: 'Cancelado', class: 'cancelado' }
+  if (order.status === 'rechazado') return { text: 'Pago Rechazado', class: 'rechazado' }
+  if (order.status === 'en_verificacion' || order.status === 'parcial_en_verificacion') {
+    return { text: 'En verificación', class: 'en_verificacion' }
+  }
+  if (order.status === 'pagado' || order.status === 'parcial_confirmado') {
+    return { text: 'Pago Verificado', class: 'pagado' }
+  }
+  return { text: 'A la espera', class: 'pendiente' }
+}
+
+function getDeliveryStatus(order: any) {
+  if (order.delivery_status === 'cancelado' || order.status === 'cancelado') return { text: 'Cancelado', class: 'cancelado' }
+  if (order.delivery_status === 'entregado') return { text: 'Entregado', class: 'pagado' }
+  return { text: 'Por entregar', class: 'en_verificacion' }
 }
 
 function formatDate(date: any) {
@@ -220,7 +241,16 @@ function formatDate(date: any) {
   color: var(--text-secondary);
 }
 
+.status-badges-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+
 .status-badge {
+  display: inline-flex;
+  align-items: center;
   padding: 4px 10px;
   border-radius: 20px;
   font-size: 0.75rem;
@@ -233,6 +263,7 @@ function formatDate(date: any) {
 .status-badge.pagado { background: #dcfce7; color: #16a34a; }
 .status-badge.rechazado { background: #fee2e2; color: #dc2626; }
 .status-badge.cancelado { background: #f3f4f6; color: #6b7280; }
+.mr-1 { margin-right: 4px; }
 
 .verification-alert {
   background: #fffbeb;

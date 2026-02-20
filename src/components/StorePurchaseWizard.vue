@@ -404,6 +404,7 @@ async function submitKnownCustomer() {
       receipt_url: '',
       receipt_uploaded: false,
       status: 'pendiente',
+      delivery_status: 'por_entregar', // Nuevo estado de entrega
       created_at: new Date().toISOString()
     }
     await setDoc(orderRef, orderPayload)

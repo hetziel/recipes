@@ -30,7 +30,8 @@
               <th>Cant.</th>
               <th>Total</th>
               <th>Abonado / Saldo</th>
-              <th>Estado</th>
+              <th>Pago</th>
+              <th>Entrega</th>
               <th>Comprobante</th>
               <th>Fecha</th>
               <th>Acciones</th>
@@ -67,6 +68,14 @@
                 <span :class="['modern-badge', o.status]">{{ formatStatus(o.status) }}</span>
               </td>
               <td>
+                <div class="delivery-actions">
+                  <span :class="['modern-badge', o.delivery_status || 'por_entregar']">{{ formatDeliveryStatus(o.delivery_status) }}</span>
+                  <button v-if="o.delivery_status !== 'entregado' && o.status !== 'cancelado'" class="btn-icon-small mt-1" @click="markAsDelivered(o)" title="Marcar entregado">
+                    <Icon name="truck-check-outline" size="sm" />
+                  </button>
+                </div>
+              </td>
+              <td>
                 <div v-if="o.receipt_uploaded" class="receipt-actions">
                   <span class="text-xs text-muted d-block">Ref: {{ o.payment_reference || 'N/A' }}</span>
                   <a v-if="o.receipt_url" :href="o.receipt_url" target="_blank" class="btn-link">Ver Link</a>
@@ -78,9 +87,14 @@
                 <div class="text-xs text-muted">{{ formatDate(o.created_at) }}</div>
               </td>
               <td>
-                <button v-if="o.status !== 'pagado' && o.status !== 'cancelado'" class="btn-action" @click="openPaymentModal(o)">
-                  <Icon name="check-decagram" size="sm" /> Validar
-                </button>
+                <div class="action-buttons-stack">
+                  <button v-if="o.status !== 'pagado' && o.status !== 'cancelado'" class="btn-action" @click="openPaymentModal(o)">
+                    <Icon name="check-decagram" size="sm" /> Validar
+                  </button>
+                  <button v-if="o.status !== 'cancelado'" class="btn-action danger-action" @click="cancelOrder(o)" title="Cancelar Orden">
+                    <Icon name="close-circle-outline" size="sm" /> Cancelar
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -220,6 +234,40 @@ async function rejectOrder() {
   }
 }
 
+async function markAsDelivered(order: any) {
+  if (!confirm('¿Marcar paquete como entregado?')) return
+  isProcessing.value = true
+  try {
+    await updateDoc(doc(db, 'orders', order.id), {
+      delivery_status: 'entregado',
+      updated_at: new Date().toISOString()
+    })
+    const orderIdx = orders.value.findIndex(o => o.id === order.id)
+    if (orderIdx !== -1) {
+      orders.value[orderIdx].delivery_status = 'entregado'
+    }
+  } catch(e) { console.error(e) }
+  finally { isProcessing.value = false }
+}
+
+async function cancelOrder(order: any) {
+  if (!confirm('¿Seguro que desea CANCELAR esta orden por completo?')) return
+  isProcessing.value = true
+  try {
+    await updateDoc(doc(db, 'orders', order.id), {
+      status: 'cancelado',
+      delivery_status: 'cancelado',
+      updated_at: new Date().toISOString()
+    })
+    const orderIdx = orders.value.findIndex(o => o.id === order.id)
+    if (orderIdx !== -1) {
+      orders.value[orderIdx].status = 'cancelado'
+      orders.value[orderIdx].delivery_status = 'cancelado'
+    }
+  } catch(e) { console.error(e) }
+  finally { isProcessing.value = false }
+}
+
 onMounted(async () => {
   loading.value = true
   try {
@@ -252,6 +300,15 @@ function formatStatus(status: string) {
     'cancelado': 'Cancelado'
   }
   return map[status] || status.toUpperCase()
+}
+
+function formatDeliveryStatus(status: string) {
+  const map: Record<string, string> = {
+    'por_entregar': 'Por Entregar',
+    'entregado': 'Entregado',
+    'cancelado': 'Cancelado'
+  }
+  return map[status || 'por_entregar'] || 'Por Entregar'
 }
 
 function formatDate(dateStr: string) {
@@ -427,6 +484,24 @@ function formatDate(dateStr: string) {
   border: 1px solid rgba(220, 38, 38, 0.2);
 }
 
+.modern-badge.por_entregar {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+  border: 1px dashed rgba(59, 130, 246, 0.4);
+}
+
+.modern-badge.entregado {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.modern-badge.cancelado {
+  background: rgba(107, 114, 128, 0.1);
+  color: #6b7280;
+  border: 1px solid rgba(107, 114, 128, 0.2);
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -496,6 +571,30 @@ function formatDate(dateStr: string) {
   display: flex;
   flex-direction: column;
 }
+
+.delivery-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.action-buttons-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.danger-action {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+.danger-action:hover {
+  background: #fee2e2;
+}
+
+.mt-1 { margin-top: 4px; }
 
 .balance-stack {
   display: flex;
