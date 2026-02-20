@@ -132,13 +132,21 @@ onMounted(() => {
         </RouterLink>
       </template>
 
-      <!-- Shared/Common Links -->
-      <RouterLink to="/production" class="nav-link" @click="toggleMenu">
-        <span class="icon"><i class="fi fi-rr-boxes"></i></span>
-        <span class="text">Producción</span>
+      <!-- Mis Compras (Solo para Clientes o Admin) -->
+      <RouterLink v-if="userProfile?.role === 'client' || userProfile?.role === 'admin'" to="/mis-compras" class="nav-link" @click="toggleMenu">
+        <span class="icon"><i class="fi fi-rr-list-check"></i></span>
+        <span class="text">Mis Compras</span>
       </RouterLink>
+
+      <!-- Common Links (Staff or Admin) -->
+      <template v-if="userProfile?.role === 'admin' || userProfile?.role === 'user'">
+        <RouterLink to="/production" class="nav-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-boxes"></i></span>
+          <span class="text">Producción</span>
+        </RouterLink>
+      </template>
       
-      <!-- Public Store Link (visible to logged users in sidebar) -->
+      <!-- Public Store Link (visible to everyone logged in) -->
       <RouterLink to="/store" class="nav-link" @click="toggleMenu">
         <span class="icon"><i class="fi fi-rr-shopping-basket"></i></span>
         <span class="text">Tienda</span>
@@ -169,6 +177,10 @@ onMounted(() => {
         <RouterLink to="/settings/categories-brands" class="nav-link" @click="toggleMenu">
           <span class="icon"><i class="fi fi-rr-settings-sliders"></i></span>
           <span class="text">Config. Productos</span>
+        </RouterLink>
+        <RouterLink to="/drive" class="nav-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-drive"></i></span>
+          <span class="text">Google Drive</span>
         </RouterLink>
       </template>
 

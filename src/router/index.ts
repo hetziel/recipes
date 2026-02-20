@@ -6,39 +6,27 @@ const router = createRouter({
   history: createWebHistory('/'),
   routes: [
     {
-      path: '/login',
-      name: 'login',
-      component: () => import('../views/LoginView.vue'),
+      path: '/client-login',
+      name: 'client-login',
+      component: () => import('../views/ClientLoginView.vue'),
       meta: { public: true }
     },
     {
-      path: '/register',
-      name: 'register',
-      component: () => import('../views/RegisterView.vue'),
-      meta: { public: true }
-    },
-    {
-      path: '/',
-      name: 'home',
-      component: Products,
-      meta: { requiresAdmin: true }
-    },
-    {
-      path: '/buys',
-      name: 'buys',
-      component: () => import('../views/BuysView.vue'),
-      meta: { requiresAdmin: true }
+      path: '/mis-compras',
+      name: 'mis-compras',
+      component: () => import('../views/MisComprasView.vue'),
     },
     {
       path: '/calculator',
       name: 'calculator',
       component: () => import('../views/CalculatorView.vue'),
-      meta: { title: 'Calculadora Bs/USD' }
+      meta: { title: 'Calculadora Bs/USD', public: true }
     },
     {
       path: '/production',
       name: 'production',
       component: () => import('../views/Recipes.vue'),
+      meta: { requiresStaff: true }
     },
     {
       path: '/store',
@@ -100,6 +88,12 @@ const router = createRouter({
       component: () => import('../views/CategoriesBrandsView.vue'),
       meta: { requiresAdmin: true }
     },
+    {
+      path: '/drive',
+      name: 'drive',
+      component: () => import('../views/GoogleDriveView.vue'),
+      meta: { requiresAdmin: true }
+    }
   ],
 })
 
@@ -110,27 +104,34 @@ router.beforeEach(async (to, from, next) => {
   await untilReady()
 
   const isAuthenticated = !!currentUser.value
+  const role = userProfile.value?.role
 
-  // If route is public, allow access
+  // If route is public, allow access (unless already logged in and going to login)
   if (to.meta.public) {
-    if (isAuthenticated && (to.name === 'login' || to.name === 'register')) {
-      return next({ name: userProfile.value?.role === 'admin' ? 'home' : 'production' })
+    if (isAuthenticated && (to.name === 'login' || to.name === 'client-login' || to.name === 'register')) {
+      if (role === 'admin') return next({ name: 'home' })
+      if (role === 'client') return next({ name: 'store' })
+      return next({ name: 'production' })
     }
     return next()
   }
 
-  // If not authenticated, redirect to login
+  // If not authenticated, redirect to client login (assuming most users arriving at private pages without login are clients or workers)
   if (!isAuthenticated) {
-    return next({ name: 'login' })
+    return next({ name: 'client-login' })
   }
 
   // Role based access
-  const role = userProfile.value?.role
-
   if (to.meta.requiresAdmin && role !== 'admin') {
     return next({ name: 'production' })
   }
 
+  // Staff routes (admin or user, but NOT client)
+  if (to.meta.requiresStaff && role === 'client') {
+    return next({ name: 'store' })
+  }
+
+  // If no specific role required and logged in, allow
   next()
 })
 

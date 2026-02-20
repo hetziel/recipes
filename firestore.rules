@@ -2,10 +2,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Función para obtener los datos del usuario actual
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     // Función para verificar si el usuario es administrador
     function isAdmin() {
       return request.auth != null && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        getUserData().role == 'admin';
+    }
+
+    // Función para verificar si el usuario es un trabajador (staff)
+    function isStaff() {
+      return request.auth != null && 
+        (getUserData().role == 'admin' || getUserData().role == 'user');
     }
 
     // Función para verificar si el usuario está autenticado
@@ -15,44 +26,44 @@ service cloud.firestore {
 
     // Colección de Usuarios
     match /users/{userId} {
-      allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
-      allow write: if isAuth() && (request.auth.uid == userId || isAdmin());
+      allow read, write: if isAuth() && (request.auth.uid == userId || isAdmin());
     }
 
-    // Colecciones de administración (Solo Admin)
+    // Colecciones de administración e inventario
     match /productos/{producto} {
-      allow read: if isAuth();
+      allow read: if isStaff();
       allow write: if isAdmin();
     }
     match /establishments/{establishment} {
-      allow read: if isAuth();
+      allow read: if isStaff();
       allow write: if isAdmin();
     }
     match /marcas/{marca} {
-      allow read: if isAuth();
+      allow read: if isStaff();
       allow write: if isAdmin();
     }
     match /medidas/{medida} {
-      allow read: if isAuth();
+      allow read: if isStaff();
       allow write: if isAdmin();
     }
     match /categorias/{categoria} {
-      allow read: if isAuth();
+      allow read: if isStaff();
       allow write: if isAdmin();
     }
-    match /customers/{customer} {
-      allow read: if isAdmin();
-      // Allow anyone (including unauthenticated users) to create a customer record
+    
+    match /customers/{customerId} {
+      // El cliente puede ver y editar su propio registro de cliente (vinculado por UID)
+      allow read, write: if isAuth() && (request.auth.uid == customerId || isAdmin());
+      // Permitir creación para invitados o nuevos registros
       allow create: if true;
-      // Only admins can update or delete customer records
-      allow update, delete: if isAdmin();
+      allow update, delete: if isAdmin() || (isAuth() && request.auth.uid == customerId);
     }
+
     match /sales/{sale} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
     match /settings/{setting} {
-      allow read: if isAuth();
+      allow read: if isStaff();
       allow write: if isAdmin();
     }
     match /config/{document} {
@@ -60,30 +71,37 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     match /my_products/{productId} {
-      allow read: if isAuth();
+      allow read: if isStaff();
       allow write: if isAdmin();
     }
 
     // Colección de Recetas y Escenarios
     match /recipes/{recipe} {
-      // Recipes can be read by authenticated users or publicly for store consumption
-      allow read: if isAuth() || true;
+      allow read: if true; // Público para la tienda
       allow write: if isAdmin();
     }
     match /scenarios/{scenario} {
-      // Allow public read of published scenarios, otherwise require auth
-      allow read: if isAuth() || (resource.data.published == true);
+      // Público si está publicado, si no requiere ser Staff
+      allow read: if (resource.data.published == true) || isStaff();
       allow write: if isAdmin();
     }
     
-    // Orders collection for purchases created from public store
-    match /orders/{order} {
-      // Only admins can read or modify orders
-      allow read: if isAdmin();
-      // Allow anyone to create an order (guest checkout)
+    // Colección de Órdenes (Compras)
+    match /orders/{orderId} {
+      // El admin ve todo, el cliente solo las suyas
+      allow read: if isAdmin() || (isAuth() && resource.data.customer_id == request.auth.uid);
+      
+      // Permitir creación (invitado o logueado)
       allow create: if true;
-      // Admins only for update/delete
-      allow update, delete: if isAdmin();
+      
+      // Permitir actualización solo al admin o al cliente (solo para subir comprobante)
+      allow update: if isAdmin() || (
+        isAuth() && 
+        resource.data.customer_id == request.auth.uid && 
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['receipt_uploaded', 'receipt_date'])
+      );
+      
+      allow delete: if isAdmin();
     }
   }
 }

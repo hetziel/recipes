@@ -16,16 +16,21 @@
           <h4>
             <Icon name="account" /> Datos del Cliente
           </h4>
-          <p class="text-muted mb-4">Por favor ingrese sus datos para procesar la orden.</p>
+          <p class="text-muted mb-4">
+            {{ currentUser ? 'Confirme sus datos para procesar la orden.' : 'Por favor ingrese sus datos para procesar la orden.' }}
+          </p>
           <div class="grid-2">
             <div class="form-group">
               <label>Nombre y Apellido</label>
-              <input v-model="customerName" class="form-input" placeholder="Ej: Juan Pérez" />
+              <input v-model="customerName" class="form-input" placeholder="Ej: Juan Pérez" :disabled="!!currentUser && customerName !== 'Cliente'" />
             </div>
             <div class="form-group">
               <label>Teléfono</label>
-              <input v-model="customerPhone" class="form-input" placeholder="Ej: 0412-1234567" />
+              <input v-model="customerPhone" class="form-input" placeholder="Ej: 0412-1234567" :disabled="!!currentUser" />
             </div>
+          </div>
+          <div v-if="!currentUser" class="mt-4 text-center">
+            <p class="text-sm text-muted">¿Ya tienes cuenta? <RouterLink to="/client-login" class="text-primary font-bold">Inicia sesión aquí</RouterLink></p>
           </div>
         </div>
 
@@ -65,38 +70,124 @@
           </h4>
           <p class="text-muted mb-4">Seleccione cómo desea pagar su orden por <strong>${{ totalPrice.toFixed(2) }} (Bs {{ (totalPrice * dolarRate).toFixed(2) }})</strong>.</p>
           
-          <div class="payment-methods-grid">
-            <div class="method-card" @click="finishPayment('Pago Móvil')">
+          <div v-if="!selectedPaymentMethod" class="payment-methods-grid">
+            <div class="method-card" @click="selectPaymentMethod('Pago Móvil')">
               <Icon name="cellphone" class="method-icon" />
               <span>Pago Móvil</span>
             </div>
-            <div class="method-card" @click="finishPayment('Transferencia')">
+            <div class="method-card" @click="selectPaymentMethod('Transferencia')">
               <Icon name="bank" class="method-icon" />
               <span>Transferencia</span>
             </div>
-            <div class="method-card" @click="finishPayment('Efectivo')">
+            <div class="method-card" @click="selectPaymentMethod('Efectivo')">
               <Icon name="cash" class="method-icon" />
               <span>Efectivo ($ / Bs)</span>
             </div>
           </div>
+
+          <div v-else class="payment-details fade-in">
+            <div class="details-header mb-4">
+              <button @click="selectedPaymentMethod = ''" class="btn btn-outline btn-sm">
+                <Icon name="arrow-left" /> Cambiar Método
+              </button>
+              <h3 class="mt-4 text-primary">{{ selectedPaymentMethod }}</h3>
+            </div>
+
+            <div v-if="selectedPaymentMethod === 'Pago Móvil'" class="payment-data-card">
+               <p class="text-muted mb-3">Realice su pago a los siguientes datos y luego confirme la operación:</p>
+               <div class="data-row">
+                 <span class="data-label">C.I:</span>
+                 <strong class="data-value">{{ paymentData.pagoMovil.ci }}</strong>
+                 <button class="btn-icon-small" @click="copyToClipboard(paymentData.pagoMovil.ci)" title="Copiar"><Icon name="content-copy" /></button>
+               </div>
+               <div class="data-row">
+                 <span class="data-label">Banco:</span>
+                 <strong class="data-value">{{ paymentData.pagoMovil.banco }}</strong>
+                 <button class="btn-icon-small" @click="copyToClipboard(paymentData.pagoMovil.banco)" title="Copiar"><Icon name="content-copy" /></button>
+               </div>
+               <div class="data-row">
+                 <span class="data-label">Teléfono:</span>
+                 <strong class="data-value">{{ paymentData.pagoMovil.telefono }}</strong>
+                 <button class="btn-icon-small" @click="copyToClipboard(paymentData.pagoMovil.telefono)" title="Copiar"><Icon name="content-copy" /></button>
+               </div>
+               <div class="data-row highlight-amount mt-2">
+                 <span class="data-label">Monto a pagar:</span>
+                 <strong class="data-value text-primary">Bs {{ (totalPrice * dolarRate).toFixed(2) }}</strong>
+                 <button class="btn-icon-small" @click="copyToClipboard((totalPrice * dolarRate).toFixed(2))" title="Copiar"><Icon name="content-copy" /></button>
+               </div>
+            </div>
+
+            <div v-if="selectedPaymentMethod === 'Transferencia'" class="payment-data-card text-center py-4">
+               <Icon name="clock-outline" class="icon-large text-muted mb-2" />
+               <p class="text-muted">{{ paymentData.transferencia }}</p>
+            </div>
+            
+            <div v-if="selectedPaymentMethod === 'Efectivo'" class="payment-data-card text-center py-4">
+               <Icon name="cash-marker" class="icon-large text-primary mb-2" />
+               <p class="text-muted">Por favor, prepare el monto exacto en efectivo al momento de la entrega o retiro.</p>
+            </div>
+
+            <button v-if="selectedPaymentMethod === 'Pago Móvil' || selectedPaymentMethod === 'Efectivo'" class="btn btn-primary btn-block mt-4" @click="goToUploadStep">
+              Reportar Pago Listo <Icon name="check-circle" class="mr-0 ml-2" />
+            </button>
+          </div>
         </div>
 
-        <!-- STEP 4 -->
-        <div v-if="step === 4" class="form-section text-center fade-in">
+        <!-- STEP 4: UPLOAD RECEIPT -->
+        <div v-if="step === 4" class="form-section fade-in">
+          <h4>
+            <Icon name="cloud-upload-outline" /> Subir Comprobante
+          </h4>
+          <p class="text-muted mb-4">Por favor suba una captura o foto de su comprobante de pago para procesar su orden.</p>
+          
+          <div class="upload-container-wizard">
+            <div class="file-drop-zone" :class="{ 'has-file': !!receiptFile }">
+              <input type="file" @change="handleFileSelect" accept="image/*" class="file-input-hidden" id="receipt-upload" />
+              <label for="receipt-upload" class="drop-zone-label">
+                <template v-if="!receiptFile">
+                  <Icon name="image-plus" class="upload-icon" />
+                  <span>Seleccionar Imagen</span>
+                </template>
+                <template v-else>
+                  <Icon name="file-check" class="upload-icon text-success" />
+                  <span>{{ receiptFile.name }}</span>
+                </template>
+              </label>
+            </div>
+
+            <div v-if="uploadStatus" :class="['status-msg', statusType]">
+               <Icon v-if="isUploading" name="loading" class="spin" />
+               {{ uploadStatus }}
+            </div>
+
+            <button class="btn btn-primary btn-block mt-4" @click="uploadReceipt" :disabled="!receiptFile || isUploading">
+              {{ isUploading ? 'Subiendo...' : 'Enviar Comprobante' }} <Icon name="send" class="ml-2" />
+            </button>
+            <button class="btn btn-outline btn-block mt-2" @click="step = 5" :disabled="isUploading">
+              Omitir por ahora
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 5: SUCCESS -->
+        <div v-if="step === 5" class="form-section text-center fade-in">
           <Icon name="check-circle-outline" class="success-icon icon-large text-primary mb-4" />
           <h2 class="text-primary mb-2">¡Compra Exitosa!</h2>
           <p class="text-muted">Su orden ha sido registrada correctamente. El comercio se pondrá en contacto pronto.</p>
+          <div v-if="currentUser" class="mt-6">
+            <RouterLink to="/mis-compras" class="btn btn-outline">Ver Mis Compras</RouterLink>
+          </div>
         </div>
       </div>
 
       <footer class="modal-footer">
         <!-- Preview only visible when not in success step -->
-        <div v-if="step < 4" class="total-preview">
+        <div v-if="step < 5" class="total-preview">
           Total a Pagar: <strong>${{ totalPrice.toFixed(2) }} / Bs {{ (totalPrice * dolarRate).toFixed(2) }}</strong>
         </div>
 
         <div class="actions">
-          <button v-if="step > 1 && step < 4" class="btn btn-outline" @click="prevStep" :disabled="isProcessing">
+          <button v-if="step > 1 && step < 5" class="btn btn-outline" @click="prevStep" :disabled="isProcessing">
             <Icon name="arrow-left" /> Atrás
           </button>
           
@@ -108,7 +199,7 @@
             Confirmar Orden <Icon name="check" class="mr-0 ml-2" />
           </button>
 
-          <button v-if="step === 4" class="btn btn-primary" @click="emitClose">
+          <button v-if="step === 5" class="btn btn-primary" @click="emitClose">
             <Icon name="storefront" /> Volver a Tienda
           </button>
         </div>
@@ -118,11 +209,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { collection, addDoc, doc, setDoc } from 'firebase/firestore'
+import { ref, computed, onMounted } from 'vue'
+import { collection, addDoc, doc, setDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
 import type { RecipeScenario, Recipe } from '../types/recipe'
+import { useAuth } from '../composables/useAuth'
 
 const props = defineProps<{ 
   scenario: RecipeScenario | null; 
@@ -132,12 +224,44 @@ const props = defineProps<{
 }>()
 const emit = defineEmits(['close'])
 
+const { currentUser, userProfile } = useAuth()
+
 const step = ref(1)
 const customerName = ref('')
 const customerPhone = ref('')
 const createdCustomer: any = ref(null)
 const createdOrder: any = ref(null)
 const isProcessing = ref(false)
+
+onMounted(() => {
+  if (currentUser.value) {
+    customerName.value = userProfile.value?.fullName || 'Cliente'
+    customerPhone.value = userProfile.value?.phone || ''
+  }
+})
+
+const selectedPaymentMethod = ref('')
+
+const paymentData = {
+  pagoMovil: {
+    ci: 'V26829337',
+    banco: '0102 Banco de Venezuela',
+    telefono: '04123727143'
+  },
+  transferencia: 'Próximamente'
+}
+
+function selectPaymentMethod(method: string) {
+  selectedPaymentMethod.value = method
+}
+
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch (err) {
+    console.error('Error al copiar: ', err)
+  }
+}
 
 const unitPrice = computed(() => {
   if (!props.scenario) return 0
@@ -155,17 +279,31 @@ async function submitCustomer() {
   if (!customerName.value || !customerPhone.value) return
   isProcessing.value = true
   try {
-    const custRef = await addDoc(collection(db, 'customers'), {
-      name: customerName.value,
-      phone: customerPhone.value,
-      created_at: new Date().toISOString()
-    })
-    createdCustomer.value = { id: custRef.id, name: customerName.value, phone: customerPhone.value }
+    let customerId = ''
+    
+    if (currentUser.value) {
+      customerId = currentUser.value.uid
+      // Update customer record just in case
+      await setDoc(doc(db, 'customers', customerId), {
+        name: customerName.value,
+        phone: customerPhone.value,
+        updated_at: new Date().toISOString()
+      }, { merge: true })
+      createdCustomer.value = { id: customerId, name: customerName.value, phone: customerPhone.value }
+    } else {
+      const custRef = await addDoc(collection(db, 'customers'), {
+        name: customerName.value,
+        phone: customerPhone.value,
+        created_at: new Date().toISOString()
+      })
+      customerId = custRef.id
+      createdCustomer.value = { id: custRef.id, name: customerName.value, phone: customerPhone.value }
+    }
 
     const orderRef = doc(collection(db, 'orders'))
     const orderPayload = {
       id: orderRef.id,
-      customer_id: custRef.id,
+      customer_id: customerId,
       scenario_id: props.scenario?.id || null,
       quantity: props.quantity || 1,
       price_to_pay: totalPrice.value,
@@ -184,8 +322,69 @@ async function submitCustomer() {
   }
 }
 
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxWrW0Sh7YBbE6CQQ-_AyTZ7KiJ2y52pilMVfBD4ai86pT8fPkdw4Ir4TiPdiemhkGZ/exec'
+const receiptFile = ref<File | null>(null)
+const isUploading = ref(false)
+const uploadStatus = ref('')
+const statusType = ref<'success' | 'error' | 'info'>('info')
+
+function handleFileSelect(e: any) {
+  receiptFile.value = e.target.files[0]
+  uploadStatus.value = ''
+}
+
+function goToUploadStep() {
+  step.value = 4
+}
+
+async function uploadReceipt() {
+  if (!receiptFile.value || !createdOrder.value) return
+  isUploading.value = true
+  uploadStatus.value = 'Subiendo comprobante...'
+  statusType.value = 'info'
+  
+  try {
+    const reader = new FileReader()
+    const base64Promise = new Promise<string>((resolve) => {
+      reader.onload = () => resolve((reader.result as string).split(',')[1])
+      reader.readAsDataURL(receiptFile.value!)
+    })
+    
+    const base64Data = await base64Promise
+    const formData = new URLSearchParams()
+    formData.append('fileName', `receipt_${createdOrder.value.id}_${receiptFile.value.name}`)
+    formData.append('mimeType', receiptFile.value.type)
+    formData.append('fileData', base64Data)
+    
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData.toString()
+    })
+    
+    // Update order in firestore
+    await updateDoc(doc(db, 'orders', createdOrder.value.id), {
+      receipt_uploaded: true,
+      receipt_date: new Date().toISOString()
+    })
+    
+    uploadStatus.value = '¡Comprobante enviado con éxito!'
+    statusType.value = 'success'
+    setTimeout(() => {
+      step.value = 5
+    }, 1500)
+  } catch (err) {
+    console.error(err)
+    uploadStatus.value = 'Error al subir comprobante. Inténtelo de nuevo.'
+    statusType.value = 'error'
+  } finally {
+    isUploading.value = false
+  }
+}
+
 function nextStep() {
-  step.value = Math.min(4, step.value + 1)
+  step.value = Math.min(5, step.value + 1)
 }
 
 function prevStep() {
@@ -193,7 +392,6 @@ function prevStep() {
 }
 
 function finishPayment(method: string) {
-  // Payment info logic here in the future
   step.value = 4
 }
 </script>
@@ -425,6 +623,137 @@ function finishPayment(method: string) {
 .text-primary { color: var(--primary); }
 .text-muted { color: var(--text-secondary); }
 .text-center { text-align: center; }
+
+.details-header h3 {
+  margin: 0;
+}
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+.payment-data-card {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+.data-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.data-row:last-child {
+  border-bottom: none;
+}
+.data-label {
+  color: var(--text-secondary);
+  font-weight: 600;
+  width: 100px;
+}
+.data-value {
+  color: var(--text-primary);
+  flex: 1;
+  font-family: monospace;
+  font-size: 1.1rem;
+}
+.btn-icon-small {
+  background: rgba(79, 70, 229, 0.1);
+  border: none;
+  color: var(--primary);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-icon-small:hover {
+  background: var(--primary);
+  color: white;
+}
+.highlight-amount {
+  background: rgba(16, 185, 129, 0.05);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+.highlight-amount .data-value {
+  color: #10b981;
+  font-weight: bold;
+}
+.highlight-amount .btn-icon-small {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+.highlight-amount .btn-icon-small:hover {
+  background: #10b981;
+  color: white;
+}
+.py-4 {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.upload-container-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.file-drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 30px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.file-drop-zone:hover {
+  border-color: var(--primary);
+  background: rgba(79, 70, 229, 0.02);
+}
+
+.file-drop-zone.has-file {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.02);
+}
+
+.file-input-hidden {
+  display: none;
+}
+
+.drop-zone-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.upload-icon {
+  font-size: 3rem;
+  color: var(--text-secondary);
+}
+
+.status-msg {
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.status-msg.info { background: #e0f2fe; color: #0369a1; }
+.status-msg.success { background: #dcfce7; color: #16a34a; }
+.status-msg.error { background: #fee2e2; color: #dc2626; }
 
 @media (max-width: 600px) {
   .grid-2 { grid-template-columns: 1fr; }
