@@ -124,7 +124,17 @@ function formatStatus(status: string) {
   return map[status] || status.toUpperCase()
 }
 
-function formatDate(dateStr: string) {
+function formatDate(date: any) {
+  if (!date) return ''
+  const d = date.seconds ? new Date(date.seconds * 1000) : new Date(date)
+  return d.toLocaleDateString('es-VE', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
 </script>
 
 <style scoped>
