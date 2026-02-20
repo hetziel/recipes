@@ -486,16 +486,18 @@ async function uploadReceipt() {
     formData.append('mimeType', receiptFile.value.type)
     formData.append('fileData', base64Data)
     
-    await fetch(SCRIPT_URL, {
+    const response = await fetch(SCRIPT_URL, {
       method: 'POST',
-      mode: 'no-cors',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: formData.toString()
     })
+    const result = await response.json()
+    const uploadedUrl = result.url || ''
     
     // Update order in firestore
     await updateDoc(doc(db, 'orders', createdOrder.value.id), {
       receipt_uploaded: true,
+      receipt_url: uploadedUrl,
       payment_reference: paymentReference.value,
       status: 'en_verificacion',
       receipt_date: new Date().toISOString()

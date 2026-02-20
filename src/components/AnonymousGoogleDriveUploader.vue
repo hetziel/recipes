@@ -90,26 +90,25 @@ const uploadFile = async () => {
 
     uploadStatus.value = 'Enviando a Google Drive...';
 
-    // Para evitar CORS en Apps Script desde localhost/vue, usamos mode 'no-cors'
-    // IMPORTANTE: 'no-cors' hace que la respuesta sea opaca (no podemos leer el JSON de respuesta)
-    // Por ende, asumiremos éxito si el fetch no lanza una excepción de red.
-    await fetch(SCRIPT_URL, {
+    // Se envía como form-urlencoded para evitar el preflight (OPTIONS) y 
+    // permitimos que fetch siga la redirección por defecto.
+    const response = await fetch(SCRIPT_URL, {
       method: 'POST',
-      mode: 'no-cors', 
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       },
       body: formData.toString()
     });
 
-    // En 'no-cors', no podemos verificar `response.json()` o `response.ok`.
-    // Si la promesa se resuelve, asumimos que llegó al servidor de Apps Script.
-    uploadStatus.value = '¡Archivo subido exitosamente!';
-    statusType.value = 'success';
-    
-    // Como la respuesta es opaca, no tenemos la URL real del archivo desde el cliente,
-    // pero sabemos que el archivo está en tu Drive.
-    uploadedFileUrl.value = '#'; 
+    const result = await response.json();
+
+    if (result.status === 'success') {
+      uploadStatus.value = '¡Archivo subido exitosamente!';
+      statusType.value = 'success';
+      uploadedFileUrl.value = result.url; // Obtenemos la URL real
+    } else {
+      throw new Error(result.message || 'Error desconocido del servidor');
+    } 
     file.value = null; 
     
     const fileInput = document.querySelector('.file-input') as HTMLInputElement;
