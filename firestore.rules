@@ -42,7 +42,10 @@ service cloud.firestore {
     }
     match /customers/{customer} {
       allow read: if isAdmin();
-      allow write: if isAdmin();
+      // Allow anyone (including unauthenticated users) to create a customer record
+      allow create: if true;
+      // Only admins can update or delete customer records
+      allow update, delete: if isAdmin();
     }
     match /sales/{sale} {
       allow read: if isAdmin();
@@ -63,12 +66,24 @@ service cloud.firestore {
 
     // Colección de Recetas y Escenarios
     match /recipes/{recipe} {
-      allow read: if isAuth();
+      // Recipes can be read by authenticated users or publicly for store consumption
+      allow read: if isAuth() || true;
       allow write: if isAdmin();
     }
     match /scenarios/{scenario} {
-      allow read: if isAuth();
+      // Allow public read of published scenarios, otherwise require auth
+      allow read: if isAuth() || (resource.data.published == true);
       allow write: if isAdmin();
+    }
+    
+    // Orders collection for purchases created from public store
+    match /orders/{order} {
+      // Only admins can read or modify orders
+      allow read: if isAdmin();
+      // Allow anyone to create an order (guest checkout)
+      allow create: if true;
+      // Admins only for update/delete
+      allow update, delete: if isAdmin();
     }
   }
 }

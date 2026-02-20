@@ -137,12 +137,22 @@ onMounted(() => {
         <span class="icon"><i class="fi fi-rr-boxes"></i></span>
         <span class="text">Producción</span>
       </RouterLink>
+      
+      <!-- Public Store Link (visible to logged users in sidebar) -->
+      <RouterLink to="/store" class="nav-link" @click="toggleMenu">
+        <span class="icon"><i class="fi fi-rr-shopping-basket"></i></span>
+        <span class="text">Tienda</span>
+      </RouterLink>
 
       <!-- Admin Only Links -->
       <template v-if="userProfile?.role === 'admin'">
         <RouterLink to="/sales" class="nav-link" @click="toggleMenu">
           <span class="icon"><i class="fi fi-rr-diploma"></i></span>
           <span class="text">Ventas</span>
+        </RouterLink>
+        <RouterLink to="/orders" class="nav-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-list-check"></i></span>
+          <span class="text">Compras de Clientes</span>
         </RouterLink>
         <RouterLink to="/buys" class="nav-link" @click="toggleMenu">
           <span class="icon"><i class="fi fi-rr-shopping-cart"></i></span>

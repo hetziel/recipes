@@ -41,6 +41,12 @@ const router = createRouter({
       component: () => import('../views/Recipes.vue'),
     },
     {
+      path: '/store',
+      name: 'store',
+      component: () => import('../views/StoreView.vue'),
+      meta: { public: true }
+    },
+    {
       path: '/production/create',
       name: 'production-create',
       component: () => import('../views/RecipeForm.vue'),
@@ -68,6 +74,12 @@ const router = createRouter({
       path: '/sales',
       name: 'sales',
       component: () => import('../views/SalesView.vue'),
+      meta: { requiresAdmin: true }
+    },
+    {
+      path: '/orders',
+      name: 'orders',
+      component: () => import('../views/OrdersView.vue'),
       meta: { requiresAdmin: true }
     },
     {

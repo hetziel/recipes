@@ -320,6 +320,13 @@
                       Margen Real: <strong>{{ calculateScenarioRealMargin(scenario).toFixed(1) }}%</strong>
                     </div>
                   </div>
+                  <div class="form-group checkbox-group mt-3">
+                    <label class="checkbox-container">
+                      <input type="checkbox" v-model="scenario.published" />
+                      <span class="checkmark"></span>
+                      Publicar en tienda
+                    </label>
+                  </div>
                 </div>
 
                 <!-- UTILIDADES DEL ESCENARIO (PAQUETES) -->
@@ -842,6 +849,7 @@ function addScenario() {
     mode: 'weight',
     value: 100,
     fixed_sale_price_currency: 'USD',
+    published: false,
     utilities: [],
   }
 

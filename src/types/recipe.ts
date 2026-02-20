@@ -28,6 +28,7 @@ export interface RecipeScenario {
   value: number // weight per unit (if mode=weight) or total units (if mode=unit)
   fixed_sale_price?: number // Manual override for sale price
   fixed_sale_price_currency?: 'USD' | 'Bs'
+  published?: boolean // Whether this scenario is published in the public store
   utilities: RecipeUtility[] // Scenario-specific utilities
 }
 
