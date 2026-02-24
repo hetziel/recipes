@@ -46,6 +46,8 @@ export interface ChickenSale {
   date: string
   sacrificed_day?: number
   items?: ChickenSaleItem[]
+  customer_id?: string
+  sale_id?: string
 }
 
 export interface ChickenControlRecord {

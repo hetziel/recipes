@@ -6,6 +6,7 @@ export interface Customer {
 }
 
 export type SaleStatus = 'pendiente' | 'pagado' | 'por pagar' | 'cancelado'
+export type DeliveryStatus = 'por_entregar' | 'entregado' | 'cancelado'
 
 export interface SaleItem {
     scenario_id: string
@@ -28,6 +29,8 @@ export interface Sale {
     status_updated_at?: string
     purchase_date?: string
     payment_due_date: string
+    is_chicken_sale?: boolean
+    delivery_status?: DeliveryStatus
     created_at: string
     updated_at?: string
 }

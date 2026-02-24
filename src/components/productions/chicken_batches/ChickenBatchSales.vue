@@ -2,19 +2,26 @@
 import { computed, ref } from 'vue'
 import Icon from '@/components/ui/Icon.vue'
 import type { ChickenData, ChickenSale } from '@/types/recipe'
+import type { Customer } from '@/types/sales'
+import CustomerSelector from '@/components/sales/CustomerSelector.vue'
 
 interface Props {
   modelValue: ChickenData
   readonly?: boolean
   totalIngredientsCost: number
   dolarRate: number
+  customers?: Customer[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   readonly: false
 })
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'sale-deleted', 'customer-created'])
+
+function onCustomerCreated(customer: Customer) {
+  emit('customer-created', customer)
+}
 
 const chickenData = computed({
   get: () => props.modelValue,
@@ -41,6 +48,12 @@ function addSale() {
 function removeSale(index: number) {
   if (props.readonly) return
   const newSales = [...(chickenData.value.sales || [])]
+  const deletedSale = newSales[index]
+
+  if (deletedSale && deletedSale.sale_id) {
+    emit('sale-deleted', deletedSale.sale_id)
+  }
+
   newSales.splice(index, 1)
   chickenData.value = { ...chickenData.value, sales: newSales }
 }
@@ -149,6 +162,7 @@ function calculateProfitPercent(profit: number, cost: number): string {
         <thead>
           <tr>
             <th>Fecha</th>
+            <th>Cliente</th>
             <th>Día Sacrificio</th>
             <th>Cantidad (und)</th>
             <th>Peso/Und (kg)</th>
@@ -165,6 +179,12 @@ function calculateProfitPercent(profit: number, cost: number): string {
               <td>
                 <input v-if="!readonly" v-model="sale.date" type="date" class="input-xs" />
                 <span v-else>{{ sale.date }}</span>
+              </td>
+              <td>
+                <CustomerSelector v-if="!readonly" v-model="sale.customer_id" :customers="customers || []"
+                  @customer-created="onCustomerCreated" returnType="id" inputClass="input-xs"
+                  placeholder="Cliente..." />
+                <span v-else>{{customers?.find(c => c.id === sale.customer_id)?.name || 'N/A'}}</span>
               </td>
               <td>
                 <input v-if="!readonly" v-model.number="sale.sacrificed_day" type="number" class="form-input input-sm"
@@ -215,7 +235,7 @@ function calculateProfitPercent(profit: number, cost: number): string {
             <!-- Items Rows -->
             <template v-if="expandedSales.has(sale.id) && sale.items && sale.items.length > 0">
               <tr v-for="(item, iIdx) in sale.items" :key="item.id" class="sub-row">
-                <td colspan="3" class="text-right text-muted sub-row-label">
+                <td colspan="4" class="text-right text-muted sub-row-label">
                   <Icon name="subdirectory-arrow-right" class="text-sm mb-0" style="vertical-align: middle;" /> Unidad
                   {{ iIdx + 1 }}
                 </td>
@@ -239,14 +259,14 @@ function calculateProfitPercent(profit: number, cost: number): string {
           </template>
 
           <tr v-if="!chickenData.sales || chickenData.sales.length === 0">
-            <td :colspan="readonly ? 7 : 8" class="text-center text-muted py-8">
+            <td :colspan="readonly ? 8 : 9" class="text-center text-muted py-8">
               No hay ventas registradas todavía.
             </td>
           </tr>
         </tbody>
         <tfoot v-if="chickenData.sales && chickenData.sales.length > 0">
           <tr class="table-summary">
-            <td :colspan="readonly ? 6 : 6" class="text-right"><strong>Total Vendido:</strong></td>
+            <td :colspan="readonly ? 7 : 7" class="text-right"><strong>Total Vendido:</strong></td>
             <td class="font-bold text-lg text-success">
               ${{ salesCalculations.totalSoldIncome.toFixed(2) }}
             </td>
