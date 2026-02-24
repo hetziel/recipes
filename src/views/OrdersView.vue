@@ -13,92 +13,95 @@
       <Icon name="loading" class="spin icon-large text-primary" />
       <p class="mt-4 text-muted">Cargando órdenes...</p>
     </div>
-    
+
     <div v-if="!loading && orders.length === 0" class="empty-state-premium fade-in">
       <Icon name="basket-off-outline" class="empty-icon" />
       <p>No hay órdenes registradas aún.</p>
     </div>
 
-    <div v-if="!loading && orders.length > 0" class="glass-card fade-in mt-4">
-      <div class="table-responsive">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Contacto</th>
-              <th>Paquete Solicitado</th>
-              <th>Cant.</th>
-              <th>Total</th>
-              <th>Abonado / Saldo</th>
-              <th>Pago</th>
-              <th>Entrega</th>
-              <th>Comprobante</th>
-              <th>Fecha</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="o in orders" :key="o.id" class="table-row">
-              <td>
-                <div class="font-bold">{{ customersMap[o.customer_id]?.name || o.customer_id }}</div>
-              </td>
-              <td>
-                <div class="text-xs text-muted"><Icon name="phone" size="sm" /> {{ customersMap[o.customer_id]?.phone || 'N/A' }}</div>
-              </td>
-              <td>
-                <div class="scenario-badge">
-                  <Icon name="package-variant" size="sm" /> {{ scenariosMap[o.scenario_id]?.name || o.scenario_id }}
-                </div>
-              </td>
-              <td class="text-center">
-                <span class="qty-badge">{{ o.quantity }}</span>
-              </td>
-              <td>
-                <div class="price-stack">
-                  <span class="price-usd">${{ o.total_amount?.toFixed(2) || o.price_to_pay.toFixed(2) }}</span>
-                </div>
-              </td>
-              <td>
-                <div class="balance-stack">
-                  <span class="text-success text-xs font-bold">Abonado: ${{ o.paid_amount || 0 }}</span>
-                  <span v-if="(o.remaining_balance || 0) > 0" class="text-danger text-xs font-bold">Saldo: ${{ o.remaining_balance || 0 }}</span>
-                </div>
-              </td>
-              <td>
-                <span :class="['modern-badge', o.status]">{{ formatStatus(o.status) }}</span>
-              </td>
-              <td>
-                <div class="delivery-actions">
-                  <span :class="['modern-badge', o.delivery_status || 'por_entregar']">{{ formatDeliveryStatus(o.delivery_status) }}</span>
-                  <button v-if="o.delivery_status !== 'entregado' && o.status !== 'cancelado'" class="btn-icon-small mt-1" @click="markAsDelivered(o)" title="Marcar entregado">
-                    <Icon name="truck-check-outline" size="sm" />
-                  </button>
-                </div>
-              </td>
-              <td>
-                <div v-if="o.receipt_uploaded" class="receipt-actions">
-                  <span class="text-xs text-muted d-block">Ref: {{ o.payment_reference || 'N/A' }}</span>
-                  <a v-if="o.receipt_url" :href="o.receipt_url" target="_blank" class="btn-link">Ver Link</a>
-                  <span v-else class="text-xs italic text-muted">Archivo en Drive</span>
-                </div>
-                <span v-else class="text-xs text-muted">-</span>
-              </td>
-              <td>
-                <div class="text-xs text-muted">{{ formatDate(o.created_at) }}</div>
-              </td>
-              <td>
-                <div class="action-buttons-stack">
-                  <button v-if="o.status !== 'pagado' && o.status !== 'cancelado'" class="btn-action" @click="openPaymentModal(o)">
-                    <Icon name="check-decagram" size="sm" /> Validar
-                  </button>
-                  <button v-if="o.status !== 'cancelado'" class="btn-action danger-action" @click="cancelOrder(o)" title="Cancelar Orden">
-                    <Icon name="close-circle-outline" size="sm" /> Cancelar
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <div v-if="!loading && orders.length > 0" class="orders-grid">
+      <div v-for="o in orders" :key="o.id" class="order-card glass-card fade-in">
+        <div class="order-card-header">
+          <div class="customer-info">
+            <h3>{{ customersMap[o.customer_id]?.name || o.customer_id }}</h3>
+            <span class="text-xs text-muted">
+              <Icon name="phone" size="sm" /> {{ customersMap[o.customer_id]?.phone || 'N/A' }}
+            </span>
+          </div>
+          <div class="order-date text-xs text-muted">
+            {{ formatDate(o.created_at) }}
+          </div>
+        </div>
+
+        <div class="order-card-body">
+          <div class="info-group full-width">
+            <span class="label">Paquete Solicitado</span>
+            <div>
+              <span class="scenario-badge">
+                <Icon name="package-variant" size="sm" /> {{ scenariosMap[o.scenario_id]?.name || o.scenario_id }}
+              </span>
+            </div>
+          </div>
+
+          <div class="info-group">
+            <span class="label">Cant.</span>
+            <div><span class="qty-badge">{{ o.quantity }}</span></div>
+          </div>
+
+          <div class="info-group">
+            <span class="label">Total</span>
+            <span class="price-usd">${{ o.total_amount?.toFixed(2) || o.price_to_pay.toFixed(2) }}</span>
+          </div>
+
+          <div class="info-group">
+            <span class="label">Abonado / Saldo</span>
+            <div class="balance-stack">
+              <span class="text-success text-xs font-bold">Abono: ${{ o.paid_amount || 0 }}</span>
+              <span v-if="(o.remaining_balance || 0) > 0" class="text-danger text-xs font-bold">Saldo: ${{
+                o.remaining_balance || 0 }}</span>
+            </div>
+          </div>
+
+          <div class="info-group">
+            <span class="label">Pago</span>
+            <div><span :class="['modern-badge', o.status]">{{ formatStatus(o.status) }}</span></div>
+          </div>
+
+          <div class="info-group">
+            <span class="label">Entrega</span>
+            <div class="delivery-actions-card">
+              <span :class="['modern-badge', o.delivery_status || 'por_entregar']">{{
+                formatDeliveryStatus(o.delivery_status) }}</span>
+              <button v-if="o.delivery_status !== 'entregado' && o.status !== 'cancelado'" class="btn-icon-small"
+                @click="markAsDelivered(o)" title="Marcar entregado">
+                <Icon name="truck-check-outline" size="sm" />
+              </button>
+            </div>
+          </div>
+
+          <div class="info-group">
+            <span class="label">Comprobante</span>
+            <div v-if="o.receipt_uploaded" class="receipt-actions">
+              <span class="text-xs text-muted d-block">Ref: {{ o.payment_reference || 'N/A' }}</span>
+              <a v-if="o.receipt_url" :href="o.receipt_url" target="_blank" class="btn-link">Ver Link</a>
+              <span v-else class="text-xs italic text-muted">Archivo en Drive</span>
+            </div>
+            <span v-else class="text-xs text-muted">-</span>
+          </div>
+        </div>
+
+        <div class="order-card-footer">
+          <div class="action-buttons-row">
+            <button v-if="o.status !== 'pagado' && o.status !== 'cancelado'" class="btn-action"
+              @click="openPaymentModal(o)">
+              <Icon name="check-decagram" size="sm" /> Validar
+            </button>
+            <button v-if="o.status !== 'cancelado'" class="btn-action danger-action" @click="cancelOrder(o)"
+              title="Cancelar Orden">
+              <Icon name="close-circle-outline" size="sm" /> Cancelar
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -107,15 +110,19 @@
       <div class="modal-content glass-card">
         <header class="modal-header">
           <h3>Validar Pago - Orden #{{ selectedOrder.id.slice(-6).toUpperCase() }}</h3>
-          <button @click="closePaymentModal" class="btn-icon"><Icon name="close" /></button>
+          <button @click="closePaymentModal" class="btn-icon">
+            <Icon name="close" />
+          </button>
         </header>
         <div class="modal-body">
           <div class="order-summary-mini mb-4">
-            <p><strong>Total Orden:</strong> ${{ (selectedOrder.total_amount || selectedOrder.price_to_pay).toFixed(2) }}</p>
+            <p><strong>Total Orden:</strong> ${{ (selectedOrder.total_amount || selectedOrder.price_to_pay).toFixed(2)
+              }}</p>
             <p><strong>Abonado anteriormente:</strong> ${{ (selectedOrder.paid_amount || 0).toFixed(2) }}</p>
-            <p class="text-danger"><strong>Saldo Pendiente:</strong> ${{ (selectedOrder.remaining_balance ?? selectedOrder.price_to_pay).toFixed(2) }}</p>
+            <p class="text-danger"><strong>Saldo Pendiente:</strong> ${{ (selectedOrder.remaining_balance ??
+              selectedOrder.price_to_pay).toFixed(2) }}</p>
           </div>
-          
+
           <div class="form-group">
             <label>Monto a Confirmar ($)</label>
             <input type="number" v-model="amountToConfirm" class="form-input" step="0.01" />
@@ -169,14 +176,14 @@ function closePaymentModal() {
 async function confirmPayment() {
   if (!selectedOrder.value || amountToConfirm.value <= 0) return
   isProcessing.value = true
-  
+
   try {
     const order = selectedOrder.value
     const currentPaid = order.paid_amount || 0
     const total = order.total_amount || order.price_to_pay
     const newPaid = currentPaid + amountToConfirm.value
     const newBalance = Math.max(0, total - newPaid)
-    
+
     let newStatus = 'parcial_confirmado'
     if (newBalance <= 0) {
       newStatus = 'pagado'
@@ -192,14 +199,14 @@ async function confirmPayment() {
     // Refresh local state
     const orderIdx = orders.value.findIndex(o => o.id === order.id)
     if (orderIdx !== -1) {
-      orders.value[orderIdx] = { 
-        ...orders.value[orderIdx], 
-        paid_amount: newPaid, 
-        remaining_balance: newBalance, 
-        status: newStatus 
+      orders.value[orderIdx] = {
+        ...orders.value[orderIdx],
+        paid_amount: newPaid,
+        remaining_balance: newBalance,
+        status: newStatus
       }
     }
-    
+
     closePaymentModal()
   } catch (e) {
     console.error(e)
@@ -212,20 +219,20 @@ async function confirmPayment() {
 async function rejectOrder() {
   if (!selectedOrder.value) return
   if (!confirm('¿Está seguro de rechazar este comprobante?')) return
-  
+
   isProcessing.value = true
   try {
     await updateDoc(doc(db, 'orders', selectedOrder.value.id), {
       status: 'rechazado',
       updated_at: new Date().toISOString()
     })
-    
+
     // Refresh local state
     const orderIdx = orders.value.findIndex(o => o.id === selectedOrder.value.id)
     if (orderIdx !== -1) {
       orders.value[orderIdx].status = 'rechazado'
     }
-    
+
     closePaymentModal()
   } catch (e) {
     console.error(e)
@@ -246,7 +253,7 @@ async function markAsDelivered(order: any) {
     if (orderIdx !== -1) {
       orders.value[orderIdx].delivery_status = 'entregado'
     }
-  } catch(e) { console.error(e) }
+  } catch (e) { console.error(e) }
   finally { isProcessing.value = false }
 }
 
@@ -264,7 +271,7 @@ async function cancelOrder(order: any) {
       orders.value[orderIdx].status = 'cancelado'
       orders.value[orderIdx].delivery_status = 'cancelado'
     }
-  } catch(e) { console.error(e) }
+  } catch (e) { console.error(e) }
   finally { isProcessing.value = false }
 }
 
@@ -273,9 +280,9 @@ onMounted(async () => {
   try {
     const ordersSnap = await getDocs(collection(db, 'orders'))
     orders.value = ordersSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
-    
+
     // Sort orders manually
-    orders.value.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    orders.value.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
     const custSnap = await getDocs(collection(db, 'customers'))
     custSnap.docs.forEach(d => { customersMap[d.id] = d.data() })
@@ -313,7 +320,7 @@ function formatDeliveryStatus(status: string) {
 
 function formatDate(dateStr: string) {
   if (!dateStr) return 'N/A'
-  return new Date(dateStr).toLocaleDateString() + ' ' + new Date(dateStr).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+  return new Date(dateStr).toLocaleDateString() + ' ' + new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 </script>
 
@@ -372,34 +379,112 @@ function formatDate(dateStr: string) {
   }
 }
 
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
+.orders-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+  margin-top: 24px;
 }
 
-.data-table th {
-  background: rgba(79, 70, 229, 0.03);
-  color: var(--text-secondary);
-  font-size: 0.8rem;
+.order-card {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  gap: 16px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.order-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+}
+
+.order-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.customer-info h3 {
+  margin: 0 0 4px 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.order-date {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.order-card-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.info-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-group.full-width {
+  grid-column: 1 / -1;
+}
+
+.info-group .label {
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  padding: 16px;
-  text-align: left;
-  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
-.data-table td {
-  padding: 16px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
+.order-card-footer {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
-.table-row {
-  transition: background 0.2s;
+.action-buttons-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.table-row:hover {
+.action-buttons-row .btn-action {
+  flex: 1;
+  justify-content: center;
+  padding: 10px;
+}
+
+.delivery-actions-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-icon-small {
   background: var(--background);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-icon-small:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
 }
 
 .font-bold {
@@ -407,10 +492,21 @@ function formatDate(dateStr: string) {
   color: var(--text-primary);
 }
 
-.text-xs { font-size: 0.75rem; }
-.text-muted { color: var(--text-secondary); }
-.text-center { text-align: center; }
-.mt-4 { margin-top: 16px; }
+.text-xs {
+  font-size: 0.75rem;
+}
+
+.text-muted {
+  color: var(--text-secondary);
+}
+
+.text-center {
+  text-align: center;
+}
+
+.mt-4 {
+  margin-top: 16px;
+}
 
 .scenario-badge {
   display: inline-flex;
@@ -460,7 +556,8 @@ function formatDate(dateStr: string) {
   border: 1px solid rgba(245, 158, 11, 0.2);
 }
 
-.modern-badge.en_verificacion, .modern-badge.parcial_en_verificacion {
+.modern-badge.en_verificacion,
+.modern-badge.parcial_en_verificacion {
   background: rgba(2, 132, 199, 0.1);
   color: #0284c7;
   border: 1px solid rgba(2, 132, 199, 0.2);
@@ -505,7 +602,7 @@ function formatDate(dateStr: string) {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -537,10 +634,21 @@ function formatDate(dateStr: string) {
   font-size: 0.9rem;
 }
 
-.order-summary-mini p { margin: 4px 0; }
+.order-summary-mini p {
+  margin: 4px 0;
+}
 
-.form-group { display: flex; flex-direction: column; gap: 8px; }
-.form-input { padding: 8px; border: 1px solid var(--border); border-radius: 4px; }
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-input {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
 
 .btn-group-decision {
   display: grid;
@@ -579,38 +687,79 @@ function formatDate(dateStr: string) {
   gap: 4px;
 }
 
-.action-buttons-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+
 
 .danger-action {
   background: #fef2f2;
   color: #dc2626;
   border: 1px solid #fecaca;
 }
+
 .danger-action:hover {
   background: #fee2e2;
 }
 
-.mt-1 { margin-top: 4px; }
+.mt-1 {
+  margin-top: 4px;
+}
 
 .balance-stack {
   display: flex;
   flex-direction: column;
 }
 
-.text-danger { color: #dc2626; }
-.text-success { color: #16a34a; }
-.italic { font-style: italic; }
-.d-block { display: block; }
-.mb-2 { margin-bottom: 8px; }
-.mb-4 { margin-bottom: 16px; }
-.btn-icon { background: none; border: none; cursor: pointer; }
-.btn-success { background: #16a34a; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; }
-.btn-danger { background: #dc2626; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; }
-.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.text-danger {
+  color: #dc2626;
+}
+
+.text-success {
+  color: #16a34a;
+}
+
+.italic {
+  font-style: italic;
+}
+
+.d-block {
+  display: block;
+}
+
+.mb-2 {
+  margin-bottom: 8px;
+}
+
+.mb-4 {
+  margin-bottom: 16px;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-success {
+  background: #16a34a;
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-danger {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 .empty-state-premium {
   display: flex;
@@ -635,15 +784,35 @@ function formatDate(dateStr: string) {
   font-size: 1.1rem;
 }
 
-.fade-in { animation: fadeIn 0.4s ease forwards; }
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+.fade-in {
+  animation: fadeIn 0.4s ease forwards;
 }
 
-.spin { animation: spin 1s linear infinite; }
-@keyframes spin { 100% { transform: rotate(360deg); } }
-.icon-large { font-size: 3rem; }
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.icon-large {
+  font-size: 3rem;
+}
 
 @media (max-width: 768px) {
   .page-header-premium {
