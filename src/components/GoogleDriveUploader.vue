@@ -1,17 +1,28 @@
 <template>
   <div class="drive-uploader">
+    <h2>Guardar en tu Drive Personal</h2>
+    <p class="description">
+      Conecta tu cuenta de Google para guardar una copia de tus facturas directamente en tu propio Google Drive.
+    </p>
+
     <button @click="authenticate" class="auth-button">
-      Conectar con Google Drive
+      <i class="fi fi-brands-google"></i> Conectar con Google Drive
     </button>
 
     <div v-if="isAuthenticated" class="drive-actions">
-      <input type="file" @change="handleFileUpload" class="file-input" />
-      <button @click="uploadFile" :disabled="!file" class="upload-button">
-        Subir a Drive
-      </button>
-      <button @click="listFiles" class="list-button">
-        Listar archivos
-      </button>
+      <div class="file-input-wrapper">
+        <label for="invoiceFile" class="file-label">Seleccionar Factura:</label>
+        <input type="file" id="invoiceFile" @change="handleFileUpload" class="file-input" accept=".pdf,.png,.jpg,.jpeg" />
+      </div>
+      
+      <div class="action-buttons">
+        <button @click="uploadFile" :disabled="!file" class="upload-button">
+          Guardar en mi Drive
+        </button>
+        <button @click="listFiles" class="list-button">
+          Ver mis facturas guardadas
+        </button>
+      </div>
     </div>
 
     <div v-if="uploadStatus" class="status-message">
@@ -34,8 +45,8 @@
 import { ref, onMounted } from 'vue';
 
 // Configuración
-const CLIENT_ID = '218046682607-38m1j3lhpnlboeoblqqpjnj0l506ujb8.apps.googleusercontent.com';
-const API_KEY = ''; // No necesaria para OAuth
+const CLIENT_ID = '139023693070-a0lc2517oc1jdnqlddc98q8u866u4e6t.apps.googleusercontent.com';
+const API_KEY = 'AIzaSyBBirZrK5TJAOHJgE7WFvTFd4YPfhSXHPU';
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
 

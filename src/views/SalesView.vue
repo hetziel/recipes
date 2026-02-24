@@ -274,7 +274,12 @@
               <div class="sale-main-info">
                 <div class="invoice-badge">#{{ sale.invoice_number || 'S/N' }}</div>
                 <div class="customer-details">
-                  <span class="c-name">{{ sale.customer_name }}</span>
+                  <span class="c-name">
+                    {{ sale.customer_name }}
+                    <span v-if="sale.is_chicken_sale" class="chicken-badge" title="Venta de Lote de Pollos">
+                      <Icon name="bird" />
+                    </span>
+                  </span>
                   <span class="c-date">
                     <Icon name="calendar" /> Venta: {{ formatDate(sale.purchase_date || sale.created_at) }}
                   </span>
@@ -301,22 +306,36 @@
               </div>
 
               <div class="sale-status-area">
-                <span :class="['modern-badge', sale.status]" @click="openStatusModal(sale)">
-                  {{ formatStatus(sale.status) }}
-                  <span v-if="sale.status_updated_at" class="status-date">
-                    {{ formatDate(sale.status_updated_at) }}
+                <div class="status-stack">
+                  <span class="label">Pago</span>
+                  <span :class="['modern-badge', sale.status]" @click="openStatusModal(sale)">
+                    {{ formatStatus(sale.status) }}
                   </span>
-                </span>
+                </div>
+                <div class="status-stack mt-2">
+                  <span class="label">Entrega</span>
+                  <span :class="['modern-badge', sale.delivery_status || 'por_entregar']" @click="openDeliveryStatusModal(sale)">
+                    {{ formatDeliveryStatus(sale.delivery_status) }}
+                  </span>
+                </div>
+                <div v-if="sale.status_updated_at" class="status-date mt-2 text-xs text-muted text-center">
+                  Act: {{ formatDate(sale.status_updated_at) }}
+                </div>
               </div>
 
               <div class="sale-actions-premium">
-                <button @click="editSale(sale)" class="action-btn edit" title="Editar">
+                <button @click="editSale(sale); isChickenSaleEdit = false" class="action-btn edit" title="Editar">
                   <Icon name="pencil" />
+                </button>
+                <button v-if="sale.is_chicken_sale" @click="notifyChickenSaleEdit(sale)" class="action-btn chicken-edit"
+                  title="Editar Detalles de Venta de Pollo">
+                  <Icon name="pencil-box-multiple-outline" />
                 </button>
                 <button @click="openInvoiceModal(sale)" class="action-btn invoice" title="Factura">
                   <Icon name="printer" />
                 </button>
-                <button @click="deleteSale(sale.id!)" class="action-btn delete" title="Eliminar">
+                <button v-if="!sale.is_chicken_sale" @click="deleteSale(sale.id!)" class="action-btn delete"
+                  title="Eliminar">
                   <Icon name="delete" />
                 </button>
               </div>
@@ -352,15 +371,8 @@
             <div class="grid-2">
               <div class="form-group">
                 <label>Nombre del Cliente</label>
-                <div class="searchable-input">
-                  <input v-model="newSale.customer_name" @input="searchExistingCustomers" type="text" class="form-input"
-                    placeholder="Buscar o escribir nombre..." />
-                  <div v-if="matchingCustomers.length > 0" class="suggestions">
-                    <div v-for="c in matchingCustomers" :key="c.id" @click="selectCustomer(c)" class="suggestion-item">
-                      {{ c.name }} ({{ c.phone }})
-                    </div>
-                  </div>
-                </div>
+                <CustomerSelector v-model="newSale.customer_name" :customers="customers" @select="selectCustomer"
+                  @customer-created="onCustomerCreated" returnType="name" />
               </div>
               <div class="form-group">
                 <label>Teléfono</label>
@@ -466,21 +478,63 @@
 
           <!-- METADATOS DE VENTA -->
           <div class="form-section mt-4">
-            <div class="grid-2">
-              <div class="form-group">
-                <label>Estado Inicial</label>
-                <select v-model="newSale.status" class="form-select">
-                  <option value="pendiente">Pendiente</option>
-                  <option value="pagado">Pagado</option>
-                  <option value="por pagar">Por Pagar</option>
-                  <option value="cancelado">Cancelado</option>
-                </select>
+            <template v-if="!isChickenSaleEdit">
+              <div class="grid-2">
+                <div class="form-group">
+                  <label>Estado de Pago Inicial</label>
+                  <select v-model="newSale.status" class="form-select">
+                    <option value="pendiente">Pendiente</option>
+                    <option value="pagado">Pagado</option>
+                    <option value="por pagar">Por Pagar</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Estado de Entrega</label>
+                  <select v-model="newSale.delivery_status" class="form-select">
+                    <option value="por_entregar">Por Entregar</option>
+                    <option value="entregado">Entregado</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </div>
               </div>
-              <div class="form-group">
-                <label>Fecha Estimada de Pago</label>
-                <input v-model="newSale.payment_due_date" type="date" class="form-input" />
+              <div class="grid-2 mt-4">
+                <div class="form-group">
+                  <label>Fecha Estimada de Pago</label>
+                  <input v-model="newSale.payment_due_date" type="date" class="form-input" />
+                </div>
               </div>
-            </div>
+            </template>
+            <template v-else>
+              <div class="grid-2">
+                <div class="form-group">
+                  <label>Estado de Pago</label>
+                  <select v-model="newSale.status" class="form-select">
+                    <option value="pendiente">Pendiente</option>
+                    <option value="pagado">Pagado</option>
+                    <option value="por pagar">Por Pagar</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Estado de Entrega</label>
+                  <select v-model="newSale.delivery_status" class="form-select">
+                    <option value="por_entregar">Por Entregar</option>
+                    <option value="entregado">Entregado</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </div>
+              </div>
+              <div class="grid-2 mt-4">
+                <div class="form-group">
+                  <label>Fecha Estimada de Pago</label>
+                  <input v-model="newSale.payment_due_date" type="date" class="form-input" />
+                </div>
+              </div>
+              <div class="alert-info mt-4">
+                <Icon name="information-outline" /> Los detalles de productos y montos de esta venta están vinculados a un lote de producción de pollos.
+              </div>
+            </template>
           </div>
         </div>
 
@@ -504,7 +558,7 @@
     <div v-if="showStatusModal" class="modal-overlay">
       <div class="modal-content">
         <header class="modal-header">
-          <h3>Cambiar Estado - #{{ currentSale?.id?.slice(-5) }}</h3>
+          <h3>Cambiar Estado de Pago - #{{ currentSale?.invoice_number || currentSale?.id?.slice(-5) }}</h3>
           <button @click="showStatusModal = false" class="btn-icon">
             <Icon name="close" />
           </button>
@@ -515,6 +569,27 @@
               @click="updateSaleStatus(status)"
               :class="['status-option', status, { active: currentSale?.status === status }]">
               {{ formatStatus(status) }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CAMBIO DE ESTADO DE ENTREGA -->
+    <div v-if="showDeliveryStatusModal" class="modal-overlay">
+      <div class="modal-content">
+        <header class="modal-header">
+          <h3>Cambiar Estado de Entrega - #{{ currentSale?.invoice_number || currentSale?.id?.slice(-5) }}</h3>
+          <button @click="showDeliveryStatusModal = false" class="btn-icon">
+            <Icon name="close" />
+          </button>
+        </header>
+        <div class="modal-body">
+          <div class="status-grid">
+            <button v-for="status in (['por_entregar', 'entregado', 'cancelado'] as DeliveryStatus[])" :key="status"
+              @click="updateDeliveryStatus(status)"
+              :class="['status-option', status, { active: currentSale?.delivery_status === status }]">
+              {{ formatDeliveryStatus(status) }}
             </button>
           </div>
         </div>
@@ -640,7 +715,8 @@ import { ref, computed, onMounted, inject, watch, type Ref, shallowRef, nextTick
 import { collection, query, getDocs, addDoc, updateDoc, doc, orderBy, deleteDoc, runTransaction } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
-import type { Customer, Sale, SaleItem, SaleStatus } from '../types/sales'
+import CustomerSelector from '@/components/sales/CustomerSelector.vue'
+import type { Customer, Sale, SaleItem, SaleStatus, DeliveryStatus } from '../types/sales'
 import type { Recipe, RecipeScenario } from '../types/recipe'
 import { toJpeg } from 'html-to-image'
 import type { DolarBCV, Product } from '../types/producto'
@@ -663,7 +739,14 @@ const availableProducts = ref<Product[]>([])
 const showSaleModal = ref(false)
 const searchQuery = ref('')
 const showStatusModal = ref(false)
+const showDeliveryStatusModal = ref(false)
 const currentSale = ref<Sale | null>(null)
+const isChickenSaleEdit = ref(false)
+
+function notifyChickenSaleEdit(sale: Sale) {
+  isChickenSaleEdit.value = true
+  editSale(sale)
+}
 const timeFilter = ref<'day' | 'month' | 'year'>('month')
 const statusFilter = ref<SaleStatus | 'all'>('all')
 const dateFilter = ref<string | null>(null)
@@ -673,11 +756,11 @@ const newSale = ref({
   customer_name: '',
   customer_phone: '',
   status: 'pendiente' as SaleStatus,
+  delivery_status: 'por_entregar' as DeliveryStatus,
   purchase_date: new Date().toISOString().split('T')[0],
   payment_due_date: new Date().toISOString().split('T')[0],
 })
 const newSaleItems = ref<SaleItem[]>([])
-const matchingCustomers = ref<Customer[]>([])
 const selectedScenarioId = ref('')
 const itemQuantity = ref(1)
 const manualUnitPrice = ref(0)
@@ -689,6 +772,7 @@ const showInvoiceModal = ref(false)
 const isExporting = ref(false)
 const selectedSaleForInvoice = ref<Sale | null>(null)
 const invoiceViewMode = ref<'dynamic' | 'printable'>('dynamic')
+
 
 // CHART REFS
 const salesChartCanvas = ref<HTMLCanvasElement | null>(null)
@@ -1018,6 +1102,15 @@ function formatStatus(status: string) {
   return map[status] || status
 }
 
+function formatDeliveryStatus(status?: string) {
+  const map: Record<string, string> = {
+    'por_entregar': 'Por Entregar',
+    'entregado': 'Entregado',
+    'cancelado': 'Cancelado'
+  }
+  return map[status || 'por_entregar'] || 'Por Entregar'
+}
+
 function formatDate(dateStr: string) {
   if (!dateStr) return '-'
   // Reemplazar guiones por barras evita que se trate como UTC medianoche
@@ -1073,19 +1166,13 @@ function openSaleModal() {
   showSaleModal.value = true
 }
 
-function searchExistingCustomers() {
-  if (newSale.value.customer_name.length < 2) {
-    matchingCustomers.value = []
-    return
-  }
-  const q = newSale.value.customer_name.toLowerCase()
-  matchingCustomers.value = customers.value.filter(c => c.name.toLowerCase().includes(q))
-}
-
 function selectCustomer(c: Customer) {
   newSale.value.customer_name = c.name
   newSale.value.customer_phone = c.phone
-  matchingCustomers.value = []
+}
+
+function onCustomerCreated(c: Customer) {
+  customers.value.push(c)
 }
 
 function getScenariosForRecipe(recipeId: string) {
@@ -1147,6 +1234,7 @@ function resetSaleForm() {
     customer_name: '',
     customer_phone: '',
     status: 'pendiente',
+    delivery_status: 'por_entregar',
     purchase_date: new Date().toISOString().split('T')[0],
     payment_due_date: new Date().toISOString().split('T')[0],
   }
@@ -1167,6 +1255,7 @@ function editSale(sale: Sale) {
     customer_name: sale.customer_name,
     customer_phone: sale.customer_phone || customers.value.find(c => c.id === sale.customer_id)?.phone || '',
     status: sale.status,
+    delivery_status: sale.delivery_status || 'por_entregar',
     purchase_date: sale.purchase_date || sale.created_at.split('T')[0],
     payment_due_date: sale.payment_due_date,
   }
@@ -1197,6 +1286,7 @@ async function createSale() {
       items: newSaleItems.value,
       total_amount: totalNewSaleAmount.value,
       status: newSale.value.status,
+      delivery_status: newSale.value.delivery_status,
       purchase_date: newSale.value.purchase_date,
       payment_due_date: newSale.value.payment_due_date,
     }
@@ -1260,6 +1350,11 @@ function openStatusModal(sale: Sale) {
   showStatusModal.value = true
 }
 
+function openDeliveryStatusModal(sale: Sale) {
+  currentSale.value = sale
+  showDeliveryStatusModal.value = true
+}
+
 async function getNextInvoiceNumber(): Promise<string> {
   const docRef = doc(db, 'settings', 'invoices')
   let nextNumber = "AAA001"
@@ -1320,6 +1415,20 @@ async function updateSaleStatus(newStatus: SaleStatus) {
     await loadData()
   } catch (e) {
     console.error('Error al actualizar estado:', e)
+  }
+}
+
+async function updateDeliveryStatus(newStatus: DeliveryStatus) {
+  if (!currentSale.value?.id) return
+  try {
+    await updateDoc(doc(db, 'sales', currentSale.value.id), {
+      delivery_status: newStatus,
+      updated_at: new Date().toISOString()
+    })
+    showDeliveryStatusModal.value = false
+    await loadData()
+  } catch (e) {
+    console.error('Error al actualizar estado de entrega:', e)
   }
 }
 

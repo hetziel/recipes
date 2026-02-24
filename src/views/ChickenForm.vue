@@ -286,7 +286,8 @@
       <!-- VENTAS DEL LOTE -->
       <section v-if="recipe.chicken_data" class="card sales-section">
         <ChickenBatchSales v-model="recipe.chicken_data" :totalIngredientsCost="totalIngredientsCost"
-          :dolarRate="dolarRate" />
+          :dolarRate="dolarRate" :customers="customers" @sale-deleted="handleSaleDeleted"
+          @customer-created="onCustomerCreated" />
       </section>
 
       <!-- HISTORIAL DE CONTROL Y RENTABILIDAD -->
@@ -398,12 +399,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, inject, type Ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { collection, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
 import ChickenBatchSales from '@/components/productions/chicken_batches/ChickenBatchSales.vue'
 import type { Recipe, RecipeIngredient } from '../types/recipe'
 import type { Product, DolarBCV, Category } from '../types/producto'
+import type { Customer } from '../types/sales'
 import { useBrands } from '../composables/useBrands'
 import { useEstablishments } from '../composables/useEstablishments'
 import { useProduction } from '../composables/useProduction'
@@ -428,7 +430,9 @@ const showProductModal = ref(false)
 const showCategoryModal = ref(false)
 const productSearch = ref('')
 const availableCategories = ref<Category[]>([])
+const customers = ref<Customer[]>([])
 const selectedCategoryIds = ref<string[]>([])
+const deletedSalesIds = ref<string[]>([])
 const modalType = ref<'batch_product' | 'input'>('input')
 const modalTitle = computed(() => modalType.value === 'batch_product' ? 'Seleccionar Pollo' : 'Seleccionar Alimento/Insumo')
 
@@ -462,6 +466,9 @@ onMounted(async () => {
 
   const catSnap = await getDocs(collection(db, 'categorias'))
   availableCategories.value = catSnap.docs.map(d => ({ id: d.id, ...d.data() } as Category))
+
+  const custSnap = await getDocs(collection(db, 'customers'))
+  customers.value = custSnap.docs.map(d => ({ id: d.id, ...d.data() } as Customer))
 
   if (route.params.id) {
     isEditing.value = true
@@ -734,6 +741,16 @@ function calculateDynamicRecordProfitPercent(record: import('../types/recipe').C
   return ((income - cost) / cost) * 100
 }
 
+function handleSaleDeleted(saleId?: string) {
+  if (saleId) {
+    deletedSalesIds.value.push(saleId)
+  }
+}
+
+function onCustomerCreated(customer: Customer) {
+  customers.value.push(customer)
+}
+
 async function saveRecipe() {
   if (!recipe.value.name) {
     alert('Por favor ingrese un nombre para el lote')
@@ -741,6 +758,70 @@ async function saveRecipe() {
   }
   isSaving.value = true
   try {
+    // Sincronizar ventas con la colección `sales`
+    const batchSales = recipe.value.chicken_data?.sales || []
+    for (const chickenSale of batchSales) {
+      if (chickenSale.customer_id) {
+        // Encontrar el nombre del cliente
+        const customer = customers.value.find(c => c.id === chickenSale.customer_id)
+        if (!customer) continue
+
+        const saleData = {
+          customer_id: customer.id,
+          customer_name: customer.name,
+          customer_phone: customer.phone || '',
+          status: 'entregado', // Asumido para ventas directas en lote
+          purchase_date: chickenSale.date,
+          payment_due_date: chickenSale.date,
+          total_amount: Number((chickenSale.total_weight_kg * (chickenSale.price_per_kg || 0)).toFixed(2)),
+          updated_at: new Date().toISOString(),
+          is_chicken_sale: true,
+          items: [
+            {
+              scenario_id: 'chicken-batch',
+              scenario_name: 'Venta de Lote',
+              recipe_name: recipe.value.name,
+              quantity: chickenSale.quantity,
+              unit_price: Number(((chickenSale.total_weight_kg / chickenSale.quantity) * (chickenSale.price_per_kg || 0)).toFixed(2)),
+              total_price: Number((chickenSale.total_weight_kg * (chickenSale.price_per_kg || 0)).toFixed(2))
+            }
+          ]
+        }
+
+        if (chickenSale.sale_id) {
+          // Documento existente -> actualizar
+          const saleDocRef = doc(db, 'sales', chickenSale.sale_id)
+          const saleSnap = await getDoc(saleDocRef)
+          if (saleSnap.exists()) {
+            await updateDoc(saleDocRef, saleData)
+          } else {
+            // Si por alguna razón el documento no existe en sales pero tiene sale_id, lo recreamos
+            await setDoc(saleDocRef, { ...saleData, created_at: new Date().toISOString() })
+          }
+        } else {
+          // Nuevo documento
+          const newSaleRef = doc(collection(db, 'sales'))
+          await setDoc(newSaleRef, {
+            ...saleData,
+            created_at: new Date().toISOString()
+          })
+          chickenSale.sale_id = newSaleRef.id // Vincular la venta de pollo con el documento
+        }
+      }
+    }
+
+    // Identificar y limpiar ventas eliminadas en Firestore
+    // Requiere comparar con un estado previo, pero para simplificar,
+    // cuando eliminamos de chickenSale.value, ¿cómo borramos el documento?
+    // En ChickenForm.vue usamos la referencia directa del array y el componente hijo usa splice().
+    // Lo ideal es tener deleted_sales tracking, por ahora la implementación requiere de eso.
+    if (deletedSalesIds.value.length > 0) {
+      for (const sId of deletedSalesIds.value) {
+        await deleteDoc(doc(db, 'sales', sId))
+      }
+      deletedSalesIds.value = [] // clear after deletion
+    }
+
     const data = {
       ...recipe.value,
       total_cost_ingredients: totalIngredientsCost.value,

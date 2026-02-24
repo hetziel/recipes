@@ -90,7 +90,7 @@ export function useAuth() {
                 email: user.email || '',
                 fullName: extraData.fullName,
                 phone: extraData.phone,
-                role: 'user', // Default role
+                role: 'client', // Default role for new signups
                 createdAt: new Date().toISOString()
             }
 

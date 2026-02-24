@@ -206,6 +206,15 @@
                                 <span class="bs">Bs {{ (getScenarioProfit(recipe, sc) * dolarRate).toFixed(2) }}</span>
                               </div>
                             </div>
+                            <div v-if="userProfile?.role === 'admin'" class="fin-item">
+                              <label>Tienda Pública</label>
+                              <div class="publish-toggle-container mt-1">
+                                <label class="switch-toggle" title="Publicar en Tienda">
+                                  <input type="checkbox" :checked="sc.published" @change="togglePublishScenario(sc)" />
+                                  <span class="slider round"></span>
+                                </label>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -423,6 +432,19 @@ function toggleExpanded(recipeId?: string) {
   expandedRecipes.value[recipeId] = !expandedRecipes.value[recipeId]
 }
 
+async function togglePublishScenario(sc: RecipeScenario) {
+  if (!sc.id) return
+  const newValue = !sc.published
+  sc.published = newValue
+  try {
+    await updateDoc(doc(db, 'scenarios', sc.id), { published: newValue })
+  } catch(e) {
+    console.error(e)
+    sc.published = !newValue // revert on error
+    alert('Error al publicar: ' + (e as Error).message)
+  }
+}
+
 function openSalesModal(batch: Recipe) {
   selectedBatch.value = JSON.parse(JSON.stringify(batch)) // Clone to avoid direct mutation
   showSalesModal.value = true
@@ -565,6 +587,51 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* Switch Toggle */
+.switch-toggle {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+}
+.switch-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--border);
+  transition: .4s;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: .4s;
+}
+.switch-toggle input:checked + .slider {
+  background-color: var(--primary);
+}
+.switch-toggle input:checked + .slider:before {
+  transform: translateX(14px);
+}
+.slider.round {
+  border-radius: 18px;
+}
+.slider.round:before {
+  border-radius: 50%;
+}
+
 .recipes-container {
   max-width: 1200px;
   margin: 0 auto;

@@ -3,6 +3,6 @@ export interface UserProfile {
     fullName: string;
     email: string;
     phone: string;
-    role: 'admin' | 'user';
+    role: 'admin' | 'user' | 'client';
     createdAt: string;
 }

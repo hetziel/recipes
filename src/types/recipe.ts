@@ -28,7 +28,13 @@ export interface RecipeScenario {
   value: number // weight per unit (if mode=weight) or total units (if mode=unit)
   fixed_sale_price?: number // Manual override for sale price
   fixed_sale_price_currency?: 'USD' | 'Bs'
+  published?: boolean // Whether this scenario is published in the public store
   utilities: RecipeUtility[] // Scenario-specific utilities
+}
+
+export interface ChickenSaleItem {
+  id: string
+  weight_kg: number
 }
 
 export interface ChickenSale {
@@ -38,6 +44,10 @@ export interface ChickenSale {
   total_weight_kg: number
   price_per_kg: number
   date: string
+  sacrificed_day?: number
+  items?: ChickenSaleItem[]
+  customer_id?: string
+  sale_id?: string
 }
 
 export interface ChickenControlRecord {

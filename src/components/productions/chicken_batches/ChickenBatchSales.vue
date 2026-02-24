@@ -1,20 +1,27 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import Icon from '@/components/ui/Icon.vue'
 import type { ChickenData, ChickenSale } from '@/types/recipe'
+import type { Customer } from '@/types/sales'
+import CustomerSelector from '@/components/sales/CustomerSelector.vue'
 
 interface Props {
   modelValue: ChickenData
   readonly?: boolean
   totalIngredientsCost: number
   dolarRate: number
+  customers?: Customer[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   readonly: false
 })
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'sale-deleted', 'customer-created'])
+
+function onCustomerCreated(customer: Customer) {
+  emit('customer-created', customer)
+}
 
 const chickenData = computed({
   get: () => props.modelValue,
@@ -41,6 +48,12 @@ function addSale() {
 function removeSale(index: number) {
   if (props.readonly) return
   const newSales = [...(chickenData.value.sales || [])]
+  const deletedSale = newSales[index]
+
+  if (deletedSale && deletedSale.sale_id) {
+    emit('sale-deleted', deletedSale.sale_id)
+  }
+
   newSales.splice(index, 1)
   chickenData.value = { ...chickenData.value, sales: newSales }
 }
@@ -54,6 +67,52 @@ function updateSaleWeight(sale: ChickenSale) {
 function updateSaleUnitWeight(sale: ChickenSale) {
   if (sale.quantity && sale.total_weight_kg) {
     sale.weight_per_unit_kg = Number((sale.total_weight_kg / sale.quantity).toFixed(2))
+  }
+}
+
+const expandedSales = ref<Set<string>>(new Set())
+
+function toggleExpand(saleId: string) {
+  const newSet = new Set(expandedSales.value)
+  if (newSet.has(saleId)) newSet.delete(saleId)
+  else newSet.add(saleId)
+  expandedSales.value = newSet
+}
+
+function addSaleItem(sale: ChickenSale) {
+  if (props.readonly) return
+  if (!sale.items) sale.items = []
+
+  sale.items.push({
+    id: 'item-' + Date.now() + Math.random().toString(36).substring(2, 6),
+    weight_kg: sale.weight_per_unit_kg || 0
+  })
+
+  if (!expandedSales.value.has(sale.id)) {
+    toggleExpand(sale.id)
+  }
+
+  updateSaleFromItems(sale)
+}
+
+function removeSaleItem(sale: ChickenSale, itemIndex: number) {
+  if (props.readonly || !sale.items) return
+  sale.items.splice(itemIndex, 1)
+  updateSaleFromItems(sale)
+}
+
+function updateSaleFromItems(sale: ChickenSale) {
+  if (sale.items && sale.items.length > 0) {
+    sale.quantity = sale.items.length
+    let tWeight = 0
+    sale.items.forEach(item => { tWeight += (Number(item.weight_kg) || 0) })
+    sale.total_weight_kg = Number(tWeight.toFixed(2))
+
+    if (sale.quantity > 0) {
+      sale.weight_per_unit_kg = Number((sale.total_weight_kg / sale.quantity).toFixed(2))
+    } else {
+      sale.weight_per_unit_kg = 0
+    }
   }
 }
 
@@ -103,6 +162,8 @@ function calculateProfitPercent(profit: number, cost: number): string {
         <thead>
           <tr>
             <th>Fecha</th>
+            <th>Cliente</th>
+            <th>Día Sacrificio</th>
             <th>Cantidad (und)</th>
             <th>Peso/Und (kg)</th>
             <th>Peso Total (kg)</th>
@@ -112,49 +173,100 @@ function calculateProfitPercent(profit: number, cost: number): string {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(sale, index) in chickenData.sales" :key="sale.id">
-            <td>
-              <input v-if="!readonly" v-model="sale.date" type="date" class="input-xs" />
-              <span v-else>{{ sale.date }}</span>
-            </td>
-            <td>
-              <input v-if="!readonly" v-model.number="sale.quantity" type="number" class="form-input input-sm" min="1"
-                @input="updateSaleWeight(sale)" />
-              <span v-else>{{ sale.quantity }}</span>
-            </td>
-            <td>
-              <input v-if="!readonly" v-model.number="sale.weight_per_unit_kg" type="number" class="form-input input-sm"
-                step="0.1" min="0" placeholder="0.0" @input="updateSaleWeight(sale)" />
-              <span v-else>{{ sale.weight_per_unit_kg }}</span>
-            </td>
-            <td>
-              <input v-if="!readonly" v-model.number="sale.total_weight_kg" type="number" class="form-input input-sm"
-                step="0.1" min="0" @input="updateSaleUnitWeight(sale)" />
-              <span v-else>{{ sale.total_weight_kg }}</span>
-            </td>
-            <td>
-              <input v-if="!readonly" v-model.number="sale.price_per_kg" type="number" class="form-input input-sm"
-                step="0.01" min="0" />
-              <span v-else>${{ sale.price_per_kg?.toFixed(2) }}</span>
-            </td>
-            <td class="font-bold">
-              ${{ (sale.total_weight_kg * (sale.price_per_kg || 0)).toFixed(2) }}
-            </td>
-            <td v-if="!readonly">
-              <button @click="removeSale(index)" class="btn-icon text-danger">
-                <Icon name="delete" />
-              </button>
-            </td>
-          </tr>
+          <template v-for="(sale, index) in chickenData.sales" :key="sale.id">
+            <!-- Main Row -->
+            <tr :class="{ 'bg-expanded': expandedSales.has(sale.id) }">
+              <td>
+                <input v-if="!readonly" v-model="sale.date" type="date" class="input-xs" />
+                <span v-else>{{ sale.date }}</span>
+              </td>
+              <td>
+                <CustomerSelector v-if="!readonly" v-model="sale.customer_id" :customers="customers || []"
+                  @customer-created="onCustomerCreated" returnType="id" inputClass="input-xs"
+                  placeholder="Cliente..." />
+                <span v-else>{{customers?.find(c => c.id === sale.customer_id)?.name || 'N/A'}}</span>
+              </td>
+              <td>
+                <input v-if="!readonly" v-model.number="sale.sacrificed_day" type="number" class="form-input input-sm"
+                  min="1" placeholder="Día" />
+                <span v-else>{{ sale.sacrificed_day || '-' }} d</span>
+              </td>
+              <td>
+                <input v-if="!readonly && (!sale.items || sale.items.length === 0)" v-model.number="sale.quantity"
+                  type="number" class="form-input input-sm" min="1" @input="updateSaleWeight(sale)" />
+                <span v-else>{{ sale.quantity }}</span>
+              </td>
+              <td>
+                <input v-if="!readonly && (!sale.items || sale.items.length === 0)"
+                  v-model.number="sale.weight_per_unit_kg" type="number" class="form-input input-sm" step="0.1" min="0"
+                  placeholder="0.0" @input="updateSaleWeight(sale)" />
+                <span v-else>{{ sale.weight_per_unit_kg }}</span>
+              </td>
+              <td>
+                <input v-if="!readonly && (!sale.items || sale.items.length === 0)"
+                  v-model.number="sale.total_weight_kg" type="number" class="form-input input-sm" step="0.1" min="0"
+                  @input="updateSaleUnitWeight(sale)" />
+                <span v-else>{{ sale.total_weight_kg }}</span>
+              </td>
+              <td>
+                <input v-if="!readonly" v-model.number="sale.price_per_kg" type="number" class="form-input input-sm"
+                  step="0.01" min="0" />
+                <span v-else>${{ sale.price_per_kg?.toFixed(2) }}</span>
+              </td>
+              <td class="font-bold">
+                ${{ (sale.total_weight_kg * (sale.price_per_kg || 0)).toFixed(2) }}
+              </td>
+              <td v-if="!readonly">
+                <div class="flex-actions">
+                  <button v-if="sale.items && sale.items.length > 0" @click="toggleExpand(sale.id)" class="btn-icon"
+                    :title="expandedSales.has(sale.id) ? 'Ocultar Detalle' : 'Ver Detalle'">
+                    <Icon :name="expandedSales.has(sale.id) ? 'chevron-up' : 'chevron-down'" />
+                  </button>
+                  <button @click="addSaleItem(sale)" class="btn-icon text-primary" title="Añadir Unidad Desglosada">
+                    <Icon name="plus-box-outline" />
+                  </button>
+                  <button @click="removeSale(index)" class="btn-icon text-danger" title="Eliminar Venta">
+                    <Icon name="delete" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Items Rows -->
+            <template v-if="expandedSales.has(sale.id) && sale.items && sale.items.length > 0">
+              <tr v-for="(item, iIdx) in sale.items" :key="item.id" class="sub-row">
+                <td colspan="4" class="text-right text-muted sub-row-label">
+                  <Icon name="subdirectory-arrow-right" class="text-sm mb-0" style="vertical-align: middle;" /> Unidad
+                  {{ iIdx + 1 }}
+                </td>
+                <td></td>
+                <td>
+                  <input v-if="!readonly" v-model.number="item.weight_kg" type="number" class="form-input input-sm"
+                    step="0.1" min="0" @input="updateSaleFromItems(sale)" />
+                  <span v-else>{{ item.weight_kg }}</span>
+                </td>
+                <td></td>
+                <td class="font-bold text-muted">
+                  ${{ ((Number(item.weight_kg) || 0) * (sale.price_per_kg || 0)).toFixed(2) }}
+                </td>
+                <td v-if="!readonly">
+                  <button @click="removeSaleItem(sale, iIdx)" class="btn-icon text-danger" title="Eliminar Unidad">
+                    <Icon name="delete-outline" />
+                  </button>
+                </td>
+              </tr>
+            </template>
+          </template>
+
           <tr v-if="!chickenData.sales || chickenData.sales.length === 0">
-            <td :colspan="readonly ? 6 : 7" class="text-center text-muted py-8">
+            <td :colspan="readonly ? 8 : 9" class="text-center text-muted py-8">
               No hay ventas registradas todavía.
             </td>
           </tr>
         </tbody>
         <tfoot v-if="chickenData.sales && chickenData.sales.length > 0">
           <tr class="table-summary">
-            <td :colspan="readonly ? 5 : 5" class="text-right"><strong>Total Vendido:</strong></td>
+            <td :colspan="readonly ? 7 : 7" class="text-right"><strong>Total Vendido:</strong></td>
             <td class="font-bold text-lg text-success">
               ${{ salesCalculations.totalSoldIncome.toFixed(2) }}
             </td>
@@ -348,4 +460,41 @@ function calculateProfitPercent(profit: number, cost: number): string {
   padding-top: 20px;
   border-bottom: none;
 }
+
+.flex-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.bg-expanded td {
+  background-color: rgba(0, 0, 0, 0.02) !important;
+  border-bottom: none !important;
+}
+
+.sub-row td {
+  background-color: rgba(0, 0, 0, 0.02);
+  border-bottom: 1px dashed var(--border) !important;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+.sub-row:last-child td {
+  border-bottom: 1px solid var(--border) !important;
+}
+
+.sub-row-label {
+  font-size: 0.8rem;
+  padding-right: 16px !important;
+}
+
+.mb-0 {
+  margin-bottom: 0 !important;
+}
+
+.text-primary {
+  color: #3b82f6;
+}
+
+/* Add primary color */
 </style>

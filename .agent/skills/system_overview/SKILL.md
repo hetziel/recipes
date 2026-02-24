@@ -1,79 +1,53 @@
 ---
+name: system_overview
 description: Información detallada sobre el funcionamiento total del sistema MyShops
 ---
 
-# MyShops System Overview
+# Sistema MyShops - Overview
 
-Este documento proporciona un recorrido completo por el funcionamiento técnico y lógico del sistema MyShops para facilitar el desarrollo y mantenimiento.
+Este documento centraliza el conocimiento sobre la arquitectura, el flujo de autenticación y las reglas de negocio del sistema MyShops.
 
-## 🚀 Arquitectura Tecnológica
+## Arquitectura del Proyecto
 
-- **Frontend**: Vue 3 con Composition API y Vite.
-- **Plataforma Móvil**: Capacitor (generación de app Android).
-- **Backend as a Service**: Firebase (Firestore, Auth, Analytics, Hosting).
-- **Gestión de Estado**: Composables de Vue con estado global compartido.
-- **Iconografía**: @flaticon/flaticon-uicons y @mdi/js.
-- **Otras Herramientas**: ZXing (escaneo de códigos de barra), html-to-image (generación de reportes/tickets).
+El sistema está construido con **Vue 3 (Vite)** y **Firebase**. Se divide en tres áreas principales de acceso:
 
-## 📂 Estructura de Archivos Clave
+1.  **Tienda Pública (/)**: Catálogo accesible para cualquier visitante.
+2.  **Portal de Clientes (/mis-compras)**: Espacio para que los compradores vean su historial.
+3.  **Módulo de Producción/Admin (/production, /sales, etc.)**: Herramientas internas para gestión de inventario, recetas y ventas.
 
-- `/src/firebase.config.ts`: Configuración central de Firebase (Firestore, Auth, Analytics).
-- `/src/router/index.ts`: Definición de rutas y guardias de seguridad (basado en roles de usuario).
-- `/src/composables/`: Lógica de negocio y sincronización en tiempo real con Firestore.
-- `/src/views/`: Componentes de página principales.
-- `/src/types/`: Definiciones de interfaces TypeScript para el modelo de datos.
+## Flujo de Autenticación (SMS Auth)
 
-## 🔄 Flujo de Datos y Funcionamiento
+El sistema utiliza **Firebase Phone Authentication** para los clientes.
 
-### 1. Autenticación y Seguridad
-El sistema utiliza **Firebase Auth** y guardias de navegación en el router. 
-- Los perfiles de usuario se guardan en la colección `users` de Firestore.
-- Roles: `admin` (acceso total) y `user` (acceso limitado, principalmente a producción).
+-   **Compra sin Login**: Un usuario puede llenar el carrito como invitado. Al comprar, el `StorePurchaseWizard` dispara un flujo de SMS.
+-   **Registro Automático**: Si el número no existe, se crea un perfil con el rol `client`.
+-   **Roles**:
+    -   `admin`: Acceso total (Ventas, Clientes, Configuración).
+    -   `user` (Staff): Acceso a Producción e Inventario.
+    -   `client`: Acceso a Tienda y historial de compras.
 
-### 2. Gestión de Productos (`/`)
-Es la vista principal para administradores. Permite gestionar el inventario (productos, precios, stock). Sincronizado en tiempo real a través del composable `useProducts`.
+## Estructura de Rutas Clave
 
-### 3. Módulo de Producción y Recetas (`/production`)
-La vista principal de producción (`Recipes.vue`) organiza los datos en dos listas separadas para mejorar la claridad operativa:
-- **Lotes de Pollos**: Sección superior dedicada a la producción avícola. Muestra inversión por unidad (pollo) y costo total. Al expandirse, muestra el resumen de costos de alimento y ganancia proyectada.
-- **Recetas Estándar**: Sección para preparaciones generales. Muestra la inversión base y, al expandirse, permite ver los **Escenarios de Venta** (diferentes presentaciones o empaques del producto final).
-- **Lógica de Negocio**:
-  - Utiliza el composable `useProduction` para todos los cálculos financieros.
-  - Los datos se cargan desde las colecciones `recipes` y `scenarios` de Firestore.
-  - La navegación para creación/edición es diferenciada: `/production/create` para recetas y `/production/chicken/create` para lotes.
+-   `/`: Tienda pública (`StoreView.vue`).
+-   `/login`: Acceso para el personal del equipo.
+-   `/client-login`: Acceso rápido para clientes vía SMS.
+-   `/products`: Gestión de inventario (Stock, Costos).
+-   `/production`: Gestión de recetas y producción de lotes.
 
-### 4. Transacciones (Compras y Ventas)
-- **Ventas (`/sales`)**: Registro de salidas de productos y facturación básica.
-- **Compras (`/buys`)**: Registro de entrada de mercancía e insumos.
+## Seguridad (Firestore Rules)
 
-### 5. Configuración y Maestros
-- **Categorías y Marcas**: Gestión de metadatos para organizar los productos.
-- **Establecimientos y Clientes**: Gestión del ecosistema del negocio.
+El archivo `firestore.rules` protege la integridad de los datos:
 
-### 6. Herramientas y Servicios Auxiliares
-- **Gestión de Divisas**: El sistema maneja precios en Bolívares (Bs) y Dólares (USD). En `App.vue`, se sincroniza la tasa oficial (BCV) o paralela mediante un proceso automático y se provee a toda la aplicación con `provide('dolarBCV', ...)`.
-- **Calculadora**: Conversión rápida de precios entre Bs y USD.
-- **Google Drive**: Integración para exportación/respaldo de datos.
+-   **Lectura Pública**: `productos`, `my_products`, `recipes` y `scenarios` (si están publicados) son legibles por todos para permitir el cálculo de precios en la tienda.
+-   **Escritura Restringida**: Solo usuarios con rol `admin` pueden modificar el catálogo.
+-   **Órdenes**: Los clientes pueden crear órdenes solo si están autenticados. Solo pueden leer las órdenes asociadas a su `customer_id`.
 
-## 🖼️ Interfaz y Experiencia de Usuario
+## Integraciones Externas
 
-- **Layout Global**: Definido en `App.vue`. Utiliza un sidebar responsivo que se oculta en móviles y un header persistente que muestra la tasa del dólar actual.
-- **Navegación Dinámica**: Los menús laterales cambian según el rol del usuario (Admin ve todo, Usuario ve principalmente Producción).
-- **Feedback Visual**: Implementa estados de carga (spinners) y notificaciones para acciones asíncronas con Firebase.
+-   **Google Drive**: Se utiliza un Google Apps Script como puente para subir comprobantes de pago de forma anónima desde el Wizard de compra.
+-   **Tasa BCV**: El sistema consume una tasa de cambio (USD/Bs) inyectada globalmente para mostrar precios multimoneda.
 
-## 🛠️ Desarrollo y Mantenimiento
+## Comandos Útiles
 
-### Variables de Entorno (.env)
-Se deben configurar las siguientes variables de Firebase en el archivo `.env`:
-- `VITE_FIREBASE_API_KEY`
-- `VITE_FIREBASE_PROJECT_ID`
-- (y otros `VITE_FIREBASE_*`)
-
-### Comandos Comunes
-- `npm run dev`: Iniciar servidor local.
-- `npm run build`: Generar build de producción.
-- `npx cap sync`: Sincronizar cambios web con el proyecto de Android.
-
-## 📝 Notas de Implementación
-- Se prefiere el uso de **Real-time listeners** (`onSnapshot`) para que los cambios se reflejen instantáneamente en todos los dispositivos sin recargar.
-- El sistema está diseñado para ser **PWA** y compatible con dispositivos móviles a través de Capacitor.
+-   `npm run dev`: Inicia el servidor de desarrollo.
+-   `firebase deploy --only firestore:rules`: Despliega cambios en las reglas de seguridad.

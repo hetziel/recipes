@@ -97,14 +97,14 @@ onMounted(() => {
 
 <template>
   <div class="b-main">
-    <header v-if="currentUser" class="app-header">
+    <header class="app-header">
       <button class="hamburger-menu" @click="toggleMenu" :class="{ 'is-active': isMenuOpen }">
         <span></span>
         <span></span>
         <span></span>
       </button>
       <h1 class="app-title">Producción</h1>
-      <div class="tasa-info" :class="{
+      <div v-if="currentUser" class="tasa-info" :class="{
         'tasa-actual': dolarBCV?.origen === 'api',
         'tasa-local': dolarBCV?.origen === 'local',
         'tasa-importado': dolarBCV?.origen === 'importado',
@@ -113,36 +113,69 @@ onMounted(() => {
       </div>
     </header>
 
-    <nav v-if="currentUser" class="sidebar-nav" :class="{ 'is-open': isMenuOpen }">
+    <nav class="sidebar-nav" :class="{ 'is-open': isMenuOpen }">
       <div class="sidebar-header">
         <div class="user-info-brief">
           <h2 class="sidebar-title">Menu</h2>
           <div v-if="userProfile" class="user-badge" :class="userProfile.role">
             {{ userProfile.role.toUpperCase() }}
           </div>
+          <div v-else class="user-badge guest">
+            INVITADO
+          </div>
         </div>
         <button class="close-btn" @click="toggleMenu">&times;</button>
       </div>
 
-      <!-- Admin Only Links -->
-      <template v-if="userProfile?.role === 'admin'">
-        <RouterLink to="/" class="nav-link" @click="toggleMenu">
-          <span class="icon"><i class="fi fi-rr-home"></i></span>
-          <span class="text">Inicio</span>
+      <!-- Guest Links -->
+      <template v-if="!currentUser">
+        <RouterLink to="/client-login" class="nav-link auth-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-user"></i></span>
+          <span class="text">Acceso Clientes</span>
+        </RouterLink>
+        <RouterLink to="/login" class="nav-link auth-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-key"></i></span>
+          <span class="text">Acceso Equipo</span>
         </RouterLink>
       </template>
 
-      <!-- Shared/Common Links -->
-      <RouterLink to="/production" class="nav-link" @click="toggleMenu">
-        <span class="icon"><i class="fi fi-rr-boxes"></i></span>
-        <span class="text">Producción</span>
+      <!-- Store Link (visible to everyone) -->
+      <RouterLink to="/" class="nav-link" @click="toggleMenu">
+        <span class="icon"><i class="fi fi-rr-shopping-basket"></i></span>
+        <span class="text">Tienda</span>
       </RouterLink>
+
+      <!-- Admin Only Links -->
+      <template v-if="userProfile?.role === 'admin'">
+        <RouterLink to="/products" class="nav-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-boxes"></i></span>
+          <span class="text">Inventario</span>
+        </RouterLink>
+      </template>
+
+      <!-- Mis Compras (Solo para Clientes o Admin) -->
+      <RouterLink v-if="userProfile?.role === 'client' || userProfile?.role === 'admin'" to="/mis-compras" class="nav-link" @click="toggleMenu">
+        <span class="icon"><i class="fi fi-rr-list-check"></i></span>
+        <span class="text">Mis Compras</span>
+      </RouterLink>
+
+      <!-- Common Links (Staff or Admin) -->
+      <template v-if="userProfile?.role === 'admin' || userProfile?.role === 'user'">
+        <RouterLink to="/production" class="nav-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-room-service"></i></span>
+          <span class="text">Producción</span>
+        </RouterLink>
+      </template>
 
       <!-- Admin Only Links -->
       <template v-if="userProfile?.role === 'admin'">
         <RouterLink to="/sales" class="nav-link" @click="toggleMenu">
           <span class="icon"><i class="fi fi-rr-diploma"></i></span>
           <span class="text">Ventas</span>
+        </RouterLink>
+        <RouterLink to="/orders" class="nav-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-list-check"></i></span>
+          <span class="text">Compras de Clientes</span>
         </RouterLink>
         <RouterLink to="/buys" class="nav-link" @click="toggleMenu">
           <span class="icon"><i class="fi fi-rr-shopping-cart"></i></span>
@@ -160,6 +193,10 @@ onMounted(() => {
           <span class="icon"><i class="fi fi-rr-settings-sliders"></i></span>
           <span class="text">Config. Productos</span>
         </RouterLink>
+        <RouterLink to="/drive" class="nav-link" @click="toggleMenu">
+          <span class="icon"><i class="fi fi-rr-drive"></i></span>
+          <span class="text">Google Drive</span>
+        </RouterLink>
       </template>
 
       <!-- General Links -->
@@ -168,8 +205,8 @@ onMounted(() => {
         <span class="text">Calculadora</span>
       </RouterLink>
 
-      <div class="sidebar-footer">
-        <button v-if="currentUser" @click="handleLogout" class="nav-link logout-btn">
+      <div v-if="currentUser" class="sidebar-footer">
+        <button @click="handleLogout" class="nav-link logout-btn">
           <span class="icon"><i class="fi fi-rr-sign-out-alt"></i></span>
           <span class="text">Cerrar Sesión</span>
         </button>
@@ -427,6 +464,18 @@ onMounted(() => {
   background-color: #3b82f6;
   color: white;
 }
+
+.user-badge.guest {
+  background-color: #64748b;
+  color: white;
+}
+
+.auth-link {
+  border-left: 4px solid var(--primary);
+  background-color: rgba(79, 70, 229, 0.05);
+  margin: 4px 0;
+}
+
 
 .sidebar-footer {
   margin-top: auto;
