@@ -16,7 +16,7 @@
           <h4>
             <Icon name="account" /> Datos del Cliente
           </h4>
-          
+
           <div v-if="!currentUser && !isSmsSent">
             <p class="text-muted mb-4">Para continuar con su pedido, identifíquese con su número de teléfono.</p>
             <div class="grid-2">
@@ -30,7 +30,7 @@
               </div>
             </div>
             <div id="recaptcha-container-wizard" class="mt-4"></div>
-            
+
             <div v-if="authError" class="auth-error-msg mt-3">
               <Icon name="alert-circle" /> {{ authError }}
             </div>
@@ -114,7 +114,7 @@
             <Icon name="cash-multiple" /> Método de Pago
           </h4>
           <p class="text-muted mb-4">Seleccione cómo desea pagar su orden por <strong>${{ totalPrice.toFixed(2) }} (Bs {{ (totalPrice * dolarRate).toFixed(2) }})</strong>.</p>
-          
+
           <div v-if="!selectedPaymentMethod" class="payment-methods-grid">
             <div class="method-card" @click="selectPaymentMethod('Pago Móvil')">
               <Icon name="cellphone" class="method-icon" />
@@ -166,7 +166,7 @@
                <Icon name="clock-outline" class="icon-large text-muted mb-2" />
                <p class="text-muted">{{ paymentData.transferencia }}</p>
             </div>
-            
+
             <div v-if="selectedPaymentMethod === 'Efectivo'" class="payment-data-card text-center py-4">
                <Icon name="cash-marker" class="icon-large text-primary mb-2" />
                <p class="text-muted">Por favor, prepare el monto exacto en efectivo al momento de la entrega o retiro.</p>
@@ -184,7 +184,7 @@
             <Icon name="cloud-upload-outline" /> Subir Comprobante
           </h4>
           <p class="text-muted mb-4">Por favor suba una captura o foto de su comprobante de pago para procesar su orden.</p>
-          
+
           <div class="upload-container-wizard">
             <div class="file-drop-zone" :class="{ 'has-file': !!receiptFile }">
               <input type="file" @change="handleFileSelect" accept="image/*" class="file-input-hidden" id="receipt-upload" />
@@ -240,11 +240,7 @@
           <button v-if="step > 1 && step < 5" class="btn btn-outline" @click="prevStep" :disabled="isProcessing">
             <Icon name="arrow-left" /> Atrás
           </button>
-          
-          <button v-if="step === 1" class="btn btn-primary" @click="submitCustomer" :disabled="isProcessing || !customerName || !customerPhone">
-            Continuar <Icon name="arrow-right" class="mr-0 ml-2" />
-          </button>
-          
+
           <button v-if="step === 2" class="btn btn-primary" @click="nextStep" :disabled="isProcessing">
             Confirmar Orden <Icon name="check" class="mr-0 ml-2" />
           </button>
@@ -260,15 +256,15 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { collection, addDoc, doc, setDoc, updateDoc } from 'firebase/firestore'
+import { collection, doc, setDoc, updateDoc } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
 import type { RecipeScenario, Recipe } from '../types/recipe'
 import { useAuth } from '../composables/useAuth'
 
-const props = defineProps<{ 
-  scenario: RecipeScenario | null; 
-  recipe: Recipe | null; 
+const props = defineProps<{
+  scenario: RecipeScenario | null;
+  recipe: Recipe | null;
   quantity: number;
   dolarRate: number;
 }>()
@@ -308,17 +304,17 @@ async function sendVerificationCode() {
     authError.value = 'El teléfono debe incluir el código de país (ej. +58...)'
     return
   }
-  
+
   isProcessing.value = true
   authError.value = ''
-  
+
   try {
     if (!recaptchaVerifier) {
       recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container-wizard', {
         size: 'invisible'
       })
     }
-    
+
     confirmationResult = await signInWithPhoneNumber(auth, customerPhone.value, recaptchaVerifier)
     isSmsSent.value = true
   } catch (err: any) {
@@ -337,15 +333,15 @@ async function verifySmsCode() {
   if (!confirmationResult || !smsCode.value) return
   isProcessing.value = true
   authError.value = ''
-  
+
   try {
     const result = await confirmationResult.confirm(smsCode.value)
     const user = result.user
-    
+
     // Check/Create profile
     const docRef = doc(db, 'users', user.uid)
     const docSnap = await getDoc(docRef)
-    
+
     if (!docSnap.exists()) {
       const profile: UserProfile = {
         uid: user.uid,
@@ -376,7 +372,7 @@ async function submitKnownCustomer() {
   }
 
   isProcessing.value = true
-  
+
   try {
     const customerId = currentUser.value?.uid
     if (!customerId) throw new Error('Usuario no identificado')
@@ -386,7 +382,7 @@ async function submitKnownCustomer() {
       phone: customerPhone.value,
       updated_at: new Date().toISOString()
     }
-    
+
     await setDoc(doc(db, 'customers', customerId), customerData, { merge: true })
     createdCustomer.value = { id: customerId, ...customerData }
 
@@ -473,20 +469,20 @@ async function uploadReceipt() {
   isUploading.value = true
   uploadStatus.value = 'Subiendo comprobante...'
   statusType.value = 'info'
-  
+
   try {
     const reader = new FileReader()
     const base64Promise = new Promise<string>((resolve) => {
       reader.onload = () => resolve((reader.result as string).split(',')[1])
       reader.readAsDataURL(receiptFile.value!)
     })
-    
+
     const base64Data = await base64Promise
     const formData = new URLSearchParams()
     formData.append('fileName', `receipt_${createdOrder.value.id}_${receiptFile.value.name}`)
     formData.append('mimeType', receiptFile.value.type)
     formData.append('fileData', base64Data)
-    
+
     const response = await fetch(SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -494,7 +490,7 @@ async function uploadReceipt() {
     })
     const result = await response.json()
     const uploadedUrl = result.url || ''
-    
+
     // Update order in firestore
     await updateDoc(doc(db, 'orders', createdOrder.value.id), {
       receipt_uploaded: true,
@@ -503,7 +499,7 @@ async function uploadReceipt() {
       status: 'en_verificacion',
       receipt_date: new Date().toISOString()
     })
-    
+
     uploadStatus.value = '¡Comprobante enviado con éxito!'
     statusType.value = 'success'
     setTimeout(() => {
@@ -526,9 +522,7 @@ function prevStep() {
   step.value = Math.max(1, step.value - 1)
 }
 
-function finishPayment(method: string) {
-  step.value = 4
-}
+
 </script>
 
 <style scoped>
