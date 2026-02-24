@@ -39,6 +39,7 @@ export interface ChickenSale {
   total_weight_kg: number
   price_per_kg: number
   date: string
+  sacrificed_day?: number
 }
 
 export interface ChickenControlRecord {

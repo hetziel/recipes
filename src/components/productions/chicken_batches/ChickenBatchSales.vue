@@ -103,6 +103,7 @@ function calculateProfitPercent(profit: number, cost: number): string {
         <thead>
           <tr>
             <th>Fecha</th>
+            <th>Día Sacrificio</th>
             <th>Cantidad (und)</th>
             <th>Peso/Und (kg)</th>
             <th>Peso Total (kg)</th>
@@ -116,6 +117,11 @@ function calculateProfitPercent(profit: number, cost: number): string {
             <td>
               <input v-if="!readonly" v-model="sale.date" type="date" class="input-xs" />
               <span v-else>{{ sale.date }}</span>
+            </td>
+            <td>
+              <input v-if="!readonly" v-model.number="sale.sacrificed_day" type="number" class="form-input input-sm"
+                min="1" placeholder="Día" />
+              <span v-else>{{ sale.sacrificed_day || '-' }} d</span>
             </td>
             <td>
               <input v-if="!readonly" v-model.number="sale.quantity" type="number" class="form-input input-sm" min="1"
@@ -147,14 +153,14 @@ function calculateProfitPercent(profit: number, cost: number): string {
             </td>
           </tr>
           <tr v-if="!chickenData.sales || chickenData.sales.length === 0">
-            <td :colspan="readonly ? 6 : 7" class="text-center text-muted py-8">
+            <td :colspan="readonly ? 7 : 8" class="text-center text-muted py-8">
               No hay ventas registradas todavía.
             </td>
           </tr>
         </tbody>
         <tfoot v-if="chickenData.sales && chickenData.sales.length > 0">
           <tr class="table-summary">
-            <td :colspan="readonly ? 5 : 5" class="text-right"><strong>Total Vendido:</strong></td>
+            <td :colspan="readonly ? 6 : 6" class="text-right"><strong>Total Vendido:</strong></td>
             <td class="font-bold text-lg text-success">
               ${{ salesCalculations.totalSoldIncome.toFixed(2) }}
             </td>
