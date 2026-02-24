@@ -32,6 +32,11 @@ export interface RecipeScenario {
   utilities: RecipeUtility[] // Scenario-specific utilities
 }
 
+export interface ChickenSaleItem {
+  id: string
+  weight_kg: number
+}
+
 export interface ChickenSale {
   id: string
   quantity: number
@@ -40,6 +45,7 @@ export interface ChickenSale {
   price_per_kg: number
   date: string
   sacrificed_day?: number
+  items?: ChickenSaleItem[]
 }
 
 export interface ChickenControlRecord {
