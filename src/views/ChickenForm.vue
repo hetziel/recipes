@@ -480,7 +480,7 @@
             <div class="product-info-mini">
               <span class="product-name-mini font-bold">{{ prod.name }}</span>
               <span v-if="prod.brand_id" class="product-brand-mini text-xs text-muted">{{ getBrandName(prod.brand_id)
-              }}</span>
+                }}</span>
             </div>
             <div class="product-price-mini text-right">
               <div class="font-bold">${{ prod.price }}</div>
@@ -594,7 +594,7 @@ onMounted(async () => {
 
   if (route.params.id) {
     isEditing.value = true
-    const docRef = doc(db, 'recipes', route.params.id as string)
+    const docRef = doc(db, 'chicken_batches', route.params.id as string)
     const snap = await getDoc(docRef)
     if (snap.exists()) {
       recipe.value = { ...snap.data(), id: snap.id, is_chicken_batch: true } as Recipe
@@ -1012,9 +1012,9 @@ async function saveRecipe() {
       updated_at: new Date().toISOString()
     }
     if (isEditing.value) {
-      await updateDoc(doc(db, 'recipes', recipe.value.id!), data)
+      await updateDoc(doc(db, 'chicken_batches', recipe.value.id!), data)
     } else {
-      await setDoc(doc(collection(db, 'recipes')), data)
+      await setDoc(doc(collection(db, 'chicken_batches')), data)
     }
     router.push('/production')
   } catch (e) {

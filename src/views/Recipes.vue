@@ -3,6 +3,14 @@
     <header class="page-header">
       <h1>Producción</h1>
       <div v-if="userProfile?.role === 'admin'" class="header-buttons">
+        <button v-if="oldChickenBatches.length > 0" @click="copyOldBatches" class="btn btn-info"
+          title="Copiar Lotes Antiguos">
+          <Icon name="content-copy" /> Copiar Viejos
+        </button>
+        <button v-if="oldChickenBatches.length > 0" @click="deleteOldBatches" class="btn btn-danger"
+          title="Eliminar Viejos de Recipes">
+          <Icon name="delete" /> Borrar Viejos
+        </button>
         <button @click="$router.push('/production/chicken/create')" class="btn btn-warning">
           <Icon name="bird" /> Nuevo Lote de Pollos
         </button>
@@ -88,7 +96,7 @@
                           <div class="summary-item-mini">
                             <label>Alimento (kg)</label>
                             <span>Est. Inicio: {{ getChickenCalculations(recipe)!.totalStarterNeeded.toFixed(1)
-                              }}kg</span>
+                            }}kg</span>
                           </div>
                           <div class="summary-item-mini highlight-profit">
                             <label>Ganancia Proyectada</label>
@@ -183,7 +191,7 @@
                               <div class="price-stack-mini">
                                 <span class="usd">${{ getScenarioUnitCost(recipe, sc).toFixed(2) }}</span>
                                 <span class="bs">Bs {{ (getScenarioUnitCost(recipe, sc) * dolarRate).toFixed(2)
-                                }}</span>
+                                  }}</span>
                               </div>
                             </div>
                             <div class="fin-item highlight-success">
@@ -360,6 +368,7 @@ import { useProduction } from '../composables/useProduction'
 
 const { userProfile } = useAuth()
 const recipes = ref<Recipe[]>([])
+const cbCollection = ref<Recipe[]>([])
 const availableProducts = ref<Product[]>([])
 const expandedRecipes = ref<Record<string, boolean>>({})
 const allScenarios = ref<RecipeScenario[]>([])
@@ -391,7 +400,8 @@ const {
 } = useProduction(availableProducts, dolarRate)
 
 const standardRecipes = computed(() => recipes.value.filter(r => !r.is_chicken_batch))
-const chickenBatches = computed(() => recipes.value.filter(r => r.is_chicken_batch))
+const oldChickenBatches = computed(() => recipes.value.filter(r => r.is_chicken_batch))
+const chickenBatches = computed(() => cbCollection.value)
 
 async function loadRecipes() {
   loading.value = true
@@ -406,8 +416,11 @@ async function loadRecipes() {
     const myProducts = myProdSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product))
     availableProducts.value = [...regularProducts, ...myProducts]
 
-    const snap = await getDocs(collection(db, 'recipes'))
-    recipes.value = snap.docs.map(d => ({ id: d.id, ...d.data() } as Recipe))
+    const recipesSnap = await getDocs(collection(db, 'recipes'))
+    recipes.value = recipesSnap.docs.map(d => ({ id: d.id, ...d.data() } as Recipe))
+
+    const cbSnap = await getDocs(collection(db, 'chicken_batches'))
+    cbCollection.value = cbSnap.docs.map(d => ({ id: d.id, ...d.data() } as Recipe))
 
     // Load all scenarios to distribute among recipes
     const scSnap = await getDocs(collection(db, 'scenarios'))
@@ -420,9 +433,10 @@ async function loadRecipes() {
 }
 
 async function confirmDelete(recipe: Recipe) {
-  if (confirm(`¿Eliminar la receta "${recipe.name}"?`)) {
+  if (confirm(`¿Eliminar la receta/lote "${recipe.name}"?`)) {
     if (!recipe.id) return
-    await deleteDoc(doc(db, 'recipes', recipe.id))
+    const coll = recipe.is_chicken_batch ? 'chicken_batches' : 'recipes'
+    await deleteDoc(doc(db, coll, recipe.id))
     await loadRecipes()
   }
 }
@@ -438,7 +452,7 @@ async function togglePublishScenario(sc: RecipeScenario) {
   sc.published = newValue
   try {
     await updateDoc(doc(db, 'scenarios', sc.id), { published: newValue })
-  } catch(e) {
+  } catch (e) {
     console.error(e)
     sc.published = !newValue // revert on error
     alert('Error al publicar: ' + (e as Error).message)
@@ -454,15 +468,20 @@ async function saveSales() {
   if (!selectedBatch.value || !selectedBatch.value.id) return
   isSavingSales.value = true
   try {
-    const docRef = doc(db, 'recipes', selectedBatch.value.id)
+    const coll = selectedBatch.value.is_chicken_batch ? 'chicken_batches' : 'recipes'
+    const docRef = doc(db, coll, selectedBatch.value.id)
     await updateDoc(docRef, {
       chicken_data: selectedBatch.value.chicken_data,
       updated_at: new Date().toISOString()
     })
-    // Update local recipes list
-    const index = recipes.value.findIndex(r => r.id === selectedBatch.value?.id)
+    // Update local list
+    const index = cbCollection.value.findIndex(r => r.id === selectedBatch.value?.id)
     if (index !== -1) {
-      recipes.value[index] = { ...selectedBatch.value }
+      cbCollection.value[index] = { ...selectedBatch.value }
+    }
+    const idxRec = recipes.value.findIndex(r => r.id === selectedBatch.value?.id)
+    if (idxRec !== -1) {
+      recipes.value[idxRec] = { ...selectedBatch.value }
     }
     showSalesModal.value = false
     alert('Ventas actualizadas correctamente')
@@ -581,6 +600,29 @@ function getScenarioProfit(recipe: Recipe, scenario: RecipeScenario): number {
   return calculateScenarioSalePrice(recipe, scenario) - calculateScenarioUnitCost(recipe, scenario)
 }
 
+import { setDoc } from 'firebase/firestore'
+
+async function copyOldBatches() {
+  const oldBatches = recipes.value.filter(r => r.is_chicken_batch)
+  if (!confirm(`¿Copiar ${oldBatches.length} lotes a la nueva colección?`)) return
+  for (const batch of oldBatches) {
+    const docRef = doc(db, 'chicken_batches', batch.id!)
+    await setDoc(docRef, batch)
+  }
+  alert('Copiados con éxito. Revise que aparezcan doble (en viejos y nuevos) antes de borrarlos.')
+  await loadRecipes()
+}
+
+async function deleteOldBatches() {
+  const oldBatches = recipes.value.filter(r => r.is_chicken_batch)
+  if (!confirm(`¿ELIMINAR ${oldBatches.length} lotes antiguos de recipes? (Asegúrese de haberlos copiado)`)) return
+  for (const batch of oldBatches) {
+    await deleteDoc(doc(db, 'recipes', batch.id!))
+  }
+  alert('Borrados con éxito de recipes.')
+  await loadRecipes()
+}
+
 onMounted(() => {
   loadRecipes()
 })
@@ -594,11 +636,13 @@ onMounted(() => {
   width: 32px;
   height: 18px;
 }
+
 .switch-toggle input {
   opacity: 0;
   width: 0;
   height: 0;
 }
+
 .slider {
   position: absolute;
   cursor: pointer;
@@ -609,6 +653,7 @@ onMounted(() => {
   background-color: var(--border);
   transition: .4s;
 }
+
 .slider:before {
   position: absolute;
   content: "";
@@ -619,15 +664,19 @@ onMounted(() => {
   background-color: white;
   transition: .4s;
 }
-.switch-toggle input:checked + .slider {
+
+.switch-toggle input:checked+.slider {
   background-color: var(--primary);
 }
-.switch-toggle input:checked + .slider:before {
+
+.switch-toggle input:checked+.slider:before {
   transform: translateX(14px);
 }
+
 .slider.round {
   border-radius: 18px;
 }
+
 .slider.round:before {
   border-radius: 50%;
 }
