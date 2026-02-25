@@ -72,6 +72,7 @@ export interface ChickenData {
   live_weight_price_kg: number
   current_avg_weight_g: number
   target_weight_g: number
+  target_day?: number
   current_feed_id?: string
   starter_feed_per_chicken_g: number
   fattening_feed_per_chicken_g: number

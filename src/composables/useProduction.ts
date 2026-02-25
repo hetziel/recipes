@@ -176,9 +176,36 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
         const totalStarterNeeded = ((Number(d.starter_feed_per_chicken_g) || 0) * currentActiveQuantity) / 1000
         const totalFatteningNeeded = ((Number(d.fattening_feed_per_chicken_g) || 0) * currentActiveQuantity) / 1000
 
+        const starterPrices: number[] = []
+        const fatteningPrices: number[] = []
+
+        recipe.ingredients.forEach(ing => {
+            let feedType = ing.feed_type
+            if (!feedType || feedType === 'other') {
+                const prod = getProductById(ing.product_id)
+                if (prod) {
+                    const name = prod.name.toLowerCase()
+                    if (name.includes('inicio')) feedType = 'starter'
+                    else if (name.includes('engorde')) feedType = 'fattening'
+                }
+            }
+            // Mock usage_weight=1 to get price per kg
+            const mockIng = { ...ing, usage_weight: 1 }
+            const costPerKg = calculateIngredientCost(mockIng, true)
+            if (feedType === 'starter' && costPerKg > 0) starterPrices.push(costPerKg)
+            if (feedType === 'fattening' && costPerKg > 0) fatteningPrices.push(costPerKg)
+        })
+
+        const avgStarterPriceKg = starterPrices.length > 0 ? starterPrices.reduce((a, b) => a + b, 0) / starterPrices.length : 0
+        const avgFatteningPriceKg = fatteningPrices.length > 0 ? fatteningPrices.reduce((a, b) => a + b, 0) / fatteningPrices.length : 0
+
+        const estimatedFeedCost = (totalStarterNeeded * avgStarterPriceKg) + (totalFatteningNeeded * avgFatteningPriceKg)
+        const estimatedTotalInvestment = chickenInvestment + estimatedFeedCost
+
         const totalTargetWeightKg = ((Number(d.target_weight_g) || 0) * currentActiveQuantity) / 1000
         const projectedIncome = totalTargetWeightKg * (Number(d.live_weight_price_kg) || 0)
         const projectedProfit = projectedIncome - totalIngredientsCost
+        const estimatedProfit = projectedIncome - estimatedTotalInvestment
 
         const totalCurrentWeightKg = ((Number(d.current_avg_weight_g) || 0) * currentActiveQuantity) / 1000
         const currentIncome = totalCurrentWeightKg * (Number(d.live_weight_price_kg) || 0)
@@ -207,8 +234,12 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
             costPerChicken,
             totalStarterNeeded,
             totalFatteningNeeded,
+            estimatedFeedCost,
+            estimatedTotalInvestment,
             projectedIncome,
             projectedProfit,
+            estimatedProfit,
+            targetDay: d.target_day,
             totalTargetWeightKg,
             totalIngredientsCost,
             currentIncome,

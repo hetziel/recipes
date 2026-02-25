@@ -82,6 +82,18 @@
             <label>Peso Objetivo (g)</label>
             <input v-model.number="recipe.chicken_data!.target_weight_g" type="number" class="form-input" min="0" />
           </div>
+          <div class="form-group">
+            <label>Día Objetivo (Edad)</label>
+            <input v-model.number="recipe.chicken_data!.target_day" type="number" class="form-input" min="0" />
+          </div>
+          <div class="form-group">
+            <label>Inicio Obj. (g/ave)</label>
+            <input v-model.number="recipe.chicken_data!.starter_feed_per_chicken_g" type="number" class="form-input" min="0" />
+          </div>
+          <div class="form-group">
+            <label>Engorde Obj. (g/ave)</label>
+            <input v-model.number="recipe.chicken_data!.fattening_feed_per_chicken_g" type="number" class="form-input" min="0" />
+          </div>
         </div>
       </section>
 
@@ -278,7 +290,7 @@
           <div class="summary-card projection success">
             <Icon name="trending-up" />
             <div class="summary-details">
-              <label>Ganancia Obj. (Final)</label>
+              <label>Ganancia Obj. (Costo Real)</label>
               <div class="value">
                 ${{ chickenCalculations.projectedProfit.toFixed(2) }}
                 <span class="text-xs ml-1 text-success" style="font-weight: normal;">
@@ -287,9 +299,21 @@
               </div>
               <div class="sub-value">
                 Venta Est: ${{ chickenCalculations.projectedIncome.toFixed(2) }}
-                <span class="text-success ml-1">
-                  ({{ calculateProfitPercent(chickenCalculations.projectedProfit, totalIngredientsCost) }}%)
-                </span>
+              </div>
+            </div>
+          </div>
+          <div class="summary-card projection info">
+            <Icon name="rocket" />
+            <div class="summary-details">
+              <label>Ganancia Pura Ideal</label>
+              <div class="value" :class="chickenCalculations.estimatedProfit >= 0 ? 'text-success' : 'text-danger'">
+                 ${{ chickenCalculations.estimatedProfit.toFixed(2) }}
+                 <span class="text-xs ml-1" style="font-weight: normal;">
+                   ({{ calculateProfitPercent(chickenCalculations.estimatedProfit, chickenCalculations.estimatedTotalInvestment) }}%)
+                 </span>
+              </div>
+              <div class="sub-value">
+                Inv Ideal: ${{ chickenCalculations.estimatedTotalInvestment.toFixed(2) }} (Día {{ chickenCalculations.targetDay || 0 }})
               </div>
             </div>
           </div>
@@ -521,6 +545,7 @@ const recipe = ref<Recipe>({
     target_weight_g: 0,
     starter_feed_per_chicken_g: 0,
     fattening_feed_per_chicken_g: 0,
+    target_day: 0,
     entry_date: new Date().toISOString().split('T')[0],
     sales: []
   },
@@ -554,6 +579,7 @@ onMounted(async () => {
           target_weight_g: 0,
           starter_feed_per_chicken_g: 0,
           fattening_feed_per_chicken_g: 0,
+          target_day: 0,
           entry_date: new Date().toISOString().split('T')[0],
           sales: []
         }
