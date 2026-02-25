@@ -5,8 +5,8 @@ export interface Customer {
     created_at: string
 }
 
-export type SaleStatus = 'pendiente' | 'pagado' | 'por pagar' | 'cancelado'
-export type DeliveryStatus = 'por_entregar' | 'entregado' | 'cancelado'
+export type SaleStatus = 'pendiente' | 'pagado' | 'abono' | 'cancelado'
+export type DeliveryStatus = 'en preparación' | 'listo para envio' | 'enviado' | 'entregado' | 'devuelto'
 
 export interface SaleItem {
     scenario_id: string
@@ -33,4 +33,5 @@ export interface Sale {
     delivery_status?: DeliveryStatus
     created_at: string
     updated_at?: string
+    paid_amount?: number // USD para tracking de abonos
 }

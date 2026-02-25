@@ -56,6 +56,29 @@
             <label>Edad del Lote</label>
             <input :value="chickenAge + ' días'" type="text" class="form-input" readonly />
           </div>
+          <div class="form-group sale-window-card" v-if="idealSaleRange"
+            style="grid-column: 1 / -1; background: var(--bg-secondary); padding: 1rem; border-radius: 8px; border: 1px solid var(--border-color);">
+            <label
+              style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; color: var(--text-primary); font-weight: 600;">
+              <Icon name="calendar-clock" /> Ventana Ideal de Venta (Día 34 a 46)
+            </label>
+            <div class="sale-indicator text-sm">
+              <div v-if="idealSaleRange.isInWindow" class="text-success font-bold" style="font-size: 1.1em;">
+                ¡El lote está en la ventana ideal de venta! (Día {{ chickenAge }})
+              </div>
+              <div v-else-if="idealSaleRange.isPassed" class="text-danger font-bold" style="font-size: 1.1em;">
+                La ventana de venta ideal ya pasó. (Día {{ chickenAge }})
+              </div>
+              <div v-else class="text-primary font-bold" style="font-size: 1.1em;">
+                Faltan de {{ idealSaleRange.minRemaining }} a {{ idealSaleRange.maxRemaining }} días para la venta
+                ideal.
+              </div>
+              <div class="mt-2 text-muted" style="display: flex; justify-content: space-between;">
+                <span><strong>Inicio:</strong> {{ idealSaleRange.minDate }}</span>
+                <span><strong>Fin:</strong> {{ idealSaleRange.maxDate }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -81,6 +104,20 @@
           <div class="form-group">
             <label>Peso Objetivo (g)</label>
             <input v-model.number="recipe.chicken_data!.target_weight_g" type="number" class="form-input" min="0" />
+          </div>
+          <div class="form-group">
+            <label>Día Objetivo (Edad)</label>
+            <input v-model.number="recipe.chicken_data!.target_day" type="number" class="form-input" min="0" />
+          </div>
+          <div class="form-group">
+            <label>Inicio Obj. (g/ave)</label>
+            <input v-model.number="recipe.chicken_data!.starter_feed_per_chicken_g" type="number" class="form-input"
+              min="0" />
+          </div>
+          <div class="form-group">
+            <label>Engorde Obj. (g/ave)</label>
+            <input v-model.number="recipe.chicken_data!.fattening_feed_per_chicken_g" type="number" class="form-input"
+              min="0" />
           </div>
         </div>
       </section>
@@ -203,6 +240,19 @@
             </div>
           </div>
           <div class="summary-card total-investment">
+            <Icon name="chart-arc" />
+            <div class="summary-details">
+              <label>Pollos Activos</label>
+              <div class="value">
+                {{ chickenCalculations.currentActiveQuantity }}
+                <span v-if="chickenCalculations.totalLostQuantity > 0" class="text-danger text-sm ml-1">
+                  (-{{ chickenCalculations.totalLostQuantity }})
+                </span>
+              </div>
+              <div class="sub-value">De {{ recipe.chicken_data?.initial_quantity || 0 }} iniciales</div>
+            </div>
+          </div>
+          <div class="summary-card total-investment">
             <Icon name="currency-usd" />
             <div class="summary-details">
               <label>Inversión Total</label>
@@ -265,7 +315,7 @@
           <div class="summary-card projection success">
             <Icon name="trending-up" />
             <div class="summary-details">
-              <label>Ganancia Obj. (Final)</label>
+              <label>Ganancia Obj. (Costo Real)</label>
               <div class="value">
                 ${{ chickenCalculations.projectedProfit.toFixed(2) }}
                 <span class="text-xs ml-1 text-success" style="font-weight: normal;">
@@ -274,12 +324,81 @@
               </div>
               <div class="sub-value">
                 Venta Est: ${{ chickenCalculations.projectedIncome.toFixed(2) }}
-                <span class="text-success ml-1">
-                  ({{ calculateProfitPercent(chickenCalculations.projectedProfit, totalIngredientsCost) }}%)
-                </span>
               </div>
             </div>
           </div>
+          <div class="summary-card projection info">
+            <Icon name="rocket" />
+            <div class="summary-details">
+              <label>Ganancia Pura Ideal</label>
+              <div class="value" :class="chickenCalculations.estimatedProfit >= 0 ? 'text-success' : 'text-danger'">
+                ${{ chickenCalculations.estimatedProfit.toFixed(2) }}
+                <span class="text-xs ml-1" style="font-weight: normal;">
+                  ({{ calculateProfitPercent(chickenCalculations.estimatedProfit,
+                    chickenCalculations.estimatedTotalInvestment) }}%)
+                </span>
+              </div>
+              <div class="sub-value">
+                Inv Ideal: ${{ chickenCalculations.estimatedTotalInvestment.toFixed(2) }} (Día {{
+                  chickenCalculations.targetDay || 0 }})
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MORTALIDAD / BAJAS -->
+      <section v-if="recipe.chicken_data" class="card mortality-section">
+        <div class="section-header">
+          <h2>
+            <Icon name="alert-circle" /> Registro de Mortalidad (Bajas)
+          </h2>
+        </div>
+
+        <div class="form-grid mb-4">
+          <div class="form-group">
+            <label>Cantidad de Bajas</label>
+            <input v-model.number="newLoss.quantity" type="number" class="form-input" min="1" placeholder="Ej: 2" />
+          </div>
+          <div class="form-group">
+            <label>Motivo / Causa (Opcional)</label>
+            <input v-model="newLoss.reason" type="text" class="form-input" placeholder="Ej: Enfermedad, infarto..." />
+          </div>
+          <div class="form-group" style="display: flex; align-items: flex-end;">
+            <button type="button" @click="addLossRecord" class="btn btn-primary"
+              :disabled="!newLoss.quantity || newLoss.quantity < 1">
+              <Icon name="plus" /> Registrar Baja
+            </button>
+          </div>
+        </div>
+
+        <div v-if="recipe.chicken_data.losses && recipe.chicken_data.losses.length > 0" class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Cantidad</th>
+                <th>Motivo</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(loss, idx) in [...recipe.chicken_data.losses].reverse()" :key="loss.id">
+                <td>{{ formatDateShort(loss.date) }}</td>
+                <td class="font-bold text-danger">-{{ loss.quantity }}</td>
+                <td>{{ loss.reason || 'Sin especificar' }}</td>
+                <td>
+                  <button @click="removeLossRecord(recipe.chicken_data!.losses!.length - 1 - idx)"
+                    class="btn-icon text-danger">
+                    <Icon name="delete" />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="empty-state-mini">
+          <p class="text-muted">No se han registrado bajas en este lote.</p>
         </div>
       </section>
 
@@ -361,7 +480,7 @@
             <div class="product-info-mini">
               <span class="product-name-mini font-bold">{{ prod.name }}</span>
               <span v-if="prod.brand_id" class="product-brand-mini text-xs text-muted">{{ getBrandName(prod.brand_id)
-                }}</span>
+              }}</span>
             </div>
             <div class="product-price-mini text-right">
               <div class="font-bold">${{ prod.price }}</div>
@@ -436,6 +555,8 @@ const deletedSalesIds = ref<string[]>([])
 const modalType = ref<'batch_product' | 'input'>('input')
 const modalTitle = computed(() => modalType.value === 'batch_product' ? 'Seleccionar Pollo' : 'Seleccionar Alimento/Insumo')
 
+const newLoss = ref({ quantity: 0, reason: '' })
+
 const recipe = ref<Recipe>({
   name: '',
   ingredients: [],
@@ -453,6 +574,7 @@ const recipe = ref<Recipe>({
     target_weight_g: 0,
     starter_feed_per_chicken_g: 0,
     fattening_feed_per_chicken_g: 0,
+    target_day: 0,
     entry_date: new Date().toISOString().split('T')[0],
     sales: []
   },
@@ -486,6 +608,7 @@ onMounted(async () => {
           target_weight_g: 0,
           starter_feed_per_chicken_g: 0,
           fattening_feed_per_chicken_g: 0,
+          target_day: 0,
           entry_date: new Date().toISOString().split('T')[0],
           sales: []
         }
@@ -495,6 +618,9 @@ onMounted(async () => {
       }
       if (!recipe.value.chicken_data.control_records) {
         recipe.value.chicken_data.control_records = []
+      }
+      if (!recipe.value.chicken_data.losses) {
+        recipe.value.chicken_data.losses = []
       }
     }
   }
@@ -512,7 +638,9 @@ function getShortUnit(id: string): string {
 // Age calculation
 const chickenAge = computed(() => {
   if (!recipe.value.chicken_data?.entry_date) return 0
-  const entry = new Date(recipe.value.chicken_data.entry_date)
+  const entryParts = recipe.value.chicken_data.entry_date.split('-')
+  if (entryParts.length !== 3) return 0
+  const entry = new Date(parseInt(entryParts[0]), parseInt(entryParts[1]) - 1, parseInt(entryParts[2]))
   const now = new Date()
   // Reset hours to compare only days
   entry.setHours(0, 0, 0, 0)
@@ -521,6 +649,37 @@ const chickenAge = computed(() => {
   const diffTime = now.getTime() - entry.getTime()
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
   return diffDays < 0 ? 0 : diffDays
+})
+
+const idealSaleRange = computed(() => {
+  if (!recipe.value.chicken_data?.entry_date) return null
+
+  const entryParts = recipe.value.chicken_data.entry_date.split('-')
+  if (entryParts.length !== 3) return null
+
+  const entryDateObj = new Date(parseInt(entryParts[0]), parseInt(entryParts[1]) - 1, parseInt(entryParts[2]))
+  entryDateObj.setHours(0, 0, 0, 0)
+
+  const minSaleDate = new Date(entryDateObj)
+  minSaleDate.setDate(entryDateObj.getDate() + 34)
+
+  const maxSaleDate = new Date(entryDateObj)
+  maxSaleDate.setDate(entryDateObj.getDate() + 46)
+
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+
+  const diffMin = Math.ceil((minSaleDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  const diffMax = Math.ceil((maxSaleDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+  return {
+    minDate: minSaleDate.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    maxDate: maxSaleDate.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    minRemaining: diffMin,
+    maxRemaining: diffMax,
+    isPassed: diffMax < 0,
+    isInWindow: diffMin <= 0 && diffMax >= 0
+  }
 })
 
 // Ingredient calculations specialized for kg
@@ -739,6 +898,31 @@ function calculateDynamicRecordProfitPercent(record: import('../types/recipe').C
   const income = calculateDynamicRecordIncome(record)
   const cost = record.total_investment || 1
   return ((income - cost) / cost) * 100
+}
+
+function addLossRecord() {
+  if (!recipe.value.chicken_data) return
+  if (!newLoss.value.quantity || newLoss.value.quantity <= 0) return
+
+  if (!recipe.value.chicken_data.losses) {
+    recipe.value.chicken_data.losses = []
+  }
+
+  recipe.value.chicken_data.losses.push({
+    id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+    date: new Date().toISOString(),
+    quantity: newLoss.value.quantity,
+    reason: newLoss.value.reason
+  })
+
+  // Reset form
+  newLoss.value = { quantity: 0, reason: '' }
+}
+
+function removeLossRecord(index: number) {
+  if (recipe.value.chicken_data?.losses) {
+    recipe.value.chicken_data.losses.splice(index, 1)
+  }
 }
 
 function handleSaleDeleted(saleId?: string) {

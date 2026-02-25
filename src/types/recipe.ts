@@ -60,11 +60,19 @@ export interface ChickenControlRecord {
   total_investment: number
 }
 
+export interface ChickenLoss {
+  id: string
+  date: string
+  quantity: number
+  reason?: string
+}
+
 export interface ChickenData {
   initial_quantity: number
   live_weight_price_kg: number
   current_avg_weight_g: number
   target_weight_g: number
+  target_day?: number
   current_feed_id?: string
   starter_feed_per_chicken_g: number
   fattening_feed_per_chicken_g: number
@@ -73,6 +81,7 @@ export interface ChickenData {
   entry_date?: string // Batch entry date
   sales?: ChickenSale[] // Track sales of the batch
   control_records?: ChickenControlRecord[] // History of growth/rentability status
+  losses?: ChickenLoss[] // Track mortality of the batch
 }
 
 export interface Recipe {
