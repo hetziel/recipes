@@ -152,6 +152,14 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
         const d = recipe.chicken_data
         const qty = Number(d.initial_quantity) || 0
 
+        let totalLostQuantity = 0
+        if (d.losses && d.losses.length > 0) {
+            d.losses.forEach(l => {
+                totalLostQuantity += Number(l.quantity) || 0
+            })
+        }
+        const currentActiveQuantity = Math.max(0, qty - totalLostQuantity)
+
         // 0. Inversión inicial en pollos
         let chickenInvestment = 0
         if (d.batch_product_id) {
@@ -163,16 +171,16 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
         const ingredientsCost = calculateBaseCost(recipe)
         const totalIngredientsCost = ingredientsCost + chickenInvestment
         const feedInvestment = ingredientsCost
-        const costPerChicken = qty > 0 ? totalIngredientsCost / qty : 0
+        const costPerChicken = currentActiveQuantity > 0 ? totalIngredientsCost / currentActiveQuantity : 0
 
-        const totalStarterNeeded = ((Number(d.starter_feed_per_chicken_g) || 0) * qty) / 1000
-        const totalFatteningNeeded = ((Number(d.fattening_feed_per_chicken_g) || 0) * qty) / 1000
+        const totalStarterNeeded = ((Number(d.starter_feed_per_chicken_g) || 0) * currentActiveQuantity) / 1000
+        const totalFatteningNeeded = ((Number(d.fattening_feed_per_chicken_g) || 0) * currentActiveQuantity) / 1000
 
-        const totalTargetWeightKg = ((Number(d.target_weight_g) || 0) * qty) / 1000
+        const totalTargetWeightKg = ((Number(d.target_weight_g) || 0) * currentActiveQuantity) / 1000
         const projectedIncome = totalTargetWeightKg * (Number(d.live_weight_price_kg) || 0)
         const projectedProfit = projectedIncome - totalIngredientsCost
 
-        const totalCurrentWeightKg = ((Number(d.current_avg_weight_g) || 0) * qty) / 1000
+        const totalCurrentWeightKg = ((Number(d.current_avg_weight_g) || 0) * currentActiveQuantity) / 1000
         const currentIncome = totalCurrentWeightKg * (Number(d.live_weight_price_kg) || 0)
         const currentProfit = currentIncome - totalIngredientsCost
 
@@ -191,7 +199,7 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
         const avgWeightSold = totalSoldQuantity > 0 ? totalSoldWeight / totalSoldQuantity : 0
         const avgPriceSold = totalSoldWeight > 0 ? totalSoldIncome / totalSoldWeight : 0
         const realProfit = totalSoldIncome - totalIngredientsCost
-        const remainingQuantity = qty - totalSoldQuantity
+        const remainingQuantity = currentActiveQuantity - totalSoldQuantity
 
         return {
             chickenInvestment,
@@ -212,7 +220,9 @@ export function useProduction(availableProducts: Ref<Product[]>, dolarRate: Ref<
             avgWeightSold,
             avgPriceSold,
             realProfit,
-            remainingQuantity
+            remainingQuantity,
+            currentActiveQuantity,
+            totalLostQuantity
         }
     }
 

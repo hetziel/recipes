@@ -203,6 +203,19 @@
             </div>
           </div>
           <div class="summary-card total-investment">
+            <Icon name="chart-arc" />
+            <div class="summary-details">
+              <label>Pollos Activos</label>
+              <div class="value">
+                {{ chickenCalculations.currentActiveQuantity }}
+                <span v-if="chickenCalculations.totalLostQuantity > 0" class="text-danger text-sm ml-1">
+                  (-{{ chickenCalculations.totalLostQuantity }})
+                </span>
+              </div>
+              <div class="sub-value">De {{ recipe.chicken_data?.initial_quantity || 0 }} iniciales</div>
+            </div>
+          </div>
+          <div class="summary-card total-investment">
             <Icon name="currency-usd" />
             <div class="summary-details">
               <label>Inversión Total</label>
@@ -280,6 +293,59 @@
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- MORTALIDAD / BAJAS -->
+      <section v-if="recipe.chicken_data" class="card mortality-section">
+        <div class="section-header">
+          <h2>
+            <Icon name="alert-circle" /> Registro de Mortalidad (Bajas)
+          </h2>
+        </div>
+
+        <div class="form-grid mb-4">
+          <div class="form-group">
+            <label>Cantidad de Bajas</label>
+            <input v-model.number="newLoss.quantity" type="number" class="form-input" min="1" placeholder="Ej: 2" />
+          </div>
+          <div class="form-group">
+            <label>Motivo / Causa (Opcional)</label>
+            <input v-model="newLoss.reason" type="text" class="form-input" placeholder="Ej: Enfermedad, infarto..." />
+          </div>
+          <div class="form-group" style="display: flex; align-items: flex-end;">
+            <button type="button" @click="addLossRecord" class="btn btn-primary" :disabled="!newLoss.quantity || newLoss.quantity < 1">
+              <Icon name="plus" /> Registrar Baja
+            </button>
+          </div>
+        </div>
+
+        <div v-if="recipe.chicken_data.losses && recipe.chicken_data.losses.length > 0" class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Cantidad</th>
+                <th>Motivo</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(loss, idx) in [...recipe.chicken_data.losses].reverse()" :key="loss.id">
+                <td>{{ formatDateShort(loss.date) }}</td>
+                <td class="font-bold text-danger">-{{ loss.quantity }}</td>
+                <td>{{ loss.reason || 'Sin especificar' }}</td>
+                <td>
+                  <button @click="removeLossRecord(recipe.chicken_data!.losses!.length - 1 - idx)" class="btn-icon text-danger">
+                    <Icon name="delete" />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="empty-state-mini">
+          <p class="text-muted">No se han registrado bajas en este lote.</p>
         </div>
       </section>
 
@@ -436,6 +502,8 @@ const deletedSalesIds = ref<string[]>([])
 const modalType = ref<'batch_product' | 'input'>('input')
 const modalTitle = computed(() => modalType.value === 'batch_product' ? 'Seleccionar Pollo' : 'Seleccionar Alimento/Insumo')
 
+const newLoss = ref({ quantity: 0, reason: '' })
+
 const recipe = ref<Recipe>({
   name: '',
   ingredients: [],
@@ -495,6 +563,9 @@ onMounted(async () => {
       }
       if (!recipe.value.chicken_data.control_records) {
         recipe.value.chicken_data.control_records = []
+      }
+      if (!recipe.value.chicken_data.losses) {
+        recipe.value.chicken_data.losses = []
       }
     }
   }
@@ -739,6 +810,31 @@ function calculateDynamicRecordProfitPercent(record: import('../types/recipe').C
   const income = calculateDynamicRecordIncome(record)
   const cost = record.total_investment || 1
   return ((income - cost) / cost) * 100
+}
+
+function addLossRecord() {
+  if (!recipe.value.chicken_data) return
+  if (!newLoss.value.quantity || newLoss.value.quantity <= 0) return
+
+  if (!recipe.value.chicken_data.losses) {
+    recipe.value.chicken_data.losses = []
+  }
+
+  recipe.value.chicken_data.losses.push({
+    id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+    date: new Date().toISOString(),
+    quantity: newLoss.value.quantity,
+    reason: newLoss.value.reason
+  })
+
+  // Reset form
+  newLoss.value = { quantity: 0, reason: '' }
+}
+
+function removeLossRecord(index: number) {
+  if (recipe.value.chicken_data?.losses) {
+    recipe.value.chicken_data.losses.splice(index, 1)
+  }
 }
 
 function handleSaleDeleted(saleId?: string) {
