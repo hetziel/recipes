@@ -303,17 +303,38 @@
                 </div>
               </div>
 
-              <div class="sale-financials-premium">
-                <div class="price-usd">${{ sale.total_amount.toFixed(2) }}</div>
-                <div class="price-bs">Bs. {{ (sale.total_amount * dolarRate).toFixed(2) }}</div>
+              <div class="sale-financials-premium" :class="{ 'is-abono': sale.status === 'abono' }">
+                <template v-if="sale.status === 'abono'">
+                  <div class="abono-details">
+                    <div class="ab-row">
+                      <span>Total:</span>
+                      <span class="ab-prices"><strong>${{ sale.total_amount.toFixed(2) }}</strong> <small>Bs. {{
+                        (sale.total_amount * dolarRate).toFixed(2) }}</small></span>
+                    </div>
+                    <div class="ab-row text-success">
+                      <span>Abonado:</span>
+                      <span class="ab-prices"><strong>${{ sale.paid_amount?.toFixed(2) || '0.00' }}</strong> <small>Bs.
+                          {{ ((sale.paid_amount || 0) * dolarRate).toFixed(2) }}</small></span>
+                    </div>
+                    <div class="ab-row text-danger">
+                      <span>Pendiente:</span>
+                      <span class="ab-prices"><strong>${{ Math.max(0, sale.total_amount - (sale.paid_amount ||
+                          0)).toFixed(2) }}</strong> <small>Bs. {{ (Math.max(0, sale.total_amount - (sale.paid_amount ||
+                            0)) * dolarRate).toFixed(2) }}</small></span>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="price-usd">${{ sale.total_amount.toFixed(2) }}</div>
+                  <div class="price-bs">Bs. {{ (sale.total_amount * dolarRate).toFixed(2) }}</div>
+                </template>
               </div>
 
               <div class="sale-status-area">
                 <div class="status-stack">
                   <span class="label">Pago</span>
                   <span :class="['modern-badge', sale.status]" @click="openStatusModal(sale)">
-                    {{ formatStatus(sale.status) }} <span v-if="sale.status === 'abono'">(${{
-                      sale.paid_amount?.toFixed(2) }})</span>
+                    {{ formatStatus(sale.status) }}
                   </span>
                 </div>
                 <div class="status-stack mt-2">
@@ -2182,6 +2203,44 @@ onMounted(() => {
 .price-bs {
   font-size: 0.75rem;
   color: #94a3b8;
+  font-weight: 600;
+}
+
+.abono-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.ab-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.ab-row strong {
+  font-weight: 700;
+}
+
+.text-success strong {
+  color: #10b981;
+}
+
+.text-danger strong {
+  color: #ef4444;
+}
+
+.ab-prices {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ab-prices small {
+  color: #94a3b8;
+  font-size: 0.7rem;
   font-weight: 600;
 }
 
