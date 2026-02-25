@@ -75,9 +75,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Colección de Recetas y Escenarios
+    // Colección de Recetas, Lotes de Pollo y Escenarios
     match /recipes/{recipe} {
       allow read: if true; // Público para la tienda
+      allow write: if isAdmin();
+    }
+    match /chicken_batches/{batch} {
+      allow read: if true;
       allow write: if isAdmin();
     }
     match /scenarios/{scenario} {

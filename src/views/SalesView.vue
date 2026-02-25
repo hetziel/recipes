@@ -646,8 +646,11 @@
           <h3>Previsualización de Factura</h3>
           <div class="header-actions">
             <div class="invoice-view-toggle">
-              <button @click="invoiceViewMode = 'dynamic'" :class="['btn', invoiceViewMode === 'dynamic' ? 'btn-outline' : 'btn']">Vista dinámica</button>
-              <button @click="invoiceViewMode = 'printable'" :class="['btn', invoiceViewMode === 'printable' ? 'btn-primary' : 'btn-outline']">Formato imprimir</button>
+              <button @click="invoiceViewMode = 'dynamic'"
+                :class="['btn', invoiceViewMode === 'dynamic' ? 'btn-outline' : 'btn']">Vista dinámica</button>
+              <button @click="invoiceViewMode = 'printable'"
+                :class="['btn', invoiceViewMode === 'printable' ? 'btn-primary' : 'btn-outline']">Formato
+                imprimir</button>
             </div>
             <button @click="exportarFacturaJPG" class="btn btn-primary" :disabled="isExporting">
               <Icon :name="isExporting ? 'loading' : 'download'" />
@@ -659,7 +662,7 @@
           </div>
         </header>
 
-          <div class="modal-body scrollable">
+        <div class="modal-body scrollable">
           <div id="seccion-factura" :class="['invoice-container', invoiceViewMode]">
             <div class="invoice-header">
               <div class="biz-info">
@@ -683,7 +686,7 @@
                 <div class="meta-item">
                   <span class="label">Fecha:</span>
                   <span class="value">{{ selectedSaleForInvoice ? formatDate(selectedSaleForInvoice.created_at) : ''
-                    }}</span>
+                  }}</span>
                 </div>
               </div>
             </div>
@@ -754,7 +757,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, inject, watch, type Ref, shallowRef } from 'vue'
+import { ref, computed, onMounted, inject, watch, type Ref, shallowRef, nextTick } from 'vue'
 import { collection, query, getDocs, addDoc, updateDoc, doc, orderBy, deleteDoc, runTransaction, deleteField } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
