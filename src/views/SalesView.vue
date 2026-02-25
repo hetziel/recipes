@@ -319,7 +319,7 @@
                     <div class="ab-row text-danger">
                       <span>Pendiente:</span>
                       <span class="ab-prices"><strong>${{ Math.max(0, sale.total_amount - (sale.paid_amount ||
-                          0)).toFixed(2) }}</strong> <small>Bs. {{ (Math.max(0, sale.total_amount - (sale.paid_amount ||
+                        0)).toFixed(2) }}</strong> <small>Bs. {{ (Math.max(0, sale.total_amount - (sale.paid_amount ||
                             0)) * dolarRate).toFixed(2) }}</small></span>
                     </div>
                   </div>
@@ -679,7 +679,7 @@
                 <div class="meta-item">
                   <span class="label">Fecha:</span>
                   <span class="value">{{ selectedSaleForInvoice ? formatDate(selectedSaleForInvoice.created_at) : ''
-                  }}</span>
+                    }}</span>
                 </div>
               </div>
             </div>
@@ -751,7 +751,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, inject, watch, type Ref, shallowRef } from 'vue'
-import { collection, query, getDocs, addDoc, updateDoc, doc, orderBy, deleteDoc, runTransaction } from 'firebase/firestore'
+import { collection, query, getDocs, addDoc, updateDoc, doc, orderBy, deleteDoc, runTransaction, deleteField } from 'firebase/firestore'
 import { db } from '../firebase.config'
 import Icon from '@/components/ui/Icon.vue'
 import CustomerSelector from '@/components/sales/CustomerSelector.vue'
@@ -1349,7 +1349,7 @@ async function createSale() {
       delivery_status: newSale.value.delivery_status,
       purchase_date: newSale.value.purchase_date,
       payment_due_date: newSale.value.payment_due_date,
-      paid_amount: newSale.value.status === 'abono' ? newSale.value.paid_amount : undefined
+      paid_amount: newSale.value.status === 'abono' ? newSale.value.paid_amount : deleteField() as unknown as number
     }
 
     if (isEditingSale.value && editingSaleId.value) {
