@@ -17,6 +17,9 @@
         <button @click="openSaleModal" class="btn btn-primary ml-2">
           <Icon name="plus" /> Nueva Venta
         </button>
+        <button @click="migratePorPagar" class="btn btn-warning ml-2" title="Migrar 'por pagar' a 'pendiente'">
+          <Icon name="swap-vertical" /> Migrar Estado
+        </button>
       </div>
     </header>
 
@@ -136,8 +139,7 @@
                     :class="{ active: statusFilter === 'pendiente' }">Pendientes</button>
                   <button @click="statusFilter = 'pagado'"
                     :class="{ active: statusFilter === 'pagado' }">Pagados</button>
-                  <button @click="statusFilter = 'por pagar'" :class="{ active: statusFilter === 'por pagar' }">Por
-                    Pagar</button>
+                  <button @click="statusFilter = 'abono'" :class="{ active: statusFilter === 'abono' }">Abonos</button>
                 </div>
                 <div class="pill-filters">
                   <button @click="timeFilter = 'day'" :class="{ active: timeFilter === 'day' }">Día</button>
@@ -220,14 +222,14 @@
               <div class="value">{{ stats.paid }}</div>
             </div>
           </div>
-          <div class="glass-card mini-stat to-pay" @click="statusFilter = 'por pagar'"
-            :class="{ active: statusFilter === 'por pagar' }">
+          <div class="glass-card mini-stat to-pay" @click="statusFilter = 'abono'"
+            :class="{ active: statusFilter === 'abono' }">
             <div class="mini-icon">
               <Icon name="wallet-outline" />
             </div>
             <div class="mini-content">
-              <label>Por Pagar</label>
-              <div class="value">{{ stats.toPay }}</div>
+              <label>Abonos</label>
+              <div class="value">{{ stats.abono }}</div>
             </div>
           </div>
           <div class="glass-card mini-stat all" @click="statusFilter = 'all'"
@@ -283,8 +285,9 @@
                   <span class="c-date">
                     <Icon name="calendar" /> Venta: {{ formatDate(sale.purchase_date || sale.created_at) }}
                   </span>
-                  <div v-if="sale.status === 'por pagar' || sale.status === 'pendiente'" class="due-alert"
-                    :class="getDueClass(sale.payment_due_date)">
+                  <div
+                    v-if="(sale.status as string) === 'por pagar' || sale.status === 'pendiente' || sale.status === 'abono'"
+                    class="due-alert" :class="getDueClass(sale.payment_due_date)">
                     <Icon :name="getDueIcon(sale.payment_due_date)" />
                     {{ getDueMessage(sale.payment_due_date) }}
                   </div>
@@ -309,12 +312,15 @@
                 <div class="status-stack">
                   <span class="label">Pago</span>
                   <span :class="['modern-badge', sale.status]" @click="openStatusModal(sale)">
-                    {{ formatStatus(sale.status) }}
+                    {{ formatStatus(sale.status) }} <span v-if="sale.status === 'abono'">(${{
+                      sale.paid_amount?.toFixed(2) }})</span>
                   </span>
                 </div>
                 <div class="status-stack mt-2">
                   <span class="label">Entrega</span>
-                  <span :class="['modern-badge', sale.delivery_status || 'por_entregar']" @click="openDeliveryStatusModal(sale)">
+                  <span
+                    :class="['modern-badge', sale.delivery_status ? sale.delivery_status.replace(/\s+/g, '-') : 'en-preparacion']"
+                    @click="openDeliveryStatusModal(sale)">
                     {{ formatDeliveryStatus(sale.delivery_status) }}
                   </span>
                 </div>
@@ -483,17 +489,24 @@
                 <div class="form-group">
                   <label>Estado de Pago Inicial</label>
                   <select v-model="newSale.status" class="form-select">
-                    <option value="pendiente">Pendiente</option>
+                    <option value="pendiente">Pendiente (Por Pagar)</option>
                     <option value="pagado">Pagado</option>
-                    <option value="por pagar">Por Pagar</option>
+                    <option value="abono">Pago Parcial (Abono)</option>
                     <option value="cancelado">Cancelado</option>
                   </select>
+                </div>
+                <div v-if="newSale.status === 'abono'" class="form-group">
+                  <label>Monto Abonado ($)</label>
+                  <input v-model.number="newSale.paid_amount" type="number" step="0.01" class="form-input" />
                 </div>
                 <div class="form-group">
                   <label>Estado de Entrega</label>
                   <select v-model="newSale.delivery_status" class="form-select">
-                    <option value="por_entregar">Por Entregar</option>
+                    <option value="en preparación">En Preparación</option>
+                    <option value="listo para envio">Listo para Envío</option>
+                    <option value="enviado">Enviado</option>
                     <option value="entregado">Entregado</option>
+                    <option value="devuelto">Devuelto</option>
                     <option value="cancelado">Cancelado</option>
                   </select>
                 </div>
@@ -510,17 +523,24 @@
                 <div class="form-group">
                   <label>Estado de Pago</label>
                   <select v-model="newSale.status" class="form-select">
-                    <option value="pendiente">Pendiente</option>
+                    <option value="pendiente">Pendiente (Por Pagar)</option>
                     <option value="pagado">Pagado</option>
-                    <option value="por pagar">Por Pagar</option>
+                    <option value="abono">Pago Parcial (Abono)</option>
                     <option value="cancelado">Cancelado</option>
                   </select>
+                </div>
+                <div v-if="newSale.status === 'abono'" class="form-group">
+                  <label>Monto Abonado ($)</label>
+                  <input v-model.number="newSale.paid_amount" type="number" step="0.01" class="form-input" />
                 </div>
                 <div class="form-group">
                   <label>Estado de Entrega</label>
                   <select v-model="newSale.delivery_status" class="form-select">
-                    <option value="por_entregar">Por Entregar</option>
+                    <option value="en preparación">En Preparación</option>
+                    <option value="listo para envio">Listo para Envío</option>
+                    <option value="enviado">Enviado</option>
                     <option value="entregado">Entregado</option>
+                    <option value="devuelto">Devuelto</option>
                     <option value="cancelado">Cancelado</option>
                   </select>
                 </div>
@@ -532,7 +552,8 @@
                 </div>
               </div>
               <div class="alert-info mt-4">
-                <Icon name="information-outline" /> Los detalles de productos y montos de esta venta están vinculados a un lote de producción de pollos.
+                <Icon name="information-outline" /> Los detalles de productos y montos de esta venta están vinculados a
+                un lote de producción de pollos.
               </div>
             </template>
           </div>
@@ -565,7 +586,7 @@
         </header>
         <div class="modal-body">
           <div class="status-grid">
-            <button v-for="status in (['pendiente', 'pagado', 'por pagar', 'cancelado'] as SaleStatus[])" :key="status"
+            <button v-for="status in (['pendiente', 'pagado', 'abono', 'cancelado'] as SaleStatus[])" :key="status"
               @click="updateSaleStatus(status)"
               :class="['status-option', status, { active: currentSale?.status === status }]">
               {{ formatStatus(status) }}
@@ -586,9 +607,10 @@
         </header>
         <div class="modal-body">
           <div class="status-grid">
-            <button v-for="status in (['por_entregar', 'entregado', 'cancelado'] as DeliveryStatus[])" :key="status"
-              @click="updateDeliveryStatus(status)"
-              :class="['status-option', status, { active: currentSale?.delivery_status === status }]">
+            <button
+              v-for="status in (['en preparación', 'listo para envio', 'enviado', 'entregado', 'devuelto', 'cancelado'] as DeliveryStatus[])"
+              :key="status" @click="updateDeliveryStatus(status)"
+              :class="['status-option', status.replace(/\s+/g, '-'), { active: currentSale?.delivery_status === status }]">
               {{ formatDeliveryStatus(status) }}
             </button>
           </div>
@@ -636,7 +658,7 @@
                 <div class="meta-item">
                   <span class="label">Fecha:</span>
                   <span class="value">{{ selectedSaleForInvoice ? formatDate(selectedSaleForInvoice.created_at) : ''
-                    }}</span>
+                  }}</span>
                 </div>
               </div>
             </div>
@@ -752,9 +774,10 @@ const newSale = ref({
   customer_name: '',
   customer_phone: '',
   status: 'pendiente' as SaleStatus,
-  delivery_status: 'por_entregar' as DeliveryStatus,
+  delivery_status: 'en preparación' as DeliveryStatus,
   purchase_date: new Date().toISOString().split('T')[0],
   payment_due_date: new Date().toISOString().split('T')[0],
+  paid_amount: undefined as number | undefined
 })
 const newSaleItems = ref<SaleItem[]>([])
 const selectedScenarioId = ref('')
@@ -813,9 +836,9 @@ const filteredSales = computed(() => {
 
 const stats = computed(() => {
   return {
-    pending: sales.value.filter(s => s.status === 'pendiente').length,
+    pending: sales.value.filter(s => s.status === 'pendiente' || (s.status as string) === 'por pagar').length,
     paid: sales.value.filter(s => s.status === 'pagado').length,
-    toPay: sales.value.filter(s => s.status === 'por pagar').length,
+    abono: sales.value.filter(s => s.status === 'abono').length,
   }
 })
 
@@ -833,7 +856,10 @@ const totalFinancials = computed(() => {
     // Totales globales
     if (sale.status === 'pagado') {
       paidRevenue += sale.total_amount
-    } else if (sale.status === 'pendiente' || sale.status === 'por pagar') {
+    } else if (sale.status === 'abono') {
+      paidRevenue += (sale.paid_amount || 0)
+      pendingRevenue += (sale.total_amount - (sale.paid_amount || 0))
+    } else if (sale.status === 'pendiente' || (sale.status as string) === 'por pagar') {
       pendingRevenue += sale.total_amount
     }
 
@@ -911,6 +937,17 @@ const itemPreviewSubtotal = computed(() => {
   if (!selectedScenarioId.value) return 0
   return itemPreviewPriceUSD.value * (itemQuantity.value || 0)
 })
+
+async function migratePorPagar() {
+  const toUpdate = sales.value.filter(s => (s.status as string) === 'por pagar');
+  if (!toUpdate.length) return alert('No hay ventas "por pagar" (ya fueron migradas o no existen).');
+  if (!confirm(`¿Actualizar ${toUpdate.length} ventas de "por pagar" a "pendiente"?`)) return;
+  for (const s of toUpdate) {
+    if (s.id) await updateDoc(doc(db, 'sales', s.id), { status: 'pendiente' })
+  }
+  await loadData()
+  alert('Migración completada exitosamente.');
+}
 
 // WATCHERS
 watch(selectedScenarioId, (newId) => {
@@ -1091,7 +1128,8 @@ function formatStatus(status: string) {
   const map: Record<string, string> = {
     pendiente: 'Pendiente',
     pagado: 'Pagado',
-    'por pagar': 'Por Pagar',
+    'por pagar': 'Por Pagar (Antiguo)',
+    abono: 'Abono',
     cancelado: 'Cancelado'
   }
   return map[status] || status
@@ -1099,11 +1137,15 @@ function formatStatus(status: string) {
 
 function formatDeliveryStatus(status?: string) {
   const map: Record<string, string> = {
-    'por_entregar': 'Por Entregar',
+    'por_entregar': 'Por Entregar (Antiguo)',
+    'en preparación': 'En Preparación',
+    'listo para envio': 'Listo para Envío',
+    'enviado': 'Enviado',
     'entregado': 'Entregado',
+    'devuelto': 'Devuelto',
     'cancelado': 'Cancelado'
   }
-  return map[status || 'por_entregar'] || 'Por Entregar'
+  return map[status || 'en preparación'] || 'En Preparación'
 }
 
 function formatDate(dateStr: string) {
@@ -1228,10 +1270,11 @@ function resetSaleForm() {
   newSale.value = {
     customer_name: '',
     customer_phone: '',
-    status: 'pendiente',
-    delivery_status: 'por_entregar',
+    status: 'pendiente' as SaleStatus,
+    delivery_status: 'en preparación' as DeliveryStatus,
     purchase_date: new Date().toISOString().split('T')[0],
     payment_due_date: new Date().toISOString().split('T')[0],
+    paid_amount: undefined,
   }
   newSaleItems.value = []
   selectedScenarioId.value = ''
@@ -1249,10 +1292,11 @@ function editSale(sale: Sale) {
   newSale.value = {
     customer_name: sale.customer_name,
     customer_phone: sale.customer_phone || customers.value.find(c => c.id === sale.customer_id)?.phone || '',
-    status: sale.status,
-    delivery_status: sale.delivery_status || 'por_entregar',
+    status: sale.status as SaleStatus,
+    delivery_status: (sale.delivery_status || 'en preparación') as DeliveryStatus,
     purchase_date: sale.purchase_date || sale.created_at.split('T')[0],
     payment_due_date: sale.payment_due_date,
+    paid_amount: sale.paid_amount,
   }
   newSaleItems.value = JSON.parse(JSON.stringify(sale.items))
   showSaleModal.value = true
@@ -1284,6 +1328,7 @@ async function createSale() {
       delivery_status: newSale.value.delivery_status,
       purchase_date: newSale.value.purchase_date,
       payment_due_date: newSale.value.payment_due_date,
+      paid_amount: newSale.value.status === 'abono' ? newSale.value.paid_amount : undefined
     }
 
     if (isEditingSale.value && editingSaleId.value) {
